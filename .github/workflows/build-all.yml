@@ -39,12 +39,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist-windows
-          $exe = Get-ChildItem -Path build-win -Filter "*.exe" -Recurse | Where-Object { $_.FullName -notmatch "vcpkg|CMakeFiles" } | Select-Object -First 1
+          $exe = Get-ChildItem -Path build-win -Filter "*Mix Practice Studio*.exe" -Recurse | Select-Object -First 1
           if ($null -ne $exe) {
-            Write-Host "Found executable: $($exe.FullName)"
+            Write-Host "Found target app: $($exe.FullName)"
             Copy-Item -Path $exe.FullName -Destination dist-windows/
           } else {
-            Write-Error "Could not find built .exe file"
+            Write-Error "Could not find Mix Practice Studio.exe"
             exit 1
           }
           Compress-Archive -Path dist-windows/* -DestinationPath MixPracticeStudio-Windows-x64.zip -Force
