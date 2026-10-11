@@ -1,0 +1,2 @@
+rootProject.name = "MixPracticeStudio"
+include ':app'

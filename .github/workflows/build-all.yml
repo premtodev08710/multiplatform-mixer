@@ -1,0 +1,129 @@
+name: Build Multiplatform (Windows EXE, macOS DMG, Android APK)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  # =========================================================================
+  # 1. Build Windows (.exe)
+  # =========================================================================
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup submodules / JUCE
+        shell: bash
+        run: |
+          if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
+            git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git external/JUCE
+          fi
+
+      - name: Configure CMake for Windows
+        run: >
+          cmake -B build-win
+          -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Windows Standalone App
+        run: cmake --build build-win --config Release --target MixPracticeStudio
+
+      - name: Package Windows Binary
+        shell: bash
+        run: |
+          mkdir -p dist-windows
+          cp -r "build-win/MixPracticeStudio_artefacts/Release/Mix Practice Studio.exe" dist-windows/
+          cd dist-windows && 7z a "../MixPracticeStudio-Windows-x64.zip" *
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-Windows-x64
+          path: MixPracticeStudio-Windows-x64.zip
+
+  # =========================================================================
+  # 2. Build macOS (.app / .zip)
+  # =========================================================================
+  build-macos:
+    name: Build macOS (.app)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup submodules / JUCE
+        run: |
+          if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
+            git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git external/JUCE
+          fi
+
+      - name: Configure CMake
+        run: cmake -B build-mac -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build macOS App
+        run: cmake --build build-mac --config Release --target MixPracticeStudio
+
+      - name: Package macOS App
+        run: |
+          ditto -c -k --keepParent "build-mac/MixPracticeStudio_artefacts/Release/Mix Practice Studio.app" MixPracticeStudio-macOS.zip
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-macOS
+          path: MixPracticeStudio-macOS.zip
+
+  # =========================================================================
+  # 3. Build Android (.apk)
+  # =========================================================================
+  build-android:
+    name: Build Android (.apk)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Setup submodules / JUCE
+        run: |
+          if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
+            git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git external/JUCE
+          fi
+
+      - name: Configure CMake for Android
+        run: >
+          cmake -B build-android
+          -DCMAKE_SYSTEM_NAME=Android
+          -DCMAKE_SYSTEM_VERSION=24
+          -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+          -DCMAKE_ANDROID_NDK=$ANDROID_NDK_HOME
+          -DCMAKE_ANDROID_STL_TYPE=c++_static
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Android APK
+        run: cmake --build build-android --config Release
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-Android-APK
+          path: build-android/**/*.apk
