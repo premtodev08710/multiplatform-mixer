@@ -131,10 +131,10 @@ jobs:
       - name: Build Android APK with Gradle
         run: |
           cd android
-          gradle assembleRelease --stacktrace
+          gradle assembleDebug --stacktrace
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MixPracticeStudio-Android-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/debug/*.apk
