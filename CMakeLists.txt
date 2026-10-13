@@ -20,6 +20,7 @@ juce_add_gui_app(MixPracticeStudio
     COMPANY_NAME "Mix Practice Studio"
     BUNDLE_ID "com.mixpractice.studio"
     VERSION 1.0.0
+    ICON_BIG Resources/app_icon.png
 )
 
 target_sources(MixPracticeStudio PRIVATE
@@ -45,6 +46,10 @@ target_sources(MixPracticeStudio PRIVATE
     # Model & Project Storage
     Source/Model/ProjectModel.h
     Source/Model/ProjectModel.cpp
+
+    # Network Remote Control (Behringer X32 OSC Protocol)
+    Source/Network/X32OscClient.h
+    Source/Network/X32OscClient.cpp
 
     # UI Components
     Source/UI/ConsoleLookAndFeel.h
