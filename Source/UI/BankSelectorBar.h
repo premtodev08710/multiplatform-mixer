@@ -29,7 +29,7 @@ public:
     BankSelectorBar();
     ~BankSelectorBar() override = default;
 
-    void setSelectedBank (int bankIndex);
+    void setSelectedBank (int bankIndex, bool sendNotification = true);
     int getSelectedBank() const noexcept { return selectedBank; }
 
     void paint (juce::Graphics& g) override;

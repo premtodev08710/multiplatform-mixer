@@ -21,6 +21,7 @@ public:
 
     int getSelectedChannel() const noexcept { return selectedChannel; }
     void setSelectedChannel (int ch);
+    int getCurrentBank() const noexcept { return currentBank; }
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -35,6 +36,7 @@ public:
 
     std::function<void (int)> onChannelSelected;
     std::function<void (int)> onOpenDetail;
+    std::function<void (ChannelStripComponent::StripType, int)> onOpenDetailStrip;
 
 private:
     void timerCallback() override;

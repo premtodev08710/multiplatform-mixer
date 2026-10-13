@@ -4,16 +4,351 @@
 namespace mps
 {
 
+namespace
+{
+struct GenericFxControl
+{
+    const char* name;
+    double minimum;
+    double maximum;
+    double step;
+    const char* unit;
+    bool logarithmic = false;
+    bool mix = false;
+    int parameterIndex = -1;
+};
+
+GenericFxControl getFxControlForType (FxType type, int index);
+int getFxParameterCountForType (FxType type);
+
+GenericFxControl getGenericFxControl (FxCategory category, int index)
+{
+    static const GenericFxControl reverb[] = {
+        { "PRE DEL", 0.0, 200.0, 1.0, "ms" }, { "DECAY", 0.1, 20.0, 0.1, "s" },
+        { "SIZE", 0.0, 100.0, 1.0, "%" }, { "DAMPING", 0.0, 100.0, 1.0, "%" },
+        { "DIFFUSE", 0.0, 100.0, 1.0, "%" }, { "LEVEL", -40.0, 10.0, 0.5, "dB" },
+        { "LO CUT", 20.0, 1000.0, 5.0, "Hz", true }, { "HI CUT", 1000.0, 20000.0, 100.0, "Hz", true },
+        { "BASS MULT", 0.0, 200.0, 1.0, "%" }, { "SPREAD", 0.0, 100.0, 1.0, "%" },
+        { "SHAPE", 0.0, 100.0, 1.0, "%" }, { "MOD SPEED", 0.0, 10.0, 0.1, "Hz" },
+        { "TAIL GAIN", -60.0, 6.0, 0.5, "dB" }, { "ECHO DELAY", 0.0, 1000.0, 1.0, "ms" },
+        { "FEEDBACK", 0.0, 100.0, 1.0, "%" }, { "REFL DELAY", 0.0, 1000.0, 1.0, "ms" },
+        { "REFL GAIN", -60.0, 6.0, 0.5, "dB" }, { "MOD DEPTH", 0.0, 100.0, 1.0, "%" }
+    };
+    static const GenericFxControl delay[] = {
+        { "TIME", 0.0, 3000.0, 1.0, "ms" }, { "LO CUT", 20.0, 1000.0, 5.0, "Hz", true },
+        { "HI CUT", 1000.0, 20000.0, 100.0, "Hz", true }, { "FACTOR L", 0.0, 4.0, 0.01, "x" },
+        { "FACTOR R", 0.0, 4.0, 0.01, "x" }, { "OFFSET LR", -100.0, 100.0, 1.0, "ms" },
+        { "FEED LO CUT", 20.0, 1000.0, 5.0, "Hz", true }, { "FEED HI CUT", 1000.0, 20000.0, 100.0, "Hz", true },
+        { "FEED L", 0.0, 100.0, 1.0, "%" }, { "FEED R", 0.0, 100.0, 1.0, "%" },
+        { "MODE", 0.0, 3.0, 1.0, "" }, { "CROSS FEED", 0.0, 1.0, 1.0, "" },
+        { "TIME A", 0.0, 3000.0, 1.0, "ms" }, { "GAIN A", -60.0, 6.0, 0.5, "dB" },
+        { "PAN A", -100.0, 100.0, 1.0, "%" }, { "TIME B", 0.0, 3000.0, 1.0, "ms" },
+        { "GAIN B", -60.0, 6.0, 0.5, "dB" }, { "PAN B", -100.0, 100.0, 1.0, "%" }
+    };
+    static const GenericFxControl modulation[] = {
+        { "SPEED", 0.01, 20.0, 0.01, "Hz", true }, { "DEPTH", 0.0, 100.0, 1.0, "%" },
+        { "PHASE", 0.0, 360.0, 1.0, "deg" }, { "FEEDBACK", -100.0, 100.0, 1.0, "%" },
+        { "DELAY", 0.0, 100.0, 0.1, "ms" }, { "WIDTH", 0.0, 100.0, 1.0, "%" },
+        { "LO CUT", 20.0, 1000.0, 5.0, "Hz", true }, { "HI CUT", 1000.0, 20000.0, 100.0, "Hz", true },
+        { "ENV ATTACK", 0.1, 1000.0, 1.0, "ms" }, { "ENV HOLD", 0.0, 1000.0, 1.0, "ms" },
+        { "ENV RELEASE", 1.0, 2000.0, 1.0, "ms" }, { "RESONANCE", 0.0, 100.0, 1.0, "%" },
+        { "ENV SPEED", 0.0, 100.0, 1.0, "%" }, { "ENV DEPTH", 0.0, 100.0, 1.0, "%" },
+        { "LOW SPEED", 0.1, 20.0, 0.1, "Hz" }, { "HIGH SPEED", 0.1, 20.0, 0.1, "Hz" },
+        { "ACCEL", 0.0, 100.0, 1.0, "%" }, { "BALANCE", -100.0, 100.0, 1.0, "%" }
+    };
+    static const GenericFxControl pitch[] = {
+        { "SEMITONES", -12.0, 12.0, 0.01, "st" }, { "FINE", -100.0, 100.0, 1.0, "cent" },
+        { "DELAY L", 0.0, 1000.0, 1.0, "ms" }, { "DELAY R", 0.0, 1000.0, 1.0, "ms" },
+        { "FEEDBACK", 0.0, 100.0, 1.0, "%" }, { "MIX", 0.0, 100.0, 1.0, "%" }
+    };
+    static const GenericFxControl dynamics[] = {
+        { "INPUT GAIN", -24.0, 24.0, 0.5, "dB" }, { "THRESHOLD", -60.0, 0.0, 0.5, "dB" },
+        { "ATTACK", 0.05, 1000.0, 0.05, "ms", true }, { "RELEASE", 0.05, 2000.0, 0.05, "ms", true },
+        { "OUTPUT GAIN", -24.0, 24.0, 0.5, "dB" }, { "RATIO", 1.0, 20.0, 0.1, ":1" },
+        { "KNEE", 0.0, 20.0, 0.5, "dB" }, { "BIAS", -100.0, 100.0, 1.0, "%" },
+        { "TIME CONST", 1.0, 6.0, 1.0, "" }, { "SQUEEZE", 0.0, 100.0, 1.0, "%" },
+        { "STEREO LINK", 0.0, 1.0, 1.0, "" }, { "MIX", 0.0, 100.0, 1.0, "%" },
+        { "BAND 1", -24.0, 24.0, 0.5, "dB" }, { "BAND 2", -24.0, 24.0, 0.5, "dB" },
+        { "BAND 3", -24.0, 24.0, 0.5, "dB" }, { "BAND 4", -24.0, 24.0, 0.5, "dB" },
+        { "BAND 5", -24.0, 24.0, 0.5, "dB" }, { "BAND 6", -24.0, 24.0, 0.5, "dB" }
+    };
+    static const GenericFxControl tubeEq[] = {
+        { "GAIN", -12.0, 12.0, 0.5, "dB" }, { "LO BOOST", 0.0, 10.0, 0.1, "" },
+        { "LO ATT", 0.0, 10.0, 0.1, "" }, { "LO FREQ", 20.0, 1000.0, 1.0, "Hz", true },
+        { "MID GAIN", -12.0, 12.0, 0.5, "dB" }, { "MID FREQ", 200.0, 10000.0, 10.0, "Hz", true },
+        { "HI BOOST", 0.0, 10.0, 0.1, "" }, { "HI ATT", 0.0, 10.0, 0.1, "" },
+        { "HI FREQ", 1000.0, 20000.0, 100.0, "Hz", true }, { "BANDWIDTH", 0.0, 10.0, 0.1, "" },
+        { "TRANSFORMER", 0.0, 1.0, 1.0, "" }, { "OUTPUT", -24.0, 24.0, 0.5, "dB" }
+    };
+    static const GenericFxControl utility[] = {
+        { "OUTPUT GAIN", -24.0, 24.0, 0.5, "dB" }, { "BALANCE", -100.0, 100.0, 1.0, "%" },
+        { "SPREAD", 0.0, 200.0, 1.0, "%" }, { "CENTER DIST", 0.0, 100.0, 1.0, "%" },
+        { "DIRECT", 0.0, 100.0, 1.0, "%" }, { "RANGE", 0.0, 1.0, 1.0, "" },
+        { "DRIVE", 0.0, 100.0, 1.0, "%" }, { "BASS", 0.0, 100.0, 1.0, "%" },
+        { "MID", 0.0, 100.0, 1.0, "%" }, { "TREBLE", 0.0, 100.0, 1.0, "%" },
+        { "PRESENCE", 0.0, 100.0, 1.0, "%" }, { "MASTER", 0.0, 100.0, 1.0, "%" },
+        { "LOW FREQ", 20.0, 1000.0, 1.0, "Hz", true }, { "MID FREQ", 200.0, 10000.0, 10.0, "Hz", true },
+        { "HI FREQ", 1000.0, 20000.0, 100.0, "Hz", true }, { "M/S INPUT", 0.0, 1.0, 1.0, "" },
+        { "M/S OUTPUT", 0.0, 1.0, 1.0, "" }, { "CABINET", 0.0, 10.0, 1.0, "" }
+    };
+
+    const GenericFxControl* specs = utility;
+    int count = (int) (sizeof (utility) / sizeof (utility[0]));
+    switch (category)
+    {
+        case FxCategory::Reverb: specs = reverb; count = (int) (sizeof (reverb) / sizeof (reverb[0])); break;
+        case FxCategory::Delay: specs = delay; count = (int) (sizeof (delay) / sizeof (delay[0])); break;
+        case FxCategory::Modulation: specs = modulation; count = (int) (sizeof (modulation) / sizeof (modulation[0])); break;
+        case FxCategory::Pitch: specs = pitch; count = (int) (sizeof (pitch) / sizeof (pitch[0])); break;
+        case FxCategory::GraphicEQ: specs = tubeEq; count = (int) (sizeof (tubeEq) / sizeof (tubeEq[0])); break;
+        case FxCategory::PremiumDynamics: specs = dynamics; count = (int) (sizeof (dynamics) / sizeof (dynamics[0])); break;
+        case FxCategory::PremiumTubeEq: specs = tubeEq; count = (int) (sizeof (tubeEq) / sizeof (tubeEq[0])); break;
+        case FxCategory::PremiumUtilityAmp: break;
+    }
+    return specs[std::max (0, std::min (count - 1, index))];
+}
+
+int getGenericFxParameterCount (FxCategory category)
+{
+    switch (category)
+    {
+        case FxCategory::Reverb: return 18;
+        case FxCategory::Delay: return 18;
+        case FxCategory::Modulation: return 18;
+        case FxCategory::Pitch: return 6;
+        case FxCategory::GraphicEQ: return 0;
+        case FxCategory::PremiumDynamics: return 18;
+        case FxCategory::PremiumTubeEq: return 12;
+        case FxCategory::PremiumUtilityAmp: return 18;
+    }
+    return 18;
+}
+
+GenericFxControl getFxControlForType (FxType type, int index)
+{
+    // The combined algorithms expose their own pages in X32-Mix.  Keeping
+    // these definitions per type prevents a generic delay/reverb page from
+    // silently showing the wrong units or writing the wrong parameter.
+    static const GenericFxControl delayChamber[] = {
+        { "DELAY", 0.0, 3000.0, 1.0, "ms" }, { "FEEDBACK", 0.0, 95.0, 1.0, "%" },
+        { "CHAMBER", 0.0, 100.0, 1.0, "%" }, { "DECAY", 0.1, 20.0, 0.1, "s" },
+        { "PRE DEL", 0.0, 250.0, 1.0, "ms" }, { "DAMPING", 0.0, 100.0, 1.0, "%" },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl modChamber[] = {
+        { "SPEED", 0.01, 20.0, 0.01, "Hz", true }, { "DEPTH", 0.0, 100.0, 1.0, "%" },
+        { "CHORUS", 0.0, 100.0, 1.0, "%" }, { "DECAY", 0.1, 20.0, 0.1, "s" },
+        { "PRE DEL", 0.0, 250.0, 1.0, "ms" }, { "DAMPING", 0.0, 100.0, 1.0, "%" },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl delayMod[] = {
+        { "TIME", 0.0, 3000.0, 1.0, "ms" }, { "FEEDBACK", 0.0, 95.0, 1.0, "%" },
+        { "MOD SPEED", 0.01, 20.0, 0.01, "Hz", true }, { "MOD DEPTH", 0.0, 100.0, 1.0, "%" },
+        { "LO CUT", 20.0, 1000.0, 5.0, "Hz", true }, { "HI CUT", 1000.0, 20000.0, 100.0, "Hz", true },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl deEsser[] = {
+        { "FREQUENCY", 2000.0, 20000.0, 10.0, "Hz", true },
+        { "THRESHOLD", -60.0, 0.0, 0.5, "dB" }, { "RATIO", 1.0, 20.0, 0.1, ":1" },
+        { "ATTACK", 0.05, 100.0, 0.05, "ms", true }, { "RELEASE", 5.0, 1000.0, 1.0, "ms", true },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl reverbControls[] = {
+        { "PRE DELAY", 0.0, 250.0, 1.0, "ms", false, false, 1 },
+        { "DECAY", 0.1, 20.0, 0.1, "s", false, false, 0 },
+        { "DAMPING", 0.0, 100.0, 1.0, "%", false, false, 2 },
+        { "SIZE", 0.0, 100.0, 1.0, "%", false, false, 3 },
+        { "DIFFUSION", 0.0, 100.0, 1.0, "%", false, false, 4 },
+        { "LEVEL", -40.0, 10.0, 0.5, "dB", false, false, 5 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl xtecControls[] = {
+        { "LO BOOST", 0.0, 10.0, 0.1, "dB", false, false, 0 },
+        { "LO FREQ", 20.0, 1000.0, 1.0, "Hz", true, false, 1 },
+        { "LO ATTEN", 0.0, 10.0, 0.1, "dB", false, false, 2 },
+        { "HI WIDTH", 0.0, 10.0, 0.1, "", false, false, 3 },
+        { "HI BOOST", 0.0, 10.0, 0.1, "dB", false, false, 4 },
+        { "HI FREQ", 1000.0, 20000.0, 100.0, "Hz", true, false, 5 }
+    };
+    static const GenericFxControl limiterControls[] = {
+        { "IN GAIN", 0.0, 24.0, 0.1, "dB", false, false, 0 },
+        { "OUT GAIN", -12.0, 0.0, 0.1, "dB", false, false, 1 },
+        { "SQUEEZE", 0.0, 100.0, 1.0, "%", false, false, 5 },
+        { "ATTACK", 0.1, 100.0, 0.1, "ms", false, false, 3 },
+        { "RELEASE", 10.0, 1000.0, 1.0, "ms", false, false, 2 },
+        { "KNEE", 0.0, 1.0, 0.01, "", false, false, 4 }
+    };
+    static const GenericFxControl la2aControls[] = {
+        { "GAIN", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "PEAK REDUCT", 0.0, 100.0, 1.0, "%", false, false, 0 }
+    };
+    static const GenericFxControl fairControls[] = {
+        { "THRESHOLD", 0.0, 100.0, 1.0, "%", false, false, 0 },
+        { "INPUT GAIN", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "TIME CONST", 1.0, 6.0, 1.0, "", false, false, 2 },
+        { "OUTPUT", 0.0, 100.0, 1.0, "%", false, false, 3 }
+    };
+    static const GenericFxControl ampControls[] = {
+        { "DRIVE", 0.0, 100.0, 1.0, "%", false, false, 0 },
+        { "BASS", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "MIDDLE", 0.0, 100.0, 1.0, "%", false, false, 2 },
+        { "TREBLE", 0.0, 100.0, 1.0, "%", false, false, 3 },
+        { "PRESENCE", 0.0, 100.0, 1.0, "%", false, false, 4 },
+        { "MASTER", 0.0, 100.0, 1.0, "%", false, false, 5 }
+    };
+    static const GenericFxControl tubeControls[] = {
+        { "DRIVE", 0.0, 100.0, 1.0, "%", false, false, 0 },
+        { "BIAS", 0.0, 100.0, 1.0, "%", false, false, 2 },
+        { "SATURATION", 0.0, 100.0, 1.0, "%", false, false, 3 },
+        { "OUTPUT", -20.0, 20.0, 0.5, "dB", false, false, 1 }
+    };
+    static const GenericFxControl stereoDelayControls[] = {
+        { "TIME L", 10.0, 2000.0, 1.0, "ms", false, false, 0 },
+        { "TIME R", 10.0, 2000.0, 1.0, "ms", false, false, 1 },
+        { "FEEDBACK", 0.0, 95.0, 1.0, "%", false, false, 2 },
+        { "PING PONG", 0.0, 1.0, 1.0, "", false, false, 3 },
+        { "HI CUT", 0.0, 100.0, 1.0, "%", false, false, 4 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl enhancerControls[] = {
+        { "BASS", -100.0, 100.0, 1.0, "%", false, false, 0 },
+        { "PROCESS", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "TREBLE", -100.0, 100.0, 1.0, "%", false, false, 2 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl exciterControls[] = {
+        { "HARMONICS", 0.0, 100.0, 1.0, "%", false, false, 0 },
+        { "TUNE", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl imagerControls[] = {
+        { "ST SPREAD", 0.0, 200.0, 1.0, "%", false, false, 0 },
+        { "CENTER DIST", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "BALANCE", -100.0, 100.0, 1.0, "%", false, false, 2 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+    static const GenericFxControl soundMaxerControls[] = {
+        { "LO CONTOUR", 0.0, 100.0, 1.0, "%", false, false, 0 },
+        { "PROCESS", 0.0, 100.0, 1.0, "%", false, false, 1 },
+        { "MIX", 0.0, 100.0, 1.0, "%", false, true }
+    };
+
+    const GenericFxControl* specs = nullptr;
+    int count = 0;
+    switch (type)
+    {
+        case FxType::HallReverb: case FxType::AmbienceReverb: case FxType::RichPlateReverb:
+        case FxType::RoomReverb: case FxType::ChamberReverb: case FxType::PlateReverb:
+        case FxType::VintageReverb: case FxType::VintageRoomReverb: case FxType::GatedReverb:
+        case FxType::ReverseReverb:
+            specs = reverbControls; count = 7; break;
+        case FxType::StereoXtecEQ1: case FxType::DualXtecEQ1:
+        case FxType::StereoXtecEQ5: case FxType::DualXtecEQ5:
+            specs = xtecControls; count = 6; break;
+        case FxType::StereoPrecisionLimiter:
+            specs = limiterControls; count = 6; break;
+        case FxType::StereoLeisureCompressor: case FxType::DualLeisureCompressor:
+            specs = la2aControls; count = 2; break;
+        case FxType::FairCompressor: case FxType::MsFairCompressor: case FxType::DualFairCompressor:
+            specs = fairControls; count = 4; break;
+        case FxType::StereoGuitarAmp: case FxType::DualGuitarAmp:
+            specs = ampControls; count = 6; break;
+        case FxType::StereoTubeStage: case FxType::DualTubeStage:
+            specs = tubeControls; count = 4; break;
+        case FxType::StereoDelay:
+            specs = stereoDelayControls; count = 6; break;
+        case FxType::StereoEnhancer: case FxType::DualEnhancer:
+            specs = enhancerControls; count = 4; break;
+        case FxType::StereoExciter: case FxType::DualExciter:
+            specs = exciterControls; count = 3; break;
+        case FxType::StereoImager: case FxType::EdisonEX1:
+            specs = imagerControls; count = 4; break;
+        case FxType::SoundMaxer:
+            specs = soundMaxerControls; count = 3; break;
+        case FxType::DelayAndChamber: case FxType::DelayAndChorus: case FxType::DelayAndFlanger:
+            specs = delayChamber; count = 7; break;
+        case FxType::ChorusAndChamber: case FxType::FlangerAndChamber:
+            specs = modChamber; count = 7; break;
+        case FxType::ModulationDelay:
+            specs = delayMod; count = 7; break;
+        case FxType::DualDeEsser: case FxType::StereoDeEsser:
+            specs = deEsser; count = 6; break;
+        default: break;
+    }
+    if (specs != nullptr)
+        return specs[juce::jlimit (0, count - 1, index)];
+    return getGenericFxControl (getFxMetadata (type).category, index);
+}
+
+int getFxParameterCountForType (FxType type)
+{
+    switch (type)
+    {
+        case FxType::HallReverb: case FxType::AmbienceReverb: case FxType::RichPlateReverb:
+        case FxType::RoomReverb: case FxType::ChamberReverb: case FxType::PlateReverb:
+        case FxType::VintageReverb: case FxType::VintageRoomReverb: case FxType::GatedReverb:
+        case FxType::ReverseReverb: return 7;
+        case FxType::StereoXtecEQ1: case FxType::DualXtecEQ1:
+        case FxType::StereoXtecEQ5: case FxType::DualXtecEQ5: return 6;
+        case FxType::StereoPrecisionLimiter: case FxType::StereoDelay: return 6;
+        case FxType::StereoLeisureCompressor: case FxType::DualLeisureCompressor: return 2;
+        case FxType::FairCompressor: case FxType::MsFairCompressor: case FxType::DualFairCompressor: return 4;
+        case FxType::StereoGuitarAmp: case FxType::DualGuitarAmp: return 6;
+        case FxType::StereoTubeStage: case FxType::DualTubeStage: return 4;
+        case FxType::StereoEnhancer: case FxType::DualEnhancer: return 4;
+        case FxType::StereoExciter: case FxType::DualExciter: return 3;
+        case FxType::StereoImager: case FxType::EdisonEX1: return 4;
+        case FxType::SoundMaxer: return 3;
+        case FxType::DelayAndChamber: case FxType::ChorusAndChamber:
+        case FxType::FlangerAndChamber: case FxType::DelayAndChorus:
+        case FxType::DelayAndFlanger: case FxType::ModulationDelay:
+            return 7;
+        case FxType::DualDeEsser: case FxType::StereoDeEsser:
+            return 6;
+        default:
+            return getGenericFxParameterCount (getFxMetadata (type).category);
+    }
+}
+
+bool isDualFxType (FxType type)
+{
+    switch (type)
+    {
+        case FxType::DualGEQ: case FxType::DualTruEQ: case FxType::DualDeEsser:
+        case FxType::DualXtecEQ1: case FxType::DualXtecEQ5: case FxType::DualCombinator:
+        case FxType::DualFairCompressor: case FxType::DualLeisureCompressor:
+        case FxType::DualUltimoCompressor: case FxType::DualEnhancer: case FxType::DualExciter:
+        case FxType::DualGuitarAmp: case FxType::DualTubeStage: case FxType::DualPitch:
+            return true;
+        default: return false;
+    }
+}
+}
+
 FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
     : engine (eng)
 {
-    // 1. Setup 12 dynamic console dials
+    dialParameterIndices.fill (-1);
+
+    // 1. Setup dynamic console dials
     for (int i = 0; i < kMaxDials; ++i)
     {
         dials[(size_t) i].setTitle ("PARAM");
         dials[(size_t) i].onValueChanged = [this, i] (double val) {
             if (ignoreCallbacks) return;
             auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
+            if (dialParameterIndices[(size_t) i] == -2)
+            {
+                p.mix.set ((float) (val * 0.01));
+                if (onParametersChanged) onParametersChanged();
+                return;
+            }
+            if (dialParameterIndices[(size_t) i] >= 0)
+            {
+                p.parameter (dialParameterIndices[(size_t) i]).set ((float) val);
+                if (onParametersChanged) onParametersChanged();
+                return;
+            }
             const auto type = (FxType) (int) p.fxType.getInt();
             const auto meta = getFxMetadata (type);
 
@@ -32,26 +367,28 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
             else if (type == FxType::PitchShifter && i == 3) isMix = true;
             else if ((type == FxType::StereoExciter || type == FxType::DualExciter) && i == 2) isMix = true;
             else if ((type == FxType::StereoEnhancer || type == FxType::DualEnhancer) && i == 3) isMix = true;
+            else if ((type == FxType::StereoImager || type == FxType::EdisonEx1) && i == 3) isMix = true;
 
             if (isMix)
             {
                 p.mix.set ((float) (val * 0.01));
+                if (onParametersChanged) onParametersChanged();
                 return;
             }
-
-            switch (i)
-            {
-                case 0: p.p1.set ((float) val); break;
-                case 1: p.p2.set ((float) val); break;
-                case 2: p.p3.set ((float) val); break;
-                case 3: p.p4.set ((float) val); break;
-                case 4: p.p5.set ((float) val); break;
-                case 5: p.p6.set ((float) val); break;
-                case 6: p.p7.set ((float) val); break;
-                case 7: p.p8.set ((float) val); break;
-            }
+            if (i < FxSlotParams::kNumParameters)
+                p.parameter (i).set ((float) val);
+            if (onParametersChanged) onParametersChanged();
         };
         addChildComponent (dials[(size_t) i]);
+    }
+
+    for (int i = 0; i < (int) parameterPageButtons.size(); ++i)
+    {
+        auto& button = parameterPageButtons[(size_t) i];
+        button.setButtonText (juce::String (i + 1));
+        button.setClickingTogglesState (false);
+        button.addListener (this);
+        addChildComponent (button);
     }
 
     // 2. Setup 6 Vertical Faders (Cream Reverbs & Precision Limiter)
@@ -66,13 +403,13 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
         auto& l = faderLabels[(size_t) i];
         l.setFont (juce::FontOptions (10.0f, juce::Font::bold));
         l.setJustificationType (juce::Justification::centred);
-        l.setColour (juce::Label::textColourId, juce::Colour (0xffe63946)); // Red title
+        l.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
         addChildComponent (l);
 
         auto& vl = faderValLabels[(size_t) i];
         vl.setFont (juce::FontOptions (9.5f));
         vl.setJustificationType (juce::Justification::centred);
-        vl.setColour (juce::Label::textColourId, juce::Colour (0xff20242b));
+        vl.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
         addChildComponent (vl);
     }
 
@@ -81,6 +418,7 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
     for (int i = 0; i < 6; ++i)
     {
         reverbRibbonButtons[(size_t) i].setButtonText (ribbonNames[i]);
+        reverbRibbonButtons[(size_t) i].setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         reverbRibbonButtons[(size_t) i].addListener (this);
         addChildComponent (reverbRibbonButtons[(size_t) i]);
     }
@@ -90,6 +428,7 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
     for (int i = 0; i < 5; ++i)
     {
         ratioButtons[i].setButtonText (ratioLabels[i]);
+        ratioButtons[i].setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         ratioButtons[i].setClickingTogglesState (true);
         ratioButtons[i].setRadioGroupId (7001);
         ratioButtons[i].addListener (this);
@@ -102,6 +441,7 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
     for (int i = 0; i < 5; ++i)
     {
         dimButtons[i].setButtonText (dimLabels[i]);
+        dimButtons[i].setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         dimButtons[i].setClickingTogglesState (true);
         dimButtons[i].setRadioGroupId (7002);
         dimButtons[i].addListener (this);
@@ -145,18 +485,22 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
 
     // 7. General Switches
     powerSwitch.setClickingTogglesState (true);
+    powerSwitch.setColour (juce::TextButton::buttonColourId, ConsoleLookAndFeel::accentGreen.darker (0.55f));
     powerSwitch.addListener (this);
     addAndMakeVisible (powerSwitch);
 
     bypassSwitch.setClickingTogglesState (true);
+    bypassSwitch.setColour (juce::TextButton::buttonColourId, ConsoleLookAndFeel::accentRed.darker (0.55f));
     bypassSwitch.addListener (this);
     addAndMakeVisible (bypassSwitch);
 
     stereoLinkSwitch.setClickingTogglesState (true);
+    stereoLinkSwitch.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
     stereoLinkSwitch.addListener (this);
     addChildComponent (stereoLinkSwitch);
 
     rotarySpeedSwitch.setClickingTogglesState (true);
+    rotarySpeedSwitch.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
     rotarySpeedSwitch.addListener (this);
     addChildComponent (rotarySpeedSwitch);
 
@@ -173,6 +517,7 @@ void FxFaceplateComponent::setSlot (int slotIndex)
     if (slotIndex >= 0 && slotIndex < 8)
     {
         currentSlot = slotIndex;
+        currentParameterPage = 0;
         refreshFromSlot();
         resized();
         repaint();
@@ -182,6 +527,7 @@ void FxFaceplateComponent::setSlot (int slotIndex)
 void FxFaceplateComponent::refreshFromSlot()
 {
     ignoreCallbacks = true;
+    dialParameterIndices.fill (-1);
     auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
     const auto type = (FxType) (int) p.fxType.getInt();
     const auto meta = getFxMetadata (type);
@@ -192,6 +538,7 @@ void FxFaceplateComponent::refreshFromSlot()
 
     // Hide all dynamic components by default
     for (auto& d : dials) d.setVisible (false);
+    for (auto& b : parameterPageButtons) b.setVisible (false);
     for (auto& f : faders) f.setVisible (false);
     for (auto& fl : faderLabels) fl.setVisible (false);
     for (auto& fv : faderValLabels) fv.setVisible (false);
@@ -206,8 +553,66 @@ void FxFaceplateComponent::refreshFromSlot()
     stereoLinkSwitch.setVisible (false);
     rotarySpeedSwitch.setVisible (false);
 
+    // One X32-inspired control surface for every algorithm: six rotary
+    // encoders per page, identical page keys and the same readout styling.
+    // Graphic EQ keeps its natural 31-band fader surface.
+    if (meta.category == FxCategory::GraphicEQ)
+    {
+        for (int b = 0; b < 31; ++b)
+        {
+            const float value = activeGeqChannel == 0 ? p.geqGainsL[(size_t) b].get()
+                                                       : p.geqGainsR[(size_t) b].get();
+            geqSliders[(size_t) b].setVisible (true);
+            geqSliders[(size_t) b].setValue (value, juce::dontSendNotification);
+            geqLabels[(size_t) b].setVisible (true);
+        }
+        geqFlatButton.setVisible (true);
+        geqChAButton.setVisible (true);
+        geqChBButton.setVisible (true);
+    }
+    else
+    {
+        const int parameterCount = getFxParameterCountForType (type);
+        const int pageCount = std::max (1, (parameterCount + 5) / 6);
+        currentParameterPage = juce::jlimit (0, pageCount - 1, currentParameterPage);
+
+        for (int page = 0; page < pageCount; ++page)
+        {
+            auto& button = parameterPageButtons[(size_t) page];
+            button.setVisible (true);
+            button.setToggleState (currentParameterPage == page, juce::dontSendNotification);
+            button.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff272c33));
+            button.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::textMuted);
+            button.setColour (juce::TextButton::textColourOnId, ConsoleLookAndFeel::accentCyan);
+        }
+
+        for (int dialIndex = 0; dialIndex < 6; ++dialIndex)
+        {
+            const int parameterIndex = currentParameterPage * 6 + dialIndex;
+            if (parameterIndex >= parameterCount) break;
+
+            const auto spec = getFxControlForType (type, parameterIndex);
+            const int mappedIndex = spec.parameterIndex >= 0 ? spec.parameterIndex : parameterIndex;
+            auto& dial = dials[(size_t) dialIndex];
+            dial.setVisible (true);
+            dial.setTitle (spec.name);
+            dial.setRange (spec.minimum, spec.maximum, spec.step, spec.logarithmic);
+            dial.setUnit (spec.unit);
+            dial.setValue (spec.mix ? p.mix.get() * 100.0f
+                                    : p.parameter (mappedIndex).get(), juce::dontSendNotification);
+            dialParameterIndices[(size_t) dialIndex] = spec.mix ? -2 : mappedIndex;
+        }
+    }
+
+    ignoreCallbacks = false;
+    resized();
+    repaint();
+    return;
+
     // 1. Cream Fader Reverb (Hall, Ambience, Vintage Room, Chamber)
-    const bool isCreamReverb = (type == FxType::HallReverb || type == FxType::Ambience || type == FxType::VintageRoom);
+    const bool isCreamReverb = (type == FxType::HallReverb || type == FxType::AmbienceReverb
+                                || type == FxType::RoomReverb || type == FxType::ChamberReverb
+                                || type == FxType::VintageRoomReverb);
     if (isCreamReverb)
     {
         const char* fTitles[6] = { "PRE DEL", "DECAY", "SIZE", "DAMPING", "DIFFUSE", "LEVEL" };
@@ -253,7 +658,7 @@ void FxFaceplateComponent::refreshFromSlot()
         const char* fTitles[6] = { "IN GAIN", "OUT GAIN", "SQUEEZE", "ATTACK", "RELEASE", "KNEE" };
         const double fMins[6]  = { 0.0, -12.0, 0.0, 0.1, 10.0, 0.0 };
         const double fMaxs[6]  = { 24.0, 0.0, 100.0, 100.0, 1000.0, 1.0 };
-        const double fVals[6]  = { p.p1.get(), p.p2.get(), 50.0, 5.0, p.p3.get(), p.p4.get() };
+        const double fVals[6]  = { p.p1.get(), p.p2.get(), p.p6.get(), p.p4.get(), p.p3.get(), p.p5.get() };
 
         for (int i = 0; i < 6; ++i)
         {
@@ -338,7 +743,8 @@ void FxFaceplateComponent::refreshFromSlot()
         dials[6].setVisible (true); dials[6].setTitle ("MIX (%)");     dials[6].setRange (0.0, 100.0, 1.0);  dials[6].setValue (p.mix.get() * 100.0, juce::dontSendNotification);
     }
     // 10. Plate / Gated / Reverse Reverb (Wide LCD with Bottom Knobs)
-    else if (type == FxType::PlateReverb || type == FxType::GateReverb || type == FxType::ReverseReverb)
+    else if (type == FxType::RichPlateReverb || type == FxType::PlateReverb
+             || type == FxType::GatedReverb || type == FxType::ReverseReverb)
     {
         dials[0].setVisible (true); dials[0].setTitle ("PRE-DELAY"); dials[0].setRange (0.0, 250.0, 1.0);  dials[0].setValue (p.p2.get(), juce::dontSendNotification);
         dials[1].setVisible (true); dials[1].setTitle ("DECAY (S)"); dials[1].setRange (0.2, 10.0, 0.1);   dials[1].setValue (p.p1.get(), juce::dontSendNotification);
@@ -360,14 +766,15 @@ void FxFaceplateComponent::refreshFromSlot()
         dials[5].setVisible (true); dials[5].setTitle ("THRESHOLD"); dials[5].setRange (-40.0, 0.0, 0.5);  dials[5].setValue (p.p2.get(), juce::dontSendNotification);
     }
     // 12. Pultec XTEC EQ1 & EQ5
-    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5)
+    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5
+             || type == FxType::DualXtecEQ1 || type == FxType::DualXtecEQ5)
     {
-        dials[0].setVisible (true); dials[0].setTitle ("GAIN");       dials[0].setRange (-12.0, 12.0, 0.5); dials[0].setValue (0.0, juce::dontSendNotification);
-        dials[1].setVisible (true); dials[1].setTitle ("LO BOOST");   dials[1].setRange (0.0, 100.0, 1.0);  dials[1].setValue (p.p1.get(), juce::dontSendNotification);
-        dials[2].setVisible (true); dials[2].setTitle ("LO ATTEN");   dials[2].setRange (0.0, 100.0, 1.0);  dials[2].setValue (p.p2.get(), juce::dontSendNotification);
-        dials[3].setVisible (true); dials[3].setTitle ("BANDWIDTH");  dials[3].setRange (0.0, 100.0, 1.0);  dials[3].setValue (p.p3.get(), juce::dontSendNotification);
-        dials[4].setVisible (true); dials[4].setTitle ("HI BOOST");   dials[4].setRange (0.0, 100.0, 1.0);  dials[4].setValue (p.p4.get(), juce::dontSendNotification);
-        dials[5].setVisible (true); dials[5].setTitle ("HI ATTEN");   dials[5].setRange (0.0, 100.0, 1.0);  dials[5].setValue (p.p5.get(), juce::dontSendNotification);
+        dials[0].setVisible (true); dials[0].setTitle ("LO BOOST"); dials[0].setRange (0.0, 10.0, 0.1); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
+        dials[1].setVisible (true); dials[1].setTitle ("LO FREQ"); dials[1].setRange (20.0, 1000.0, 1.0, true); dials[1].setValue (p.p2.get(), juce::dontSendNotification);
+        dials[2].setVisible (true); dials[2].setTitle ("LO ATTEN"); dials[2].setRange (0.0, 10.0, 0.1); dials[2].setValue (p.p3.get(), juce::dontSendNotification);
+        dials[3].setVisible (true); dials[3].setTitle ("HI WIDTH"); dials[3].setRange (0.0, 10.0, 0.1); dials[3].setValue (p.p4.get(), juce::dontSendNotification);
+        dials[4].setVisible (true); dials[4].setTitle ("HI BOOST"); dials[4].setRange (0.0, 10.0, 0.1); dials[4].setValue (p.p5.get(), juce::dontSendNotification);
+        dials[5].setVisible (true); dials[5].setTitle ("HI FREQ"); dials[5].setRange (1000.0, 20000.0, 100.0, true); dials[5].setValue (p.p6.get(), juce::dontSendNotification);
     }
     // 13. Teletronix LA-2A
     else if (type == FxType::LeisureCompressor)
@@ -376,7 +783,8 @@ void FxFaceplateComponent::refreshFromSlot()
         dials[1].setVisible (true); dials[1].setTitle ("PEAK REDUCT"); dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p1.get(), juce::dontSendNotification);
     }
     // 14. Fairchild 670
-    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor)
+    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor
+             || type == FxType::DualFairCompressor)
     {
         dials[0].setVisible (true); dials[0].setTitle ("THRESHOLD");  dials[0].setRange (0.0, 100.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
         dials[1].setVisible (true); dials[1].setTitle ("INPUT GAIN"); dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p2.get(), juce::dontSendNotification);
@@ -384,7 +792,7 @@ void FxFaceplateComponent::refreshFromSlot()
         dials[3].setVisible (true); dials[3].setTitle ("OUTPUT");     dials[3].setRange (0.0, 100.0, 1.0); dials[3].setValue (p.p4.get(), juce::dontSendNotification);
     }
     // 15. Lead 100 Guitar Amp
-    else if (type == FxType::GuitarAmp)
+    else if (type == FxType::GuitarAmp || type == FxType::DualGuitarAmp)
     {
         dials[0].setVisible (true); dials[0].setTitle ("DRIVE");    dials[0].setRange (0.0, 100.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
         dials[1].setVisible (true); dials[1].setTitle ("BASS");     dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p2.get(), juce::dontSendNotification);
@@ -394,25 +802,72 @@ void FxFaceplateComponent::refreshFromSlot()
         dials[5].setVisible (true); dials[5].setTitle ("MASTER");   dials[5].setRange (0.0, 100.0, 1.0); dials[5].setValue (p.p6.get(), juce::dontSendNotification);
     }
     // 16. Tube Stage (12AX7 Valve Warmth)
-    else if (type == FxType::TubeStage)
+    else if (type == FxType::TubeStage || type == FxType::DualTubeStage)
     {
         dials[0].setVisible (true); dials[0].setTitle ("DRIVE");      dials[0].setRange (0.0, 100.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
         dials[1].setVisible (true); dials[1].setTitle ("BIAS");       dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p3.get(), juce::dontSendNotification);
         dials[2].setVisible (true); dials[2].setTitle ("SATURATION"); dials[2].setRange (0.0, 100.0, 1.0); dials[2].setValue (p.p4.get(), juce::dontSendNotification);
         dials[3].setVisible (true); dials[3].setTitle ("OUTPUT");     dials[3].setRange (-20.0, 20.0, 0.5);dials[3].setValue (p.p2.get(), juce::dontSendNotification);
     }
-    // 17. Default Studio Rack (Other Reverbs, Delays, De-Esser, Sub Octaver, etc.)
+    // 17. Stereo Enhancer / Aphex Exciter
+    else if (type == FxType::StereoEnhancer || type == FxType::DualEnhancer)
+    {
+        dials[0].setVisible (true); dials[0].setTitle ("BASS");     dials[0].setRange (-100.0, 100.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
+        dials[1].setVisible (true); dials[1].setTitle ("PROCESS");  dials[1].setRange (0.0, 100.0, 1.0);   dials[1].setValue (p.p2.get(), juce::dontSendNotification);
+        dials[2].setVisible (true); dials[2].setTitle ("TREBLE");  dials[2].setRange (-100.0, 100.0, 1.0); dials[2].setValue (p.p3.get(), juce::dontSendNotification);
+        dials[3].setVisible (true); dials[3].setTitle ("MIX (%)");  dials[3].setRange (0.0, 100.0, 1.0);   dials[3].setValue (p.mix.get() * 100.0, juce::dontSendNotification);
+    }
+    else if (type == FxType::StereoExciter || type == FxType::DualExciter)
+    {
+        dials[0].setVisible (true); dials[0].setTitle ("HARMONICS"); dials[0].setRange (0.0, 100.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
+        dials[1].setVisible (true); dials[1].setTitle ("TUNE");     dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p2.get(), juce::dontSendNotification);
+        dials[2].setVisible (true); dials[2].setTitle ("MIX (%)"); dials[2].setRange (0.0, 100.0, 1.0); dials[2].setValue (p.mix.get() * 100.0, juce::dontSendNotification);
+    }
+    else if (type == FxType::StereoImager || type == FxType::EdisonEx1)
+    {
+        dials[0].setVisible (true); dials[0].setTitle ("ST SPREAD");  dials[0].setRange (0.0, 200.0, 1.0); dials[0].setValue (p.p1.get(), juce::dontSendNotification);
+        dials[1].setVisible (true); dials[1].setTitle ("CENTER DIST");dials[1].setRange (0.0, 100.0, 1.0); dials[1].setValue (p.p2.get(), juce::dontSendNotification);
+        dials[2].setVisible (true); dials[2].setTitle ("BALANCE");    dials[2].setRange (-100.0, 100.0, 1.0); dials[2].setValue (p.p3.get(), juce::dontSendNotification);
+        dials[3].setVisible (true); dials[3].setTitle ("MIX (%)");    dials[3].setRange (0.0, 100.0, 1.0); dials[3].setValue (p.mix.get() * 100.0, juce::dontSendNotification);
+    }
+    // X32-Mix algorithms without a dedicated faceplate use the same six
+    // controls per page as the X32 editor, with up to three pages.
     else
     {
+        const int parameterCount = getFxParameterCountForType (type);
+        const int pageCount = std::max (1, (parameterCount + 5) / 6);
+        const int controlsPerChannel = std::max (1, (parameterCount + 1) / 2);
+        currentParameterPage = juce::jlimit (0, pageCount - 1, currentParameterPage);
+        for (int i = 0; i < pageCount; ++i)
+        {
+            auto& pageButton = parameterPageButtons[(size_t) i];
+            pageButton.setVisible (true);
+            pageButton.setToggleState (currentParameterPage == i, juce::dontSendNotification);
+        }
+
         for (int i = 0; i < 6; ++i)
         {
-            dials[(size_t) i].setVisible (true);
-            dials[(size_t) i].setTitle ("PARAM " + juce::String (i + 1));
-            dials[(size_t) i].setRange (0.0, 100.0, 1.0);
-            dials[(size_t) i].setValue (50.0, juce::dontSendNotification);
+            const int parameterIndex = currentParameterPage * 6 + i;
+            if (parameterIndex >= parameterCount) break;
+
+            auto spec = getFxControlForType (type, parameterIndex);
+            juce::String title;
+            if (isDualFxType (type))
+            {
+                spec = getFxControlForType (type, parameterIndex % controlsPerChannel);
+                title = juce::String (parameterIndex < controlsPerChannel ? "A " : "B ") + spec.name;
+            }
+            else title = spec.name;
+
+            auto& dial = dials[(size_t) i];
+            dial.setVisible (true);
+            dial.setTitle (title);
+            dial.setRange (spec.minimum, spec.maximum, spec.step, spec.logarithmic);
+            dial.setUnit (spec.unit);
+            dial.setValue (spec.mix ? p.mix.get() * 100.0f
+                                    : p.parameter (parameterIndex).get(), juce::dontSendNotification);
+            dialParameterIndices[(size_t) i] = spec.mix ? -2 : parameterIndex;
         }
-        dials[5].setTitle ("MIX (%)");
-        dials[5].setValue (p.mix.get() * 100.0, juce::dontSendNotification);
     }
 
     ignoreCallbacks = false;
@@ -452,10 +907,23 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
 {
     auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
 
+    for (int i = 0; i < (int) parameterPageButtons.size(); ++i)
+    {
+        if (b == &parameterPageButtons[(size_t) i])
+        {
+            currentParameterPage = i;
+            refreshFromSlot();
+            resized();
+            repaint();
+            return;
+        }
+    }
+
     if (b == &powerSwitch || b == &bypassSwitch)
     {
         p.bypass.toggle();
         refreshFromSlot();
+        if (onParametersChanged) onParametersChanged();
         return;
     }
 
@@ -480,6 +948,7 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
                 p.setDefaultsForType (targetType);
                 refreshFromSlot();
                 repaint();
+                if (onParametersChanged) onParametersChanged();
             }
             return;
         }
@@ -494,6 +963,7 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
             else p.geqGainsR[(size_t) i].set (0.0f);
             geqSliders[(size_t) i].setValue (0.0, juce::dontSendNotification);
         }
+        if (onParametersChanged) onParametersChanged();
         return;
     }
     if (b == &geqChAButton)
@@ -516,6 +986,7 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
         {
             const float ratios[5] = { 4.0f, 8.0f, 12.0f, 20.0f, 20.0f };
             p.p3.set (ratios[i]);
+            if (onParametersChanged) onParametersChanged();
             return;
         }
     }
@@ -526,6 +997,7 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
         if (b == &dimButtons[i])
         {
             p.p1.set ((float) i); // 0=OFF, 1=1, 2=2, 3=3, 4=4
+            if (onParametersChanged) onParametersChanged();
             return;
         }
     }
@@ -545,6 +1017,7 @@ void FxFaceplateComponent::sliderValueChanged (juce::Slider* slider)
             const float val = (float) slider->getValue();
             if (activeGeqChannel == 0) p.geqGainsL[(size_t) b].set (val);
             else p.geqGainsR[(size_t) b].set (val);
+            if (onParametersChanged) onParametersChanged();
             return;
         }
     }
@@ -561,8 +1034,9 @@ void FxFaceplateComponent::sliderValueChanged (juce::Slider* slider)
                 {
                     case 0: p.p1.set (val); break; // Input Gain
                     case 1: p.p2.set (val); break; // Output Gain
+                    case 3: p.p4.set (val); break; // Attack
                     case 4: p.p3.set (val); break; // Release
-                    case 5: p.p4.set (val); break; // Knee
+                    case 5: p.p5.set (val); break; // Knee
                 }
             }
             else // Cream Reverbs
@@ -573,13 +1047,15 @@ void FxFaceplateComponent::sliderValueChanged (juce::Slider* slider)
                     case 1: p.p1.set (val); break; // Decay
                     case 2: p.p4.set (val); break; // Size
                     case 3: p.p3.set (val); break; // Damping
-                    case 5: p.mix.set (clampf ((val + 40.0f) / 50.0f, 0.0f, 1.0f)); break; // Level/Mix
+                    case 4: p.p5.set (val); break; // Diffusion
+                    case 5: p.p6.set (val); break; // Level
                 }
             }
             // Update value label
             if (i == 0) faderValLabels[(size_t) i].setText (juce::String (val, 0) + " ms", juce::dontSendNotification);
             else if (i == 1) faderValLabels[(size_t) i].setText (juce::String (val, 1) + " s", juce::dontSendNotification);
             else faderValLabels[(size_t) i].setText (juce::String (val, 0) + " %", juce::dontSendNotification);
+            if (onParametersChanged) onParametersChanged();
             return;
         }
     }
@@ -602,9 +1078,14 @@ void FxFaceplateComponent::resized()
 
     if (meta.category == FxCategory::GraphicEQ)
         layoutGEQ (area);
-    else if (type == FxType::HallReverb || type == FxType::Ambience || type == FxType::VintageRoom)
+    else if (parameterPageButtons[0].isVisible())
+        layoutGenericRack (area);
+    else if (type == FxType::HallReverb || type == FxType::AmbienceReverb
+             || type == FxType::RoomReverb || type == FxType::ChamberReverb
+             || type == FxType::VintageRoomReverb)
         layoutCreamReverb (area);
-    else if (type == FxType::PlateReverb || type == FxType::GateReverb || type == FxType::ReverseReverb)
+    else if (type == FxType::RichPlateReverb || type == FxType::PlateReverb
+             || type == FxType::GatedReverb || type == FxType::ReverseReverb)
         layoutLcdReverb (area);
     else if (type == FxType::VintageReverb)
         layoutVintageReverb (area);
@@ -628,17 +1109,19 @@ void FxFaceplateComponent::resized()
         layoutPrecisionLimiter (area);
     else if (type == FxType::Combinator)
         layoutCombinator (area);
-    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5)
+    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5
+             || type == FxType::DualXtecEQ1 || type == FxType::DualXtecEQ5)
         layoutXtecEq (area);
     else if (type == FxType::LeisureCompressor)
         layoutLA2A (area);
     else if (type == FxType::UltimoCompressor)
         layout1176 (area);
-    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor)
+    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor
+             || type == FxType::DualFairCompressor)
         layoutFairchild (area);
-    else if (type == FxType::GuitarAmp)
+    else if (type == FxType::GuitarAmp || type == FxType::DualGuitarAmp)
         layoutGuitarAmp (area);
-    else if (type == FxType::TubeStage)
+    else if (type == FxType::TubeStage || type == FxType::DualTubeStage)
         layoutTubeStage (area);
     else
         layoutGenericRack (area);
@@ -905,9 +1388,30 @@ void FxFaceplateComponent::layoutTubeStage (juce::Rectangle<int> area)
 // 22. Generic Studio Rack
 void FxFaceplateComponent::layoutGenericRack (juce::Rectangle<int> area)
 {
-    const int startX = area.getX() + 30;
+    const int margin = 24;
+    const int gap = 8;
+    const int dialW = std::max (72, (area.getWidth() - margin * 2 - gap * 5) / 6);
+    const int visibleDialCount = std::max (1, (int) std::count_if (dials.begin(), dials.end(),
+                                                                    [] (const auto& dial) { return dial.isVisible(); }));
+    const int totalDialW = dialW * visibleDialCount + gap * (visibleDialCount - 1);
+    const int startX = area.getX() + (area.getWidth() - totalDialW) / 2;
+    const int dialY = area.getY() + 62;
+    const int dialH = std::max (84, area.getHeight() - 118);
+    int visibleDialIndex = 0;
     for (int i = 0; i < 6; ++i)
-        dials[(size_t) i].setBounds (startX + i * 125, area.getY() + 85, 105, 110);
+        if (dials[(size_t) i].isVisible())
+            dials[(size_t) i].setBounds (startX + visibleDialIndex++ * (dialW + gap), dialY, dialW, dialH);
+
+    const int buttonW = 34;
+    const int buttonGap = 6;
+    const int pageCount = (int) std::count_if (parameterPageButtons.begin(), parameterPageButtons.end(),
+                                                [] (const auto& button) { return button.isVisible(); });
+    const int totalButtonW = pageCount * buttonW + std::max (0, pageCount - 1) * buttonGap;
+    const int buttonStartX = area.getCentreX() - totalButtonW / 2;
+    for (int i = 0; i < (int) parameterPageButtons.size(); ++i)
+        if (parameterPageButtons[(size_t) i].isVisible())
+            parameterPageButtons[(size_t) i].setBounds (buttonStartX + i * (buttonW + buttonGap),
+                                                        area.getBottom() - 38, buttonW, 24);
 }
 
 //==============================================================================
@@ -921,9 +1425,25 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
 
     if (meta.category == FxCategory::GraphicEQ)
         paintGraphicEq (g, area, meta.name);
-    else if (type == FxType::HallReverb || type == FxType::Ambience || type == FxType::VintageRoom)
+    else
+        paintGenericStudioRack (g, area, meta.name, "X32 FX PROCESSOR");
+
+    g.setColour (juce::Colour (0xff080a0c));
+    g.drawRoundedRectangle (area.reduced (1.0f), 5.0f, 4.0f);
+    g.setColour (ConsoleLookAndFeel::borderSubtle);
+    g.drawRoundedRectangle (area.reduced (3.0f), 4.0f, 1.0f);
+    g.setColour (ConsoleLookAndFeel::accentCyan.withAlpha (0.55f));
+    g.fillRect (area.getX() + 12.0f, area.getY() + 3.0f, std::min (150.0f, area.getWidth() - 24.0f), 2.0f);
+    drawRackMountScrews (g, area);
+    return;
+
+    if (meta.category == FxCategory::GraphicEQ)
+        paintGraphicEq (g, area, meta.name);
+    else if (type == FxType::HallReverb || type == FxType::AmbienceReverb
+             || type == FxType::RoomReverb || type == FxType::ChamberReverb
+             || type == FxType::VintageRoomReverb)
         paintCreamReverb (g, area, meta.name);
-    else if (type == FxType::PlateReverb)
+    else if (type == FxType::RichPlateReverb || type == FxType::PlateReverb)
         paintLcdReverb (g, area, "PLATE REVERB", juce::Colour (0xff0088ff)); // Electric Blue LCD
     else if (type == FxType::GateReverb)
         paintLcdReverb (g, area, "GATED REVERB", juce::Colour (0xff10c850)); // Emerald Green LCD
@@ -951,7 +1471,8 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
         paintSuboctaver (g, area);
     else if (type == FxType::DualDeEsser || type == FxType::StereoExciter)
         paintDeEsser (g, area, true);
-    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5)
+    else if (type == FxType::XtecEq1 || type == FxType::XtecEq5
+             || type == FxType::DualXtecEQ1 || type == FxType::DualXtecEQ5)
         paintXtecEq (g, area, meta.name);
     else if (type == FxType::WaveDesigner)
         paintWaveDesigner (g, area);
@@ -963,14 +1484,23 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
         paintLA2A (g, area);
     else if (type == FxType::UltimoCompressor)
         paint1176 (g, area);
-    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor)
+    else if (type == FxType::FairCompressor || type == FxType::MsFairCompressor
+             || type == FxType::DualFairCompressor)
         paintFairchild (g, area);
-    else if (type == FxType::GuitarAmp)
+    else if (type == FxType::GuitarAmp || type == FxType::DualGuitarAmp)
         paintGuitarAmp (g, area);
-    else if (type == FxType::TubeStage)
+    else if (type == FxType::TubeStage || type == FxType::DualTubeStage)
         paintTubeStage (g, area);
     else
         paintGenericStudioRack (g, area, meta.name, meta.hardwareEmulation);
+
+    // Consistent X32-style rack shell around every algorithm faceplate.
+    g.setColour (juce::Colour (0xff0a0c0f).withAlpha (0.70f));
+    g.drawRoundedRectangle (area.reduced (1.0f), 5.0f, 5.0f);
+    g.setColour (ConsoleLookAndFeel::borderSubtle.withAlpha (0.85f));
+    g.drawRoundedRectangle (area.reduced (3.0f), 4.0f, 1.0f);
+    g.setColour (ConsoleLookAndFeel::accentCyan.withAlpha (0.32f));
+    g.fillRect (area.getX() + 12.0f, area.getY() + 3.0f, std::min (180.0f, area.getWidth() - 24.0f), 2.0f);
 
     drawRackMountScrews (g, area);
 }
@@ -1510,18 +2040,37 @@ void FxFaceplateComponent::paintTubeStage (juce::Graphics& g, juce::Rectangle<fl
 // 22. Generic Studio Rack
 void FxFaceplateComponent::paintGenericStudioRack (juce::Graphics& g, juce::Rectangle<float> area, const juce::String& title, const juce::String& subTitle)
 {
-    juce::ColourGradient rackGrad (juce::Colour (0xff222730), area.getX(), area.getY(),
-                                   juce::Colour (0xff14171d), area.getX(), area.getBottom(), false);
+    juce::ColourGradient rackGrad (juce::Colour (0xff20242a), area.getX(), area.getY(),
+                                   juce::Colour (0xff101215), area.getX(), area.getBottom(), false);
     g.setGradientFill (rackGrad);
     g.fillRoundedRectangle (area, 4.0f);
-    g.setColour (juce::Colour (0xff384252));
-    g.drawRoundedRectangle (area, 4.0f, 1.2f);
+    g.setColour (ConsoleLookAndFeel::borderSubtle);
+    g.drawRoundedRectangle (area, 4.0f, 1.0f);
 
-    const juce::Rectangle<float> lcdBox (area.getX() + 25.0f, area.getY() + 16.0f, 380.0f, 54.0f);
-    drawDigitalLcdDisplay (g, lcdBox, title, subTitle, juce::Colour (0xff0e2838));
+    const juce::Rectangle<float> header (area.getX() + 16.0f, area.getY() + 12.0f,
+                                         std::max (180.0f, area.getWidth() - 32.0f), 40.0f);
+    g.setColour (juce::Colour (0xff080a0d));
+    g.fillRoundedRectangle (header, 3.0f);
+    g.setColour (juce::Colour (0xff303640));
+    g.drawRoundedRectangle (header, 3.0f, 1.0f);
+    g.setColour (ConsoleLookAndFeel::accentCyan);
+    g.setFont (juce::FontOptions (16.0f, juce::Font::bold));
+    g.drawText (title.toUpperCase(), (int) header.getX() + 12, (int) header.getY() + 3,
+                (int) header.getWidth() - 230, 19, juce::Justification::left);
+    g.setColour (ConsoleLookAndFeel::textMuted);
+    g.setFont (juce::FontOptions (10.0f));
+    g.drawText (subTitle.toUpperCase(), (int) header.getX() + 12, (int) header.getY() + 22,
+                (int) header.getWidth() - 230, 14, juce::Justification::left);
 
-    const juce::Rectangle<float> meterBox (area.getRight() - 220.0f, area.getY() + 16.0f, 130.0f, 60.0f);
-    drawAnalogVuMeter (g, meterBox, vuNeedleL, "OUT PEAK");
+    const juce::Rectangle<float> meterBox (area.getRight() - 188.0f, area.getY() + 19.0f, 156.0f, 24.0f);
+    g.setColour (juce::Colour (0xff090b0d));
+    g.fillRoundedRectangle (meterBox, 2.0f);
+    g.setColour (juce::Colour (0xff303640));
+    g.drawRoundedRectangle (meterBox, 2.0f, 1.0f);
+    const float meterWidth = (meterBox.getWidth() - 6.0f) * clampf (vuNeedleL, 0.0f, 1.0f);
+    g.setColour (vuNeedleL > 0.88f ? ConsoleLookAndFeel::accentRed : ConsoleLookAndFeel::accentGreen);
+    g.fillRoundedRectangle (meterBox.getX() + 3.0f, meterBox.getY() + 4.0f,
+                            meterWidth, meterBox.getHeight() - 8.0f, 1.0f);
 }
 
 //==============================================================================

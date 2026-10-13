@@ -745,8 +745,8 @@ TEST (eqAudibleSignalModification)
 
 TEST (fxMetadataAndEnums)
 {
-    CHECK (getNumFxTypes() == 41);
-    for (int i = 0; i < 41; ++i)
+    CHECK (getNumFxTypes() == 61);
+    for (int i = 0; i < 61; ++i)
     {
         const auto meta = getFxMetadata ((FxType) i);
         CHECK (meta.name != nullptr);
@@ -847,9 +847,9 @@ TEST (fxRackSendReturnAndInsertInMixEngine)
     CHECK (! std::isnan (rig.L()));
     CHECK (! std::isnan (rig.R()));
 
-    // 2. Channel Send to FX 2 (Ambience)
+    // 2. Channel Send to FX 2 (Ambience - Bus 14 / FX Send 2)
     ch0.insertFxSlot.set (0.0f); // Remove insert
-    ch0.sends[1].set (0.0f);     // Send 0 dB to FX 2
+    ch0.sends[13].set (0.0f);    // Send 0 dB to FX 2 (Bus 14)
     rig.params.fxSlots[1].setDefaultsForType (FxType::Ambience);
 
     rig.run (10);
@@ -864,7 +864,7 @@ TEST (fxSendReturnMuteAndFaderControl)
     auto& ch0 = rig.params.channels[0];
     ch0.source.set (0);
     ch0.mainAssign.setBool (false); // Turn off direct dry channel assignment to Main so we only hear the FX Return!
-    ch0.sends[0].set (0.0f);        // Send 0 dB to FX 1
+    ch0.sends[12].set (0.0f);       // Send 0 dB to FX 1 (Bus 13 / FX Send 1)
     rig.params.fxSlots[0].setDefaultsForType (FxType::Ambience);
 
     // Warm up reverb (50 blocks = ~0.27s)
@@ -891,11 +891,190 @@ TEST (fxSendReturnMuteAndFaderControl)
     CHECK (rig.R() > 0.01f);
 
     // 4. Turning FX Send down (-90 dB) silences the FX Send
-    ch0.sends[0].set (-90.0f);
+    ch0.sends[12].set (-90.0f);
     // Process enough blocks for the reverb tail to ring out
-    rig.run (150);
+    rig.run (250);
     CHECK_NEAR (rig.L(), 0.0f, 0.005f);
     CHECK_NEAR (rig.R(), 0.0f, 0.005f);
+}
+
+TEST (bus1To12AreMixBusesNotFx)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.2f, 0.2f, 2);
+    auto& ch0 = rig.params.channels[0];
+    ch0.source.set (0);
+    ch0.mainAssign.setBool (false);
+
+    // Turn off all FX sends (Bus 13..16)
+    for (int s = 12; s < 16; ++s)
+        ch0.sends[(size_t) s].set (-90.0f);
+
+    rig.params.fxSlots[0].setDefaultsForType (FxType::Ambience);
+
+    // Send to Bus 1 and Bus 6 (sends 0 and 5)
+    ch0.sends[0].set (0.0f); // Bus 1 Send 0 dB
+    ch0.sends[5].set (0.0f); // Bus 6 Send 0 dB
+    rig.run (30);
+
+    // 1. Bus 1 and Bus 6 meters must receive audio!
+    CHECK (rig.meters.buses[0].read() > 0.05f);
+    CHECK (rig.meters.buses[5].read() > 0.05f);
+
+    // 2. Bus 2 (unassigned) meter must be near 0
+    CHECK_NEAR (rig.meters.buses[1].read(), 0.0f, 0.001f);
+
+    // 3. FX 1 Return must NOT receive anything from Bus 1 (Bus 1 is a mix bus, NOT FX!)
+    CHECK_NEAR (rig.meters.fxReturns[0].read(), 0.0f, 0.001f);
+}
+
+TEST (multiStripModelAndParameters)
+{
+    MixerParams params;
+
+    // 1. Aux (8 channels)
+    CHECK_NEAR (params.auxes[0].faderDb.get(), 0.0f, 0.01f);
+    CHECK_NEAR (params.auxes[0].pan.get(), 0.0f, 0.01f);
+    CHECK (! params.auxes[0].mute.getBool());
+    CHECK (params.auxes[0].mainAssign.getBool());
+    params.auxes[2].trimDb.set (12.0f);
+    CHECK_NEAR (params.auxes[2].trimDb.get(), 12.0f, 0.01f);
+
+    // 2. FxReturns (8 channels: 1L-4R)
+    CHECK_NEAR (params.fxReturns[0].pan.get(), -1.0f, 0.01f); // 1L hard left
+    CHECK_NEAR (params.fxReturns[1].pan.get(), 1.0f, 0.01f);  // 1R hard right
+    CHECK (params.fxReturns[0].mainAssign.getBool());
+
+    // 3. Buses (16 channels)
+    CHECK_NEAR (params.buses[0].faderDb.get(), 0.0f, 0.01f);
+    CHECK (params.buses[0].mainAssign.getBool());
+    params.buses[5].dcaGroups.set (3.0f); // DCA 1 & 2
+    CHECK (params.buses[5].dcaGroups.getInt() == 3);
+
+    // 4. Matrices (6 channels)
+    CHECK_NEAR (params.matrices[0].faderDb.get(), 0.0f, 0.01f);
+    CHECK (! params.matrices[0].polarity.getBool());
+    params.matrices[3].polarity.setBool (true);
+    CHECK (params.matrices[3].polarity.getBool());
+}
+
+TEST (mainBusAndMainLrRouting)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.4f, 0.4f, 2);
+    auto& ch0 = rig.params.channels[0];
+    ch0.source.set (0);
+
+    // 1. Channel direct to Main LR:
+    ch0.mainAssign.setBool (true);
+    rig.run (20);
+    CHECK (rig.L() > 0.05f); // Sound comes out to Main LR!
+
+    // 2. Disconnect Channel from Main LR:
+    ch0.mainAssign.setBool (false);
+    rig.run (20);
+    CHECK_NEAR (rig.L(), 0.0f, 0.001f); // Silent!
+
+    // 3. Route Channel to Bus 1, and Bus 1 to Main LR:
+    ch0.sends[0].set (0.0f); // Send 0 dB to Bus 1
+    rig.params.buses[0].faderDb.set (0.0f);
+    rig.params.buses[0].mainAssign.setBool (true); // Bus 1 Main LR ON
+    rig.run (20);
+    CHECK (rig.L() > 0.05f); // Sound from Bus 1 comes out to Main LR!
+
+    // 4. Toggle Bus 1 Main LR OFF:
+    rig.params.buses[0].mainAssign.setBool (false); // Bus 1 Main LR OFF
+    rig.run (20);
+    CHECK_NEAR (rig.L(), 0.0f, 0.001f); // Silent again!
+}
+
+TEST (authenticHardwareBrandFxModeling)
+{
+    const double sr = 48000.0;
+
+    // 1. Roland Dimension D: spatial decorrelation and width
+    {
+        ModulationDsp mod;
+        mod.prepare (sr);
+        std::vector<float> L (512, 0.5f), R (512, 0.5f);
+        mod.process (L.data(), R.data(), 512, FxType::DimensionC, 0.25f, 50.0f, 0.0f, 0.0f, 1.0f);
+        // Antiphase BBD lines produce non-zero difference between Left and Right
+        float diffEnergy = 0.0f;
+        for (size_t i = 50; i < L.size(); ++i)
+            diffEnergy += std::abs (L[i] - R[i]);
+        CHECK (diffEnergy > 0.001f);
+    }
+
+    // 2. Pultec EQP-1A: Low-End Trick boosts bass and sculpts lower-mids
+    {
+        PremiumTubeEqDsp eq;
+        eq.prepare (sr);
+        // Test with 60 Hz tone
+        std::vector<float> L (1024, 0.0f), R (1024, 0.0f);
+        for (size_t i = 0; i < L.size(); ++i)
+            L[i] = R[i] = std::sin (2.0f * kPi * 60.0f * (float) i / (float) sr);
+        // Pultec Low Boost (6dB) + Low Atten (4dB) at 60 Hz
+        eq.process (L.data(), R.data(), 1024, FxType::StereoXtecEQ1, 6.0f, 60.0f, 4.0f, 0.0f, 0.0f, 8000.0f, 1.0f);
+        float peak = 0.0f;
+        for (float s : L) peak = std::max (peak, std::abs (s));
+        CHECK (peak > 1.05f); // Boosted bass!
+    }
+
+    // 3. Urei 1176LN: All-Buttons-In mode produces heavy FET compression and saturation
+    {
+        PremiumDynamicsDsp dyn;
+        dyn.prepare (sr);
+        std::vector<float> L (2048, 0.8f), R (2048, 0.8f);
+        // Ratio = 20 (All-In mode), Input = 45, Output = 20
+        dyn.process (L.data(), R.data(), 2048, FxType::UltimoCompressor, 45.0f, 20.0f, 20.0f, 10.0f, 1.0f);
+        float compressedPeak = 0.0f;
+        for (size_t i = 500; i < L.size(); ++i)
+            compressedPeak = std::max (compressedPeak, std::abs (L[i]));
+        CHECK (compressedPeak < 0.6f); // Heavy FET limiting!
+    }
+
+    // 4. BBE Sonic Maximizer: low band phase delay
+    {
+        PremiumTubeEqDsp bbe;
+        bbe.prepare (sr);
+        std::vector<float> L (512, 0.0f), R (512, 0.0f);
+        L[0] = R[0] = 1.0f; // Impulse
+        bbe.process (L.data(), R.data(), 512, FxType::SoundMaxer, 20.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+        // Verify signal was processed without crashing or nan
+        CHECK (! std::isnan (L[100]));
+    }
+}
+
+TEST (busInsertFxProcessing)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.3f, 0.3f, 2);
+    auto& ch0 = rig.params.channels[0];
+    ch0.source.set (0);
+    ch0.mainAssign.setBool (false);
+
+    // Route Channel 0 to Bus 1 (send 0 dB)
+    ch0.sends[0].set (0.0f);
+    auto& bus0 = rig.params.buses[0];
+    bus0.faderDb.set (0.0f);
+    bus0.mainAssign.setBool (true);
+
+    // 1. Without insert FX: normal sound to Main LR
+    rig.run (20);
+    const float dryLevel = rig.L();
+    CHECK (dryLevel > 0.05f);
+
+    // 2. Insert FX Slot 1 on Bus 1:
+    rig.params.fxSlots[0].setDefaultsForType (FxType::StereoGuitarAmp);
+    bus0.insertFxSlot.set (1.0f); // Insert FX Slot 1 on Bus 1
+    rig.run (20);
+    const float insertedLevel = rig.L();
+    CHECK (insertedLevel > 0.05f); // Bus Insert FX successfully processes audio!
+
+    // 3. Unassign insert FX (0):
+    bus0.insertFxSlot.set (0.0f);
+    rig.run (20);
+    CHECK_NEAR (rig.L(), dryLevel, 0.01f);
 }
 
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }

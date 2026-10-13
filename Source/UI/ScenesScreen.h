@@ -36,6 +36,7 @@ private:
 
     juce::TextButton captureSceneButton { "STORE SCENE" };
     juce::TextButton recallSceneButton { "RECALL SCENE" };
+    juce::TextButton importScnButton { "IMPORT X32 SCENE (.SCN)" };
     juce::TextEditor sceneNameEditor;
     juce::ListBox sceneList;
 

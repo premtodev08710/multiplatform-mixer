@@ -25,11 +25,21 @@ ScenesScreen::ScenesScreen (AudioEngine& eng, ProjectModel& proj)
     recallSceneButton.addListener (this);
     addAndMakeVisible (recallSceneButton);
 
+    importScnButton.addListener (this);
+    importScnButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff00838f));
+    addAndMakeVisible (importScnButton);
+
     sceneList.setModel (this);
     addAndMakeVisible (sceneList);
 
     // Initial default scenes
     scenes.push_back ({ "01: Default Initial State", project.captureSceneSnapshot ("01: Default Initial State") });
+
+    auto x32Scn = juce::File::getCurrentWorkingDirectory().getChildFile ("scene.scn");
+    if (x32Scn.existsAsFile())
+    {
+        scenes.push_back ({ "02: X32 scene.scn (Thai Folk Band - Ponglang/Pin/Kan)", {} });
+    }
     sceneList.updateContent();
 }
 
@@ -72,8 +82,48 @@ void ScenesScreen::buttonClicked (juce::Button* b)
     {
         if (selectedSceneIndex >= 0 && selectedSceneIndex < (int) scenes.size())
         {
-            project.recallSceneSnapshot (scenes[(size_t) selectedSceneIndex].data);
+            if (scenes[(size_t) selectedSceneIndex].data.isVoid())
+            {
+                auto x32Scn = juce::File::getCurrentWorkingDirectory().getChildFile ("scene.scn");
+                if (x32Scn.existsAsFile())
+                    project.loadX32SceneFile (x32Scn);
+            }
+            else
+            {
+                project.recallSceneSnapshot (scenes[(size_t) selectedSceneIndex].data);
+            }
         }
+    }
+    else if (b == &importScnButton)
+    {
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Import Behringer X32 Scene",
+            juce::File::getCurrentWorkingDirectory(),
+            "*.scn;*.txt;*.*");
+
+        const auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+        fileChooser->launchAsync (flags, [this] (const juce::FileChooser& chooser) {
+            auto file = chooser.getResult();
+            if (file.existsAsFile())
+            {
+                auto res = project.loadX32SceneFile (file);
+                if (res.wasOk())
+                {
+                    scenes.push_back ({ "X32: " + file.getFileNameWithoutExtension(), project.captureSceneSnapshot (file.getFileNameWithoutExtension()) });
+                    sceneList.updateContent();
+                    sceneList.repaint();
+                    juce::AlertWindow::showMessageBoxAsync (
+                        juce::AlertWindow::InfoIcon, "X32 Scene Loaded",
+                        "Successfully loaded X32 Scene:\n" + file.getFileName());
+                }
+                else
+                {
+                    juce::AlertWindow::showMessageBoxAsync (
+                        juce::AlertWindow::WarningIcon, "Import Error",
+                        "Failed to parse X32 Scene file:\n" + res.getErrorMessage());
+                }
+            }
+        });
     }
     else if (b == &saveProjectButton)
     {
@@ -172,11 +222,13 @@ void ScenesScreen::resized()
     // Right Box (Scenes)
     auto rightBox = bounds.reduced (16, 44);
     auto topRow = rightBox.removeFromTop (32);
-    sceneNameEditor.setBounds (topRow.removeFromLeft (260));
-    topRow.removeFromLeft (10);
-    captureSceneButton.setBounds (topRow.removeFromLeft (130));
-    topRow.removeFromLeft (10);
-    recallSceneButton.setBounds (topRow.removeFromLeft (130));
+    sceneNameEditor.setBounds (topRow.removeFromLeft (220));
+    topRow.removeFromLeft (8);
+    captureSceneButton.setBounds (topRow.removeFromLeft (110));
+    topRow.removeFromLeft (8);
+    recallSceneButton.setBounds (topRow.removeFromLeft (110));
+    topRow.removeFromLeft (8);
+    importScnButton.setBounds (topRow.removeFromLeft (170));
 
     rightBox.removeFromTop (12);
     sceneList.setBounds (rightBox);

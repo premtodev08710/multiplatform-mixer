@@ -21,11 +21,13 @@ HomeScreen::HomeScreen (AudioEngine& eng, ProjectModel& proj)
     sendsOnFadersButton.addListener (this);
     addAndMakeVisible (sendsOnFadersButton);
 
-    sofTargetCombo.addItem ("SEND: FX 1 (HALL)", 1);
-    sofTargetCombo.addItem ("SEND: FX 2 (AMBI)", 2);
-    sofTargetCombo.addItem ("SEND: FX 3 (DELAY)", 3);
-    sofTargetCombo.addItem ("SEND: FX 4 (CHOR)", 4);
-    sofTargetCombo.setSelectedId (1, juce::dontSendNotification);
+    for (int b = 1; b <= 12; ++b)
+        sofTargetCombo.addItem ("BUS " + juce::String (b) + " (MON " + juce::String (b) + ")", b);
+    sofTargetCombo.addItem ("BUS 13 (FX 1: REVERB)", 13);
+    sofTargetCombo.addItem ("BUS 14 (FX 2: ROOM)", 14);
+    sofTargetCombo.addItem ("BUS 15 (FX 3: DELAY)", 15);
+    sofTargetCombo.addItem ("BUS 16 (FX 4: CHORUS)", 16);
+    sofTargetCombo.setSelectedId (13, juce::dontSendNotification);
     sofTargetCombo.addListener (this);
     addAndMakeVisible (sofTargetCombo);
 
@@ -100,6 +102,12 @@ void HomeScreen::rebuildStrips()
                 setSelectedChannel (selIdx);
                 if (onChannelSelected) onChannelSelected (selIdx);
             };
+            strip->onOpenDetail = [this] (int selIdx) {
+                setSelectedChannel (selIdx);
+                if (onChannelSelected) onChannelSelected (selIdx);
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::InputChannel, selIdx);
+                else if (onOpenDetail) onOpenDetail (selIdx);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -110,6 +118,9 @@ void HomeScreen::rebuildStrips()
         {
             auto strip = std::make_unique<ChannelStripComponent> (
                 i, engine, project, ChannelStripComponent::StripType::Aux);
+            strip->onOpenDetail = [this, i] (int) {
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::Aux, i);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -120,6 +131,9 @@ void HomeScreen::rebuildStrips()
         {
             auto strip = std::make_unique<ChannelStripComponent> (
                 i, engine, project, ChannelStripComponent::StripType::FxReturn);
+            strip->onOpenDetail = [this, i] (int) {
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::FxReturn, i);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -130,16 +144,23 @@ void HomeScreen::rebuildStrips()
         {
             auto strip = std::make_unique<ChannelStripComponent> (
                 i, engine, project, ChannelStripComponent::StripType::Bus);
+            strip->onOpenDetail = [this, i] (int) {
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::Bus, i);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
     }
-    else if (currentBank == 7) // Bus 9-16 (Where Bus 13..16 are FX 1..4 Sends!)
+    else if (currentBank == 7) // Bus 9-16
     {
         for (int i = 0; i < 8; ++i)
         {
+            const int busIdx = 8 + i;
             auto strip = std::make_unique<ChannelStripComponent> (
-                8 + i, engine, project, ChannelStripComponent::StripType::Bus);
+                busIdx, engine, project, ChannelStripComponent::StripType::Bus);
+            strip->onOpenDetail = [this, busIdx] (int) {
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::Bus, busIdx);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -150,6 +171,9 @@ void HomeScreen::rebuildStrips()
         {
             auto strip = std::make_unique<ChannelStripComponent> (
                 i, engine, project, ChannelStripComponent::StripType::Matrix);
+            strip->onOpenDetail = [this, i] (int) {
+                if (onOpenDetailStrip) onOpenDetailStrip (ChannelStripComponent::StripType::Matrix, i);
+            };
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -168,7 +192,7 @@ void HomeScreen::rebuildStrips()
         for (int i = 0; i < 8; ++i)
         {
             auto strip = std::make_unique<ChannelStripComponent> (
-                i, engine, project, ChannelStripComponent::StripType::Bus);
+                i, engine, project, ChannelStripComponent::StripType::Dca);
             addAndMakeVisible (strip.get());
             channelStrips.push_back (std::move (strip));
         }
@@ -193,6 +217,17 @@ void HomeScreen::buttonClicked (juce::Button* b)
     {
         sendsOnFaderActive = sendsOnFadersButton.getToggleState();
         rebuildStrips();
+    }
+    for (int i = 0; i < 6; ++i)
+    {
+        if (b == &muteGroupButtons[i])
+        {
+            engine.getMixerParams().muteGroupActive[(size_t) i].store (
+                muteGroupButtons[i].getToggleState(), std::memory_order_relaxed);
+            for (auto& s : channelStrips)
+                s->updateFromModel();
+            break;
+        }
     }
 }
 
@@ -283,12 +318,36 @@ void HomeScreen::resized()
     }
 }
 
+static bool isSupportedAudioFileHome (const juce::File& f)
+{
+    const auto ext = f.getFileExtension().toLowerCase();
+    return ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac"
+        || ext == ".mp3" || ext == ".ogg" || ext == ".m4a" || ext == ".aac";
+}
+
+static void collectAudioFilesRecursivelyHome (const juce::File& f, juce::Array<juce::File>& result)
+{
+    if (f.isDirectory())
+    {
+        auto children = f.findChildFiles (juce::File::findFiles, true, "*");
+        for (const auto& child : children)
+        {
+            if (isSupportedAudioFileHome (child))
+                result.add (child);
+        }
+    }
+    else if (isSupportedAudioFileHome (f))
+    {
+        result.add (f);
+    }
+}
+
 bool HomeScreen::isInterestedInFileDrag (const juce::StringArray& files)
 {
     for (const auto& path : files)
     {
-        const auto ext = juce::File (path).getFileExtension().toLowerCase();
-        if (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".mp3" || ext == ".ogg")
+        const juce::File f (path);
+        if (f.isDirectory() || isSupportedAudioFileHome (f))
             return true;
     }
     return false;
@@ -298,19 +357,14 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
 {
     juce::Array<juce::File> audioFiles;
     for (const auto& path : files)
-    {
-        const juce::File f (path);
-        const auto ext = f.getFileExtension().toLowerCase();
-        if (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".mp3" || ext == ".ogg")
-            audioFiles.add (f);
-    }
+        collectAudioFilesRecursivelyHome (juce::File (path), audioFiles);
 
     if (audioFiles.isEmpty()) return;
 
     audioFiles.sort();
     const double targetSr = engine.getSampleRate();
 
-    int startSlot = 0;
+    int startSlot = -1;
     for (int s = 0; s < kMaxTracks; ++s)
     {
         if (engine.getTrackSlot (s) == nullptr)
@@ -319,6 +373,8 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
             break;
         }
     }
+    if (startSlot < 0)
+        startSlot = 0;
 
     for (int i = 0; i < audioFiles.size() && (startSlot + i) < kMaxTracks; ++i)
     {

@@ -8,10 +8,14 @@ EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
     : engine (eng), project (proj)
 {
     // 1. Group Selector Buttons: FX 1-4 vs FX 5-8
-    const char* groupNames[NumGroups] = { "FX 1 - 4 (SEND / RETURN RACK)", "FX 5 - 8 (INSERT / OUTPUT RACK)" };
+    const char* groupNames[NumGroups] = { "FX 1 - 4 (SEND / RETURN OR INSERT)", "FX 5 - 8 (INSERT ONLY)" };
     for (int i = 0; i < NumGroups; ++i)
     {
         groupButtons[i].setButtonText (groupNames[i]);
+        groupButtons[i].setName ("fx_group");
+        groupButtons[i].setColour (juce::TextButton::buttonColourId, ConsoleLookAndFeel::bgSection);
+        groupButtons[i].setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::textMuted);
+        groupButtons[i].setColour (juce::TextButton::textColourOnId, juce::Colours::white);
         groupButtons[i].setClickingTogglesState (true);
         groupButtons[i].setRadioGroupId (5001);
         groupButtons[i].addListener (this);
@@ -30,7 +34,9 @@ EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
         slotUis[(size_t) selectedSlot].typeCombo.setSelectedId ((int) newType + 1, juce::dontSendNotification);
         faceplate.setSlot (selectedSlot);
         refreshFromModel();
+        project.setModified();
     };
+    faceplate.onParametersChanged = [this] { project.setModified(); };
 
     updateGroupVisibility();
     refreshFromModel();
@@ -51,54 +57,24 @@ void EffectsScreen::setupSlots()
         slot.slotTitle.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
         addAndMakeVisible (slot.slotTitle);
 
-        // Populate all 41 effects grouped by category
-        slot.typeCombo.addItem ("-- 1. REVERB --", 9001);
-        slot.typeCombo.setItemEnabled (9001, false);
-        for (int t = (int) FxType::HallReverb; t <= (int) FxType::ReverseReverb; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 2. DELAY --", 9002);
-        slot.typeCombo.setItemEnabled (9002, false);
-        for (int t = (int) FxType::StereoDelay; t <= (int) FxType::RhythmDelay; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 3. MODULATION --", 9003);
-        slot.typeCombo.setItemEnabled (9003, false);
-        for (int t = (int) FxType::StereoChorus; t <= (int) FxType::TremoloPanner; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 4. PITCH --", 9004);
-        slot.typeCombo.setItemEnabled (9004, false);
-        slot.typeCombo.addItem ("18. Pitch Shifter", (int) FxType::PitchShifter + 1);
-
-        slot.typeCombo.addItem ("-- 5. GRAPHIC EQ (31-BAND) --", 9005);
-        slot.typeCombo.setItemEnabled (9005, false);
-        for (int t = (int) FxType::StereoGEQ; t <= (int) FxType::DualTruEQ; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 6. PREMIUM DYNAMICS --", 9006);
-        slot.typeCombo.setItemEnabled (9006, false);
-        for (int t = (int) FxType::LeisureCompressor; t <= (int) FxType::DualDeEsser; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 7. PREMIUM TUBE EQ / ENHANCER --", 9007);
-        slot.typeCombo.setItemEnabled (9007, false);
-        for (int t = (int) FxType::XtecEq1; t <= (int) FxType::DualEnhancer; ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addItem ("-- 8. PREMIUM UTILITIES & GUITAR AMP --", 9008);
-        slot.typeCombo.setItemEnabled (9008, false);
-        for (int t = (int) FxType::EdisonEx1; t <= (int) FxType::SubOctaver; ++t)
+        // Match the installed X32-Mix FX picker order and names.
+        for (int t = 0; t < getNumFxTypes(); ++t)
             slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
 
         slot.typeCombo.addListener (this);
+        slot.typeCombo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff101317));
+        slot.typeCombo.setColour (juce::ComboBox::outlineColourId, ConsoleLookAndFeel::borderSubtle);
+        slot.typeCombo.setColour (juce::ComboBox::textColourId, ConsoleLookAndFeel::textPrimary);
+        slot.typeCombo.setColour (juce::ComboBox::arrowColourId, ConsoleLookAndFeel::accentCyan);
         addAndMakeVisible (slot.typeCombo);
 
         slot.bypassButton.setClickingTogglesState (true);
+        slot.bypassButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         slot.bypassButton.addListener (this);
         addAndMakeVisible (slot.bypassButton);
 
         slot.modeButton.setClickingTogglesState (true);
+        slot.modeButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         slot.modeButton.addListener (this);
         addAndMakeVisible (slot.modeButton);
 
@@ -107,6 +83,7 @@ void EffectsScreen::setupSlots()
             auto& p = engine.getMixerParams().fxSlots[(size_t) i];
             p.mix.set ((float) (val * 0.01));
             if (selectedSlot == i) faceplate.refreshFromSlot();
+            project.setModified();
         };
         addAndMakeVisible (slot.mixDial);
 
@@ -117,6 +94,7 @@ void EffectsScreen::setupSlots()
         addAndMakeVisible (slot.outMeter);
 
         slot.selectButton.addListener (this);
+        slot.selectButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
         addAndMakeVisible (slot.selectButton);
     }
 }
@@ -134,6 +112,7 @@ void EffectsScreen::updateGroupVisibility()
         s.typeCombo.setVisible (visible);
         s.bypassButton.setVisible (visible);
         s.modeButton.setVisible (visible);
+        s.modeButton.setEnabled (i < 4);
         s.mixDial.setVisible (visible);
         s.inMeter.setVisible (visible);
         s.outMeter.setVisible (visible);
@@ -165,9 +144,11 @@ void EffectsScreen::refreshFromModel()
         s.bypassButton.setToggleState (! bypassed, juce::dontSendNotification);
         s.bypassButton.setButtonText (bypassed ? "BYPASS" : "IN");
 
-        const bool isInsert = p.insertMode.getBool();
+        const bool isInsert = i >= 4 || p.insertMode.getBool();
+        if (i >= 4)
+            p.insertMode.setBool (true);
         s.modeButton.setToggleState (isInsert, juce::dontSendNotification);
-        s.modeButton.setButtonText (isInsert ? "INSERT" : "SEND/RET");
+        s.modeButton.setButtonText (i >= 4 ? "INSERT ONLY" : (isInsert ? "INSERT" : "SEND/RET"));
 
         s.mixDial.setValue (p.mix.get() * 100.0, juce::dontSendNotification);
     }
@@ -208,14 +189,17 @@ void EffectsScreen::buttonClicked (juce::Button* b)
             p.bypass.setBool (! active);
             s.bypassButton.setButtonText (active ? "IN" : "BYPASS");
             if (selectedSlot == i) faceplate.refreshFromSlot();
+            project.setModified();
             return;
         }
 
         if (b == &s.modeButton)
         {
+            if (i >= 4) return;
             const bool isInsert = s.modeButton.getToggleState();
             p.insertMode.setBool (isInsert);
             s.modeButton.setButtonText (isInsert ? "INSERT" : "SEND/RET");
+            project.setModified();
             return;
         }
     }
@@ -230,13 +214,14 @@ void EffectsScreen::comboBoxChanged (juce::ComboBox* combo)
         if (combo == &slotUis[(size_t) i].typeCombo)
         {
             const int selectedId = combo->getSelectedId();
-            if (selectedId >= 1 && selectedId <= 41)
+            if (selectedId >= 1 && selectedId <= getNumFxTypes())
             {
                 auto& p = engine.getMixerParams().fxSlots[(size_t) i];
                 p.setDefaultsForType ((FxType) (selectedId - 1));
                 if (selectedSlot == i)
                     faceplate.setSlot (selectedSlot);
                 refreshFromModel();
+                project.setModified();
             }
             return;
         }
@@ -253,6 +238,9 @@ void EffectsScreen::paint (juce::Graphics& g)
     // Group Tab Bar Outline
     g.setColour (juce::Colour (0xff20242b));
     g.fillRect (0, 0, totalW, 46);
+    g.setColour (ConsoleLookAndFeel::textPrimary);
+    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+    g.drawText ("FX RACK", 12, 10, 90, 24, juce::Justification::left);
     g.setColour (ConsoleLookAndFeel::borderSubtle);
     g.drawHorizontalLine (46, 0.0f, (float) totalW);
 
@@ -260,7 +248,7 @@ void EffectsScreen::paint (juce::Graphics& g)
     const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
     const int slotW = (totalW - 24) / 4;
     const int cardY = 54;
-    const int cardH = 150;
+    const int cardH = 166;
 
     for (int i = 0; i < 4; ++i)
     {
@@ -274,6 +262,9 @@ void EffectsScreen::paint (juce::Graphics& g)
 
         g.setColour (isSelected ? ConsoleLookAndFeel::accentCyan : juce::Colour (0xff323a46));
         g.drawRoundedRectangle (rect, 4.0f, isSelected ? 1.8f : 1.0f);
+        g.setColour (isSelected ? ConsoleLookAndFeel::accentCyan.withAlpha (0.10f)
+                                : juce::Colour (0xff252a31));
+        g.fillRect (cardX + 3, cardY + 3, slotW - 6, 3);
     }
 }
 
@@ -283,9 +274,9 @@ void EffectsScreen::resized()
     const int totalH = getHeight();
 
     // 1. Group Selector Tabs
-    const int tabW = 260;
-    groupButtons[0].setBounds (12, 10, tabW, 28);
-    groupButtons[1].setBounds (16 + tabW, 10, tabW, 28);
+    const int tabW = std::min (300, std::max (220, (totalW - 32) / 3));
+    groupButtons[0].setBounds (116, 9, tabW, 29);
+    groupButtons[1].setBounds (124 + tabW, 9, tabW, 29);
 
     // 2. Upper 4 Modular Rack Cards
     const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
@@ -310,11 +301,11 @@ void EffectsScreen::resized()
         s.inMeter.setBounds (meterX, cardY + 66, meterW, 76);
         s.outMeter.setBounds (meterX + meterW + 6, cardY + 66, meterW, 76);
 
-        s.selectButton.setBounds (cardX + slotW - 74, cardY + 116, 64, 24);
+        s.selectButton.setBounds (cardX + slotW - 74, cardY + 136, 64, 24);
     }
 
     // 3. Lower Hardware Faceplate Area
-    const int faceplateY = 212;
+    const int faceplateY = 232;
     faceplate.setBounds (12, faceplateY, totalW - 24, std::max (100, totalH - faceplateY - 10));
 }
 

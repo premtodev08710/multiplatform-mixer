@@ -10,13 +10,13 @@ BankSelectorBar::BankSelectorBar()
     setOpaque (false);
 }
 
-void BankSelectorBar::setSelectedBank (int bankIndex)
+void BankSelectorBar::setSelectedBank (int bankIndex, bool sendNotification)
 {
-    if (selectedBank != bankIndex && bankIndex >= 0 && bankIndex < NumBanks)
+    if (bankIndex >= 0 && bankIndex < NumBanks)
     {
         selectedBank = bankIndex;
         repaint();
-        if (onBankSelected)
+        if (sendNotification && onBankSelected)
             onBankSelected (selectedBank);
     }
 }
@@ -117,6 +117,10 @@ void BankSelectorBar::paint (juce::Graphics& g)
                     else
                         chDb = gainToDb (std::max (meters->main.l.read(), meters->main.r.read()));
                 }
+                else if (i == 9) // DCA 1-8
+                {
+                    chDb = gainToDb (meters->dcas[(size_t) c].read());
+                }
             }
 
             // 6 discrete LED segments: s=0 is 0 dB (top/clip), s=5 is -50 dB (bottom)
@@ -164,7 +168,7 @@ void BankSelectorBar::mouseDown (const juce::MouseEvent& e)
     {
         const int idx = (int) ((e.position.x - banksStartX) / buttonW);
         if (idx >= 0 && idx < NumBanks)
-            setSelectedBank (idx);
+            setSelectedBank (idx, true);
     }
 }
 

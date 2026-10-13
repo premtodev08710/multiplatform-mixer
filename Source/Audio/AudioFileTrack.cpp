@@ -26,8 +26,10 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
                            .getChildFile ("MixPracticeStudioCache");
         tempDir.createDirectory();
 
+        const juce::String fileHash = juce::String::toHexString (file.getFullPathName().hashCode64());
         auto cacheFile = tempDir.getChildFile (file.getFileNameWithoutExtension()
-                                               + "_cached_" + juce::String ((int) targetSampleRate) + ".wav");
+                                               + "_" + fileHash + "_cached_"
+                                               + juce::String ((int) targetSampleRate) + ".wav");
 
         bool cacheValid = false;
         if (cacheFile.existsAsFile() && cacheFile.getLastModificationTime() >= file.getLastModificationTime())
@@ -43,8 +45,8 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
 
         if (! cacheValid)
         {
-            // Convert using our SincResampler
-            SincResampler resampler (origSr, targetSampleRate);
+            // Convert using our SincResampler (12 zero-crossings for fast studio-quality conversion)
+            SincResampler resampler (origSr, targetSampleRate, 12, 256);
             const int64_t inLen = readerToUse->lengthInSamples;
             const int64_t outLen = resampler.getOutputLength (inLen);
             const int numCh = std::min (2, (int) readerToUse->numChannels);

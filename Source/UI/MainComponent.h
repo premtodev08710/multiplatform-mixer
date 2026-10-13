@@ -3,6 +3,7 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "../Network/X32OscClient.h"
 #include "ConsoleLookAndFeel.h"
 #include "DetailScreen.h"
 #include "EffectsScreen.h"
@@ -36,6 +37,7 @@ private:
 
     AudioEngine engine;
     ProjectModel project { engine };
+    X32OscClient oscClient { engine, project };
 
     // Top Navigation Tabs
     enum NavTab
@@ -54,7 +56,7 @@ private:
     TracksScreen tracksScreen { engine, project };
     EffectsScreen effectsScreen { engine, project };
     ScenesScreen scenesScreen { engine, project };
-    SetupScreen setupScreen { engine };
+    SetupScreen setupScreen { engine, oscClient };
 
     // Placeholder view for roadmap tabs (Effects, Meters, etc.)
     juce::Label placeholderLabel;

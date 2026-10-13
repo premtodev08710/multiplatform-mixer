@@ -36,15 +36,25 @@ struct ChannelParams
     Param mute;
     Param solo;
     Param mainAssign;  // routed to Main LR
+    Param monoAssign;  // routed to Mono/Center
+    Param phantom48v;  // +48V phantom power simulation
 
     // Full DSP chain (Delay, HPF, Gate, EQ, Compressor)
     ChannelDspParams dsp;
 
-    // FX Sends (FX 1, FX 2, FX 3, FX 4)
-    std::array<Param, 4> sends;
+    // MixBus Sends 1..16 (Buses 1..12 and Buses 13..16 / FX 1..4)
+    std::array<Param, 16> sends;
+    std::array<Param, 16> sendMutes;
+    std::array<Param, 8>  sendTaps;
 
     // Channel FX Insert (0 = None, 1..8 = FX 1..8)
     Param insertFxSlot;
+
+    // Mute Groups assignment bitmask (bit 0..5 = Mute Group 1..6)
+    Param muteGroups;
+
+    // DCA Groups assignment bitmask (bit 0..7 = DCA 1..8)
+    Param dcaGroups;
 
     ChannelParams()
     {
@@ -57,19 +67,32 @@ struct ChannelParams
         mute.init       ({ 0.0f, 1.0f, 0.0f });
         solo.init       ({ 0.0f, 1.0f, 0.0f });
         mainAssign.init ({ 0.0f, 1.0f, 1.0f });
+        monoAssign.init ({ 0.0f, 1.0f, 0.0f });
+        phantom48v.init ({ 0.0f, 1.0f, 0.0f });
 
         for (auto& s : sends)
             s.init ({ -90.0f, 10.0f, -90.0f });
 
+        for (auto& sm : sendMutes)
+            sm.init ({ 0.0f, 1.0f, 0.0f });
+
+        for (auto& st : sendTaps)
+            st.init ({ 0.0f, 5.0f, 4.0f });
+
         insertFxSlot.init ({ 0.0f, 8.0f, 0.0f });
+        muteGroups.init   ({ 0.0f, 63.0f, 0.0f });
+        dcaGroups.init    ({ 0.0f, 255.0f, 0.0f });
     }
 
     void resetMixValues() noexcept
     {
         sourceMode.resetToDefault(); trimDb.resetToDefault(); polarity.resetToDefault();
         faderDb.resetToDefault(); pan.resetToDefault(); mute.resetToDefault();
-        solo.resetToDefault(); mainAssign.resetToDefault();
+        solo.resetToDefault(); mainAssign.resetToDefault(); monoAssign.resetToDefault();
+        phantom48v.resetToDefault();
         for (auto& s : sends) s.resetToDefault();
+        for (auto& sm : sendMutes) sm.resetToDefault();
+        for (auto& st : sendTaps) st.resetToDefault();
         insertFxSlot.resetToDefault();
     }
 };
@@ -95,6 +118,11 @@ struct FxReturnParams
     Param pan;
     Param mute;
     Param solo;
+    Param mainAssign;
+    Param monoAssign;
+    Param dcaGroups;
+    Param muteGroups;
+    ChannelDspParams dsp;
 
     FxReturnParams()
     {
@@ -102,6 +130,10 @@ struct FxReturnParams
         pan.init     ({ -1.0f, 1.0f, 0.0f });
         mute.init    ({ 0.0f, 1.0f, 0.0f });
         solo.init    ({ 0.0f, 1.0f, 0.0f });
+        mainAssign.init ({ 0.0f, 1.0f, 1.0f });
+        monoAssign.init ({ 0.0f, 1.0f, 0.0f });
+        dcaGroups.init  ({ 0.0f, 255.0f, 0.0f });
+        muteGroups.init ({ 0.0f, 63.0f, 0.0f });
     }
 };
 
@@ -110,12 +142,25 @@ struct BusParams
     Param faderDb;
     Param mute;
     Param pan;
+    Param solo;
+    Param mainAssign;
+    Param monoAssign;
+    Param insertFxSlot;
+    Param dcaGroups;
+    Param muteGroups;
+    ChannelDspParams dsp;
 
     BusParams()
     {
         faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f }); // 0 dB unity gain
         mute.init    ({ 0.0f, 1.0f, 0.0f });
         pan.init     ({ -1.0f, 1.0f, 0.0f });
+        solo.init    ({ 0.0f, 1.0f, 0.0f });
+        mainAssign.init ({ 0.0f, 1.0f, 1.0f });
+        monoAssign.init ({ 0.0f, 1.0f, 0.0f });
+        insertFxSlot.init ({ 0.0f, 8.0f, 0.0f });
+        dcaGroups.init  ({ 0.0f, 255.0f, 0.0f });
+        muteGroups.init ({ 0.0f, 63.0f, 0.0f });
     }
 };
 
@@ -124,12 +169,31 @@ struct AuxParams
     Param faderDb;
     Param mute;
     Param pan;
+    Param solo;
+    Param trimDb;
+    Param polarity;
+    Param phantom48v;
+    Param source;
+    Param mainAssign;
+    Param monoAssign;
+    Param dcaGroups;
+    Param muteGroups;
+    ChannelDspParams dsp;
 
     AuxParams()
     {
         faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f });
         mute.init    ({ 0.0f, 1.0f, 0.0f });
         pan.init     ({ -1.0f, 1.0f, 0.0f });
+        solo.init    ({ 0.0f, 1.0f, 0.0f });
+        trimDb.init  ({ -12.0f, 60.0f, 0.0f });
+        polarity.init({ 0.0f, 1.0f, 0.0f });
+        phantom48v.init({ 0.0f, 1.0f, 0.0f });
+        source.init  ({ 0.0f, 8.0f, 0.0f });
+        mainAssign.init ({ 0.0f, 1.0f, 1.0f });
+        monoAssign.init ({ 0.0f, 1.0f, 0.0f });
+        dcaGroups.init  ({ 0.0f, 255.0f, 0.0f });
+        muteGroups.init ({ 0.0f, 63.0f, 0.0f });
     }
 };
 
@@ -138,12 +202,31 @@ struct MatrixParams
     Param faderDb;
     Param mute;
     Param pan;
+    Param solo;
+    Param polarity;
+    Param insertFxSlot;
+    ChannelDspParams dsp;
 
     MatrixParams()
     {
         faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f });
         mute.init    ({ 0.0f, 1.0f, 0.0f });
         pan.init     ({ -1.0f, 1.0f, 0.0f });
+        solo.init    ({ 0.0f, 1.0f, 0.0f });
+        polarity.init({ 0.0f, 1.0f, 0.0f });
+        insertFxSlot.init ({ 0.0f, 8.0f, 0.0f });
+    }
+};
+
+struct DcaParams
+{
+    Param faderDb;
+    Param mute;
+
+    DcaParams()
+    {
+        faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f }); // 0 dB unity gain default
+        mute.init    ({ 0.0f, 1.0f, 0.0f });
     }
 };
 
@@ -156,18 +239,26 @@ struct MixerParams
     std::array<BusParams, 16> buses;
     std::array<AuxParams, 8> auxes;
     std::array<MatrixParams, 6> matrices;
+    std::array<DcaParams, 8> dcas;
+    std::array<std::atomic<bool>, 16> channelPairLinked;
+    std::array<std::atomic<bool>, 6> muteGroupActive;
 
     MixerParams()
     {
-        // Setup console default effect assignments
-        fxSlots[0].setDefaultsForType (FxType::HallReverb);   // FX 1
-        fxSlots[1].setDefaultsForType (FxType::Ambience);     // FX 2
-        fxSlots[2].setDefaultsForType (FxType::StereoDelay);  // FX 3
-        fxSlots[3].setDefaultsForType (FxType::StereoChorus); // FX 4
-        fxSlots[4].setDefaultsForType (FxType::DualGEQ);      // FX 5
-        fxSlots[5].setDefaultsForType (FxType::DualGEQ);      // FX 6
-        fxSlots[6].setDefaultsForType (FxType::DualGEQ);      // FX 7
-        fxSlots[7].setDefaultsForType (FxType::DualGEQ);      // FX 8
+        for (auto& l : channelPairLinked) l.store (false, std::memory_order_relaxed);
+        for (auto& m : muteGroupActive)    m.store (false, std::memory_order_relaxed);
+
+        // Match the FX assignments shown by the installed X32-Mix demo rack.
+        fxSlots[0].setDefaultsForType (FxType::HallReverb);             // FX 1
+        fxSlots[1].setDefaultsForType (FxType::AmbienceReverb);         // FX 2
+        fxSlots[2].setDefaultsForType (FxType::VintageRoomReverb);      // FX 3
+        fxSlots[3].setDefaultsForType (FxType::AmbienceReverb);         // FX 4
+        fxSlots[4].setDefaultsForType (FxType::StereoEnhancer);         // FX 5
+        fxSlots[5].setDefaultsForType (FxType::StereoXtecEQ1);          // FX 6
+        fxSlots[6].setDefaultsForType (FxType::StereoLeisureCompressor); // FX 7
+        fxSlots[7].setDefaultsForType (FxType::MsFairCompressor);       // FX 8
+        for (int i = 4; i < 8; ++i)
+            fxSlots[(size_t) i].insertMode.setBool (true); // FX 5-8 are insert-only
 
         // Returns 1L, 2L, 3L, 4L default pan hard-left (-1.0)
         // Returns 1R, 2R, 3R, 4R default pan hard-right (+1.0)
@@ -186,6 +277,18 @@ struct MixerParams
             if (r.solo.getBool()) return true;
         return false;
     }
+
+    bool isChannelLinked (int ch) const noexcept
+    {
+        if (ch >= 0 && ch < kMaxInputChannels)
+            return channelPairLinked[(size_t) (ch / 2)].load (std::memory_order_relaxed);
+        return false;
+    }
+
+    int getLinkedChannel (int ch) const noexcept
+    {
+        return (ch % 2 == 0) ? (ch + 1) : (ch - 1);
+    }
 };
 
 //==============================================================================
@@ -196,6 +299,7 @@ struct ChannelMeters
     std::atomic<bool> clip { false };   // pre-fader tap reached >= 0 dBFS
     std::atomic<int>  width { 0 };      // 0 = no signal source, 1 = mono, 2 = stereo
     ChannelDspMeters dsp;               // Gate GR and Comp GR
+    std::array<AtomicPeak, 31> rtaBands; // Real-time 31-band acoustic spectrum tap
 };
 
 struct MainMeters
@@ -212,6 +316,7 @@ struct MixerMeters
     std::array<AtomicPeak, 16> buses;
     std::array<AtomicPeak, 8> auxes;
     std::array<AtomicPeak, 6> matrices;
+    std::array<AtomicPeak, 8> dcas;
     AtomicPeak mainC;
 };
 

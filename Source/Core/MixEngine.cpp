@@ -34,6 +34,11 @@ void MixEngine::prepare (double sr, int maxBlockSize)
     mainGain.setImmediate (faderDbToGain (params.main.faderDb.get()) * (params.main.mute.getBool() ? 0.0f : 1.0f));
 
     fxRack.prepare (sampleRate, maxBlockSize);
+    for (int i = 0; i < 12; ++i)
+    {
+        busBufL[i].assign ((size_t) maxBlockSize, 0.0f);
+        busBufR[i].assign ((size_t) maxBlockSize, 0.0f);
+    }
     for (int i = 0; i < 4; ++i)
     {
         fxSendBufL[i].assign ((size_t) maxBlockSize, 0.0f);
@@ -54,6 +59,54 @@ void MixEngine::prepare (double sr, int maxBlockSize)
         g.reset (sampleRate, kGainRampSeconds);
         g.setImmediate (1.0f);
     }
+
+    initRtaFilters (sampleRate);
+}
+
+static inline BiquadCoeffs calcRtaBPF (float freq, float Q, float sr) noexcept
+{
+    freq = clampf (freq, 10.0f, sr * 0.48f);
+    const float w0 = 2.0f * kPi * freq / sr;
+    const float alpha = std::sin (w0) / (2.0f * std::max (0.1f, Q));
+    const float a0 = 1.0f + alpha;
+    BiquadCoeffs c;
+    c.b0 = alpha / a0;
+    c.b1 = 0.0f;
+    c.b2 = -alpha / a0;
+    c.a1 = (-2.0f * std::cos (w0)) / a0;
+    c.a2 = (1.0f - alpha) / a0;
+    return c;
+}
+
+void MixEngine::initRtaFilters (double sr) noexcept
+{
+    for (size_t b = 0; b < 31; ++b)
+    {
+        rtaCoeffs[b] = calcRtaBPF (kGeqFrequencies[b], 4.318f, (float) sr);
+        rtaFilters[b].reset();
+    }
+}
+
+void MixEngine::processRta (const float* l, const float* r, int width, int n, int ch) noexcept
+{
+    if (ch < 0 || ch >= kMaxInputChannels || n <= 0) return;
+    auto& cm = meters.channels[(size_t) ch];
+
+    for (size_t b = 0; b < 31; ++b)
+    {
+        float peak = 0.0f;
+        const auto& coeffs = rtaCoeffs[b];
+        auto& filter = rtaFilters[b];
+
+        for (int i = 0; i < n; ++i)
+        {
+            const float in = (width == 2) ? 0.5f * (l[i] + r[i]) : l[i];
+            const float out = filter.process (in, coeffs);
+            peak = std::max (peak, std::abs (out));
+        }
+
+        cm.rtaBands[b].update (peak);
+    }
 }
 
 static inline float blockPeak (const float* d, int n) noexcept
@@ -71,6 +124,11 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
     std::memset (sumL.data(), 0, sizeof (float) * (size_t) n);
     std::memset (sumR.data(), 0, sizeof (float) * (size_t) n);
+    for (int b = 0; b < 12; ++b)
+    {
+        std::memset (busBufL[(size_t) b].data(), 0, sizeof (float) * (size_t) n);
+        std::memset (busBufR[(size_t) b].data(), 0, sizeof (float) * (size_t) n);
+    }
     for (int s = 0; s < 4; ++s)
     {
         std::memset (fxSendBufL[(size_t) s].data(), 0, sizeof (float) * (size_t) n);
@@ -118,8 +176,42 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
         // ---- gain targets
         const float inTarget = dbToGain (p.trimDb.get()) * (p.polarity.getBool() ? -1.0f : 1.0f);
-        const bool muted = p.mute.getBool();
-        const float fader = faderDbToGain (p.faderDb.get()) * (muted ? 0.0f : 1.0f);
+        
+        // Check Mute Groups
+        bool muteGroupMuted = false;
+        const int mgMask = p.muteGroups.getInt();
+        if (mgMask > 0)
+        {
+            for (int mg = 0; mg < 6; ++mg)
+            {
+                if ((mgMask & (1 << mg)) && params.muteGroupActive[(size_t) mg].load (std::memory_order_relaxed))
+                {
+                    muteGroupMuted = true;
+                    break;
+                }
+            }
+        }
+
+        // Check DCA Groups (Gain scaling and Mute)
+        float dcaGain = 1.0f;
+        bool dcaMuted = false;
+        const int dcaMask = p.dcaGroups.getInt();
+        if (dcaMask > 0)
+        {
+            for (int d = 0; d < 8; ++d)
+            {
+                if (dcaMask & (1 << d))
+                {
+                    auto& dca = params.dcas[(size_t) d];
+                    if (dca.mute.getBool())
+                        dcaMuted = true;
+                    dcaGain *= faderDbToGain (dca.faderDb.get());
+                }
+            }
+        }
+
+        const bool muted = p.mute.getBool() || muteGroupMuted || dcaMuted;
+        const float fader = faderDbToGain (p.faderDb.get()) * dcaGain * (muted ? 0.0f : 1.0f);
         const bool routed = p.mainAssign.getBool() && (! anySolo || p.solo.getBool());
 
         if (st.activeSource < 0)
@@ -194,6 +286,12 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 std::memcpy (chR.data(), insBufR.data(), sizeof (float) * (size_t) n);
         }
 
+        // ---- Real-time 31-band acoustic spectrum analysis
+        if ((int) c == rtaChannel.load (std::memory_order_relaxed))
+        {
+            processRta (chL.data(), chR.data(), width, n, (int) c);
+        }
+
         // ---- pre-fader meter tap
         const float preL = blockPeak (chL.data(), n);
         const float preR = width == 2 ? blockPeak (chR.data(), n) : preL;
@@ -221,23 +319,113 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             sumL[(size_t) i] += l * rg;
             sumR[(size_t) i] += r * rg;
 
-            // Post-fader FX Sends 1..4 accumulation
             if (! muted)
             {
+                // MixBus 1..12 accumulation (Buses 1..12 are Mix Buses, NOT FX!)
+                for (int b = 0; b < 12; ++b)
+                {
+                    if (! p.sendMutes[(size_t) b].getBool())
+                    {
+                        const float bDb = p.sends[(size_t) b].get();
+                        if (bDb > -89.0f)
+                        {
+                            const float bGain = dbToGain (bDb);
+                            busBufL[(size_t) b][(size_t) i] += l * bGain;
+                            busBufR[(size_t) b][(size_t) i] += r * bGain;
+                        }
+                    }
+                }
+
+                // FX Sends 1..4 accumulation (Buses 13..16 are dedicated FX 1..4!)
                 for (int s = 0; s < 4; ++s)
                 {
-                    const float sDb = p.sends[(size_t) s].get();
-                    if (sDb > -89.0f)
+                    const int fxBusIdx = 12 + s;
+                    if (! p.sendMutes[(size_t) fxBusIdx].getBool())
                     {
-                        const float sGain = dbToGain (sDb);
-                        fxSendBufL[(size_t) s][(size_t) i] += l * sGain;
-                        fxSendBufR[(size_t) s][(size_t) i] += r * sGain;
+                        const float sDb = p.sends[(size_t) fxBusIdx].get();
+                        if (sDb > -89.0f)
+                        {
+                            const float sGain = dbToGain (sDb);
+                            fxSendBufL[(size_t) s][(size_t) i] += l * sGain;
+                            fxSendBufR[(size_t) s][(size_t) i] += r * sGain;
+                        }
                     }
                 }
             }
         }
         m.postL.update (pkL);
         m.postR.update (pkR);
+    }
+
+    // ---- Process MixBuses 1..12 (Master fader, mute, Main LR routing & metering)
+    for (int b = 0; b < 12; ++b)
+    {
+        auto& busParam = params.buses[(size_t) b];
+
+        // Check Mute Groups on bus
+        bool busMgMuted = false;
+        const int busMgMask = busParam.muteGroups.getInt();
+        if (busMgMask > 0)
+        {
+            for (int mg = 0; mg < 6; ++mg)
+            {
+                if ((busMgMask & (1 << mg)) && params.muteGroupActive[(size_t) mg].load (std::memory_order_relaxed))
+                {
+                    busMgMuted = true;
+                    break;
+                }
+            }
+        }
+
+        // Check DCA Groups on bus
+        float busDcaGain = 1.0f;
+        bool busDcaMuted = false;
+        const int busDcaMask = busParam.dcaGroups.getInt();
+        if (busDcaMask > 0)
+        {
+            for (int d = 0; d < 8; ++d)
+            {
+                if (busDcaMask & (1 << d))
+                {
+                    auto& dca = params.dcas[(size_t) d];
+                    if (dca.mute.getBool())
+                        busDcaMuted = true;
+                    busDcaGain *= faderDbToGain (dca.faderDb.get());
+                }
+            }
+        }
+
+        // ---- Bus Insert FX (Slots 1..8)
+        const int busInsSlot = busParam.insertFxSlot.getInt();
+        if (busInsSlot >= 1 && busInsSlot <= 8)
+        {
+            auto& insSlotParams = params.fxSlots[(size_t) (busInsSlot - 1)];
+            fxRack.processSlot (busInsSlot - 1,
+                                busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
+                                insBufL.data(), insBufR.data(), n, insSlotParams);
+            std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
+            std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+        }
+
+        const bool busMuted = busParam.mute.getBool() || busMgMuted || busDcaMuted;
+        const float busGain = busMuted ? 0.0f : (faderDbToGain (busParam.faderDb.get()) * busDcaGain);
+        const bool busRoutedToMain = busParam.mainAssign.getBool() && (! anySolo || busParam.solo.getBool());
+        const auto busPan = panMonoConstantPower (busParam.pan.get());
+
+        float busPk = 0.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            const float bL = busBufL[(size_t) b][(size_t) i] * busGain;
+            const float bR = busBufR[(size_t) b][(size_t) i] * busGain;
+            busPk = std::max (busPk, std::max (std::abs (bL), std::abs (bR)));
+
+            if (busRoutedToMain)
+            {
+                sumL[(size_t) i] += bL * busPan.left  + bR * busPan.left;
+                sumR[(size_t) i] += bL * busPan.right + bR * busPan.right;
+            }
+        }
+        meters.buses[(size_t) b].update (busPk);
     }
 
     // ---- Process FX 1..4 (Send/Return Busses)
@@ -281,6 +469,9 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const auto panL = panMonoConstantPower (retPL.pan.get());
             const auto panR = panMonoConstantPower (retPR.pan.get());
 
+            const bool routeL = retPL.mainAssign.getBool() && (! anySolo || retPL.solo.getBool());
+            const bool routeR = retPR.mainAssign.getBool() && (! anySolo || retPR.solo.getBool());
+
             float retPkL = 0.0f, retPkR = 0.0f;
             for (int i = 0; i < n; ++i)
             {
@@ -290,8 +481,16 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 retPkL = std::max (retPkL, std::abs (retL));
                 retPkR = std::max (retPkR, std::abs (retR));
 
-                sumL[(size_t) i] += retL * panL.left  + retR * panR.left;
-                sumR[(size_t) i] += retL * panL.right + retR * panR.right;
+                if (routeL)
+                {
+                    sumL[(size_t) i] += retL * panL.left;
+                    sumR[(size_t) i] += retL * panL.right;
+                }
+                if (routeR)
+                {
+                    sumL[(size_t) i] += retR * panR.left;
+                    sumR[(size_t) i] += retR * panR.right;
+                }
             }
             meters.fxReturns[(size_t) rL].update (retPkL);
             meters.fxReturns[(size_t) rR].update (retPkR);
@@ -325,6 +524,22 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
     meters.main.l.update (pkL);
     meters.main.r.update (pkR);
     if (pkL >= 1.0f || pkR >= 1.0f) meters.main.clip.store (true, std::memory_order_relaxed);
+
+    // Update DCA group meters (highest peak among assigned channels)
+    for (int d = 0; d < 8; ++d)
+    {
+        float dcaPk = 0.0f;
+        const int mask = (1 << d);
+        for (int c = 0; c < kMaxInputChannels; ++c)
+        {
+            if (params.channels[(size_t) c].dcaGroups.getInt() & mask)
+            {
+                dcaPk = std::max (dcaPk, meters.channels[(size_t) c].postL.read());
+                dcaPk = std::max (dcaPk, meters.channels[(size_t) c].postR.read());
+            }
+        }
+        meters.dcas[(size_t) d].update (dcaPk);
+    }
 }
 
 } // namespace mps

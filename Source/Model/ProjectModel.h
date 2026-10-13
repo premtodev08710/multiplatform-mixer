@@ -48,6 +48,8 @@ public:
 
     juce::Result saveSceneToFile (const juce::File& file, const juce::String& sceneName) const;
     juce::Result loadSceneFromFile (const juce::File& file);
+    juce::Result loadX32SceneText (const juce::String& scnText);
+    juce::Result loadX32SceneFile (const juce::File& file);
 
     // Default init (e.g. Kick, Snare, Bass, Guitar, Vocal default channel names and colors)
     void setupDefaults();

@@ -10,20 +10,30 @@ ChannelStripComponent::ChannelStripComponent (int ch, AudioEngine& eng, ProjectM
     // Scribble Strip Labels
     scribbleName.setJustificationType (juce::Justification::centred);
     scribbleName.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    if (stripType == StripType::InputChannel)
+
+    const bool canOpenDetail = (stripType == StripType::InputChannel
+                             || stripType == StripType::Aux
+                             || stripType == StripType::FxReturn
+                             || stripType == StripType::Bus
+                             || stripType == StripType::Matrix);
+
+    if (canOpenDetail)
     {
-        scribbleName.setEditable (true, false, false);
-        scribbleName.setTooltip ("Click to rename channel");
-        scribbleName.onTextChange = [this] {
-            if (ignoreCallbacks) return;
-            project.setChannelName (channelIndex, scribbleName.getText());
-        };
+        scribbleName.setTooltip ("Click to open Detail Screen");
+        scribbleName.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+        scribbleName.addMouseListener (this, false);
     }
     addAndMakeVisible (scribbleName);
 
     scribbleSource.setJustificationType (juce::Justification::centred);
     scribbleSource.setFont (juce::FontOptions (10.0f));
     scribbleSource.setColour (juce::Label::textColourId, juce::Colour (0xffb0bec5));
+    if (canOpenDetail)
+    {
+        scribbleSource.setTooltip ("Click to open Detail Screen");
+        scribbleSource.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+        scribbleSource.addMouseListener (this, false);
+    }
     addAndMakeVisible (scribbleSource);
 
     // Gain Display Label (Digital Preamp Trim readout / quick edit)
@@ -114,6 +124,11 @@ ChannelStripComponent::ChannelStripComponent (int ch, AudioEngine& eng, ProjectM
         auto& mtxM = engine.getMixerMeters().matrices[(size_t) channelIndex];
         meter.setMeters (&mtxM, nullptr, nullptr);
     }
+    else if (stripType == StripType::Dca)
+    {
+        auto& dcaM = engine.getMixerMeters().dcas[(size_t) channelIndex];
+        meter.setMeters (&dcaM, nullptr, nullptr);
+    }
     else if (stripType == StripType::MainC)
     {
         meter.setMeters (&engine.getMixerMeters().mainC, nullptr, nullptr);
@@ -153,10 +168,60 @@ void ChannelStripComponent::setSendsOnFader (int targetFx)
     }
 }
 
-void ChannelStripComponent::mouseDown (const juce::MouseEvent&)
+juce::MouseCursor ChannelStripComponent::getMouseCursor()
 {
-    if (stripType == StripType::InputChannel && onSelected)
-        onSelected (channelIndex);
+    const bool canOpenDetail = (stripType == StripType::InputChannel
+                             || stripType == StripType::Aux
+                             || stripType == StripType::FxReturn
+                             || stripType == StripType::Bus
+                             || stripType == StripType::Matrix);
+
+    if (canOpenDetail)
+    {
+        const auto mousePos = getMouseXYRelative();
+        if (mousePos.y <= 60)
+            return juce::MouseCursor::PointingHandCursor;
+    }
+    return juce::MouseCursor::NormalCursor;
+}
+
+void ChannelStripComponent::mouseDown (const juce::MouseEvent& e)
+{
+    const bool canOpenDetail = (stripType == StripType::InputChannel
+                             || stripType == StripType::Aux
+                             || stripType == StripType::FxReturn
+                             || stripType == StripType::Bus
+                             || stripType == StripType::Matrix);
+
+    if (canOpenDetail)
+    {
+        if (onSelected)
+            onSelected (channelIndex);
+
+        const auto localPos = e.getEventRelativeTo (this).getPosition();
+        const bool onScribble = (e.eventComponent == &scribbleName
+                              || e.eventComponent == &scribbleSource
+                              || localPos.y <= 60);
+
+        if (onScribble && onOpenDetail)
+        {
+            onOpenDetail (channelIndex);
+        }
+    }
+}
+
+void ChannelStripComponent::mouseDoubleClick (const juce::MouseEvent&)
+{
+    const bool canOpenDetail = (stripType == StripType::InputChannel
+                             || stripType == StripType::Aux
+                             || stripType == StripType::FxReturn
+                             || stripType == StripType::Bus
+                             || stripType == StripType::Matrix);
+
+    if (canOpenDetail && onOpenDetail)
+    {
+        onOpenDetail (channelIndex);
+    }
 }
 
 void ChannelStripComponent::updateFromModel()
@@ -177,16 +242,41 @@ void ChannelStripComponent::updateFromModel()
 
         panSlider.setValue (cp.pan.get(), juce::dontSendNotification);
         soloButton.setToggleState (cp.solo.getBool(), juce::dontSendNotification);
-        muteButton.setToggleState (cp.mute.getBool(), juce::dontSendNotification);
 
-        if (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 4)
+        bool isEffectiveMuted = cp.mute.getBool();
+        const int mgMask = cp.muteGroups.getInt();
+        if (mgMask > 0)
         {
+            for (int mg = 0; mg < 6; ++mg)
+                if ((mgMask & (1 << mg)) && engine.getMixerParams().muteGroupActive[(size_t) mg].load (std::memory_order_relaxed))
+                {
+                    isEffectiveMuted = true;
+                    break;
+                }
+        }
+        const int dcaMask = cp.dcaGroups.getInt();
+        if (dcaMask > 0)
+        {
+            for (int d = 0; d < 8; ++d)
+                if ((dcaMask & (1 << d)) && engine.getMixerParams().dcas[(size_t) d].mute.getBool())
+                {
+                    isEffectiveMuted = true;
+                    break;
+                }
+        }
+        muteButton.setToggleState (isEffectiveMuted, juce::dontSendNotification);
+
+        if (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 16)
+        {
+            scribbleSource.setText ("SEND B" + juce::String (sendsOnFaderTarget + 1), juce::dontSendNotification);
             const float sDb = cp.sends[(size_t) sendsOnFaderTarget].get();
             faderSlider.setValue (faderDbToPos (sDb), juce::dontSendNotification);
             faderValueLabel.setText (sDb <= kFaderMinDb ? "-inf" : juce::String (sDb, 1) + " dB", juce::dontSendNotification);
         }
         else
         {
+            if (engine.getMixerParams().isChannelLinked (channelIndex))
+                scribbleSource.setText ("LINK " + juce::String (channelIndex % 2 == 0 ? "L" : "R"), juce::dontSendNotification);
             const float db = cp.faderDb.get();
             faderSlider.setValue (faderDbToPos (db), juce::dontSendNotification);
             faderValueLabel.setText (db <= kFaderMinDb ? "-inf" : juce::String (db, 1) + " dB", juce::dontSendNotification);
@@ -259,6 +349,19 @@ void ChannelStripComponent::updateFromModel()
         faderSlider.setValue (faderDbToPos (db), juce::dontSendNotification);
         faderValueLabel.setText (db <= kFaderMinDb ? "-inf" : juce::String (db, 1) + " dB", juce::dontSendNotification);
     }
+    else if (stripType == StripType::Dca)
+    {
+        auto& dp = engine.getMixerParams().dcas[(size_t) channelIndex];
+        scribbleName.setText ("DCA " + juce::String (channelIndex + 1), juce::dontSendNotification);
+        scribbleSource.setText ("DCA GRP", juce::dontSendNotification);
+
+        soloButton.setToggleState (false, juce::dontSendNotification);
+        muteButton.setToggleState (dp.mute.getBool(), juce::dontSendNotification);
+
+        const float db = dp.faderDb.get();
+        faderSlider.setValue (faderDbToPos (db), juce::dontSendNotification);
+        faderValueLabel.setText (db <= kFaderMinDb ? "-inf" : juce::String (db, 1) + " dB", juce::dontSendNotification);
+    }
     else if (stripType == StripType::MainC)
     {
         scribbleName.setText ("MainC", juce::dontSendNotification);
@@ -290,7 +393,7 @@ void ChannelStripComponent::timerCallback()
     if (stripType == StripType::InputChannel)
     {
         auto& cp = engine.getMixerParams().channels[(size_t) channelIndex];
-        const float targetDb = (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 4)
+        const float targetDb = (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 16)
             ? cp.sends[(size_t) sendsOnFaderTarget].get()
             : cp.faderDb.get();
         const float modelFaderPos = faderDbToPos (targetDb);
@@ -349,10 +452,24 @@ void ChannelStripComponent::sliderValueChanged (juce::Slider* slider)
 
         if (stripType == StripType::InputChannel)
         {
-            if (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 4)
+            if (sendsOnFaderTarget >= 0 && sendsOnFaderTarget < 16)
+            {
                 engine.getMixerParams().channels[(size_t) channelIndex].sends[(size_t) sendsOnFaderTarget].set (db);
+                if (engine.getMixerParams().isChannelLinked (channelIndex))
+                {
+                    const int otherCh = engine.getMixerParams().getLinkedChannel (channelIndex);
+                    engine.getMixerParams().channels[(size_t) otherCh].sends[(size_t) sendsOnFaderTarget].set (db);
+                }
+            }
             else
+            {
                 engine.getMixerParams().channels[(size_t) channelIndex].faderDb.set (db);
+                if (engine.getMixerParams().isChannelLinked (channelIndex))
+                {
+                    const int otherCh = engine.getMixerParams().getLinkedChannel (channelIndex);
+                    engine.getMixerParams().channels[(size_t) otherCh].faderDb.set (db);
+                }
+            }
         }
         else if (stripType == StripType::FxReturn)
             engine.getMixerParams().fxReturns[(size_t) channelIndex].faderDb.set (db);
@@ -362,6 +479,8 @@ void ChannelStripComponent::sliderValueChanged (juce::Slider* slider)
             engine.getMixerParams().buses[(size_t) channelIndex].faderDb.set (db);
         else if (stripType == StripType::Matrix)
             engine.getMixerParams().matrices[(size_t) channelIndex].faderDb.set (db);
+        else if (stripType == StripType::Dca)
+            engine.getMixerParams().dcas[(size_t) channelIndex].faderDb.set (db);
         else if (stripType == StripType::Master)
             engine.getMixerParams().main.faderDb.set (db);
     }
@@ -374,14 +493,30 @@ void ChannelStripComponent::buttonClicked (juce::Button* button)
     if (button == &soloButton)
     {
         if (stripType == StripType::InputChannel)
-            engine.getMixerParams().channels[(size_t) channelIndex].solo.setBool (soloButton.getToggleState());
+        {
+            const bool s = soloButton.getToggleState();
+            engine.getMixerParams().channels[(size_t) channelIndex].solo.setBool (s);
+            if (engine.getMixerParams().isChannelLinked (channelIndex))
+            {
+                const int otherCh = engine.getMixerParams().getLinkedChannel (channelIndex);
+                engine.getMixerParams().channels[(size_t) otherCh].solo.setBool (s);
+            }
+        }
         else if (stripType == StripType::FxReturn)
             engine.getMixerParams().fxReturns[(size_t) channelIndex].solo.setBool (soloButton.getToggleState());
     }
     else if (button == &muteButton)
     {
         if (stripType == StripType::InputChannel)
-            engine.getMixerParams().channels[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
+        {
+            const bool m = muteButton.getToggleState();
+            engine.getMixerParams().channels[(size_t) channelIndex].mute.setBool (m);
+            if (engine.getMixerParams().isChannelLinked (channelIndex))
+            {
+                const int otherCh = engine.getMixerParams().getLinkedChannel (channelIndex);
+                engine.getMixerParams().channels[(size_t) otherCh].mute.setBool (m);
+            }
+        }
         else if (stripType == StripType::FxReturn)
             engine.getMixerParams().fxReturns[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
         else if (stripType == StripType::Aux)
@@ -390,6 +525,8 @@ void ChannelStripComponent::buttonClicked (juce::Button* button)
             engine.getMixerParams().buses[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
         else if (stripType == StripType::Matrix)
             engine.getMixerParams().matrices[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
+        else if (stripType == StripType::Dca)
+            engine.getMixerParams().dcas[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
         else if (stripType == StripType::Master)
             engine.getMixerParams().main.mute.setBool (muteButton.getToggleState());
     }
@@ -430,6 +567,8 @@ void ChannelStripComponent::paint (juce::Graphics& g)
         bannerColour = juce::Colour (0xff00bcd4); // Cyan for Buses
     else if (stripType == StripType::Matrix)
         bannerColour = juce::Colour (0xff8e24aa); // Purple for Matrix
+    else if (stripType == StripType::Dca)
+        bannerColour = juce::Colour (0xff0288d1); // Vibrant Blue for DCAs
     else if (stripType == StripType::MainC)
         bannerColour = juce::Colour (0xff78909c);
     else // InputChannel

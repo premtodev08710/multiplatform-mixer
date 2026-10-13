@@ -84,6 +84,24 @@ inline BiquadCoeffs calcHPF (float fc, float Q, float sr) noexcept
     return c;
 }
 
+inline BiquadCoeffs calcLPF (float fc, float Q, float sr) noexcept
+{
+    BiquadCoeffs c;
+    fc = clampf (fc, 10.0f, sr * 0.49f);
+    const float w0 = 2.0f * kPi * fc / sr;
+    const float cosw = std::cos (w0);
+    const float sinw = std::sin (w0);
+    const float alpha = sinw / (2.0f * std::max (0.01f, Q));
+    const float a0 = 1.0f + alpha;
+
+    c.b0 = ((1.0f - cosw) * 0.5f) / a0;
+    c.b1 = (1.0f - cosw) / a0;
+    c.b2 = ((1.0f - cosw) * 0.5f) / a0;
+    c.a1 = (-2.0f * cosw) / a0;
+    c.a2 = (1.0f - alpha) / a0;
+    return c;
+}
+
 inline BiquadCoeffs calcBell (float fc, float gainDb, float Q, float sr) noexcept
 {
     BiquadCoeffs c;

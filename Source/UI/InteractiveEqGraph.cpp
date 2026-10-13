@@ -12,9 +12,70 @@ const juce::Colour InteractiveEqGraph::nodeColours[5] = {
     juce::Colour (0xffff9800)  // High (Orange)
 };
 
+const float InteractiveEqGraph::rtaFrequencies[kNumRtaBands] = {
+    20.0f, 25.0f, 31.5f, 40.0f, 50.0f, 63.0f, 80.0f, 100.0f, 125.0f, 160.0f,
+    200.0f, 250.0f, 315.0f, 400.0f, 500.0f, 630.0f, 800.0f, 1000.0f, 1250.0f, 1600.0f,
+    2000.0f, 2500.0f, 3150.0f, 4000.0f, 5000.0f, 6300.0f, 8000.0f, 10000.0f, 12500.0f, 16000.0f, 20000.0f
+};
+
 InteractiveEqGraph::InteractiveEqGraph()
 {
     setOpaque (false);
+    rtaLevelsDb.fill (-60.0f);
+    rtaPeakHoldDb.fill (-60.0f);
+    peakHoldCounter.fill (0);
+}
+
+void InteractiveEqGraph::setRtaEnabled (bool enabled)
+{
+    if (rtaEnabled != enabled)
+    {
+        rtaEnabled = enabled;
+        if (! rtaEnabled)
+        {
+            rtaLevelsDb.fill (-60.0f);
+            rtaPeakHoldDb.fill (-60.0f);
+            peakHoldCounter.fill (0);
+        }
+        repaint();
+    }
+}
+
+void InteractiveEqGraph::updateRtaSpectrum (const float* levelsDb, int numBands)
+{
+    if (! rtaEnabled || levelsDb == nullptr) return;
+
+    const int count = std::min (numBands, kNumRtaBands);
+    for (int i = 0; i < count; ++i)
+    {
+        const float target = std::clamp (levelsDb[i], -60.0f, 18.0f);
+        if (target > rtaLevelsDb[(size_t) i])
+        {
+            // Instant attack for music transients
+            rtaLevelsDb[(size_t) i] = target;
+        }
+        else
+        {
+            // Smooth natural acoustic decay (~25 dB/sec)
+            rtaLevelsDb[(size_t) i] += 0.22f * (target - rtaLevelsDb[(size_t) i]);
+        }
+
+        // Peak Hold ballistics: hold peak for ~400ms then smoothly fall
+        if (rtaLevelsDb[(size_t) i] >= rtaPeakHoldDb[(size_t) i])
+        {
+            rtaPeakHoldDb[(size_t) i] = rtaLevelsDb[(size_t) i];
+            peakHoldCounter[(size_t) i] = 10;
+        }
+        else if (peakHoldCounter[(size_t) i] > 0)
+        {
+            --peakHoldCounter[(size_t) i];
+        }
+        else
+        {
+            rtaPeakHoldDb[(size_t) i] = std::max (-60.0f, rtaPeakHoldDb[(size_t) i] - 0.75f);
+        }
+    }
+    repaint();
 }
 
 void InteractiveEqGraph::setParams (ChannelDspParams* p, double sampleRate)
@@ -77,6 +138,28 @@ float InteractiveEqGraph::yToGain (float y) const noexcept
     if (h <= 1.0f) return 0.0f;
     const float norm = clampf ((y - 6.0f) / (h - 22.0f), 0.0f, 1.0f);
     return 18.0f - norm * 36.0f;
+}
+
+float InteractiveEqGraph::rtaDbToY (float db) const noexcept
+{
+    const float h = (float) getHeight();
+    if (h <= 1.0f) return 0.0f;
+
+    const float botY = gainToY (-18.0f); // Bottom line of EQ grid
+    const float topY = gainToY (14.0f);  // Upper zone of EQ grid
+    const float spanY = botY - topY;
+
+    if (db <= -56.0f)
+        return botY;
+
+    // Calibrated RTA dynamic range:
+    // Floor at -52 dBFS (quiet floor), Ceiling at -12 dBFS (musical peaks)
+    // This allows musical 1/3-octave band energy to bounce vividly in the 40%..95% screen height range
+    const float floorDb = -52.0f;
+    const float ceilDb = -12.0f;
+
+    const float norm = clampf ((db - floorDb) / (ceilDb - floorDb), 0.0f, 1.0f);
+    return botY - norm * spanY;
 }
 
 int InteractiveEqGraph::findHandleUnderMouse (juce::Point<float> pos) const
@@ -175,6 +258,60 @@ void InteractiveEqGraph::paint (juce::Graphics& g)
     hpfCurve.lineTo (hpfIconRect.getRight() - 2.0f, hpfIconRect.getY() + 2.0f);
     g.setColour (juce::Colour (0xff9aa4b2));
     g.strokePath (hpfCurve, juce::PathStrokeType (1.2f));
+
+    // 3b. Real-Time Analyzer (RTA) 31-Band Spectrum Display
+    if (rtaEnabled)
+    {
+        const float botY = gainToY (-18.0f);
+        const float barW = std::clamp ((w - 50.0f) / 38.0f, 6.0f, 20.0f);
+
+        juce::Path rtaSilhouette;
+        bool started = false;
+
+        for (int i = 0; i < kNumRtaBands; ++i)
+        {
+            const float bx = freqToX (rtaFrequencies[i]);
+            if (bx < 30.0f || bx > w - 10.0f) continue;
+
+            const float lvl = rtaLevelsDb[(size_t) i];
+            const float topY = rtaDbToY (lvl);
+            const float barH = std::max (0.0f, botY - topY);
+
+            if (! started)
+            {
+                rtaSilhouette.startNewSubPath (bx - barW * 0.5f, botY);
+                rtaSilhouette.lineTo (bx, topY);
+                started = true;
+            }
+            else
+            {
+                rtaSilhouette.lineTo (bx, topY);
+            }
+
+            if (barH > 1.0f)
+            {
+                const juce::Rectangle<float> barRect (bx - barW * 0.45f, topY, barW * 0.9f, barH);
+                juce::ColourGradient grad (juce::Colour (0xaaf59e0b), bx, topY,
+                                           juce::Colour (0x28d97706), bx, botY, false);
+                g.setGradientFill (grad);
+                g.fillRoundedRectangle (barRect, 1.5f);
+
+                // Peak hold tick mark
+                const float pkLvl = rtaPeakHoldDb[(size_t) i];
+                const float pkY = rtaDbToY (pkLvl);
+                g.setColour (juce::Colour (0xfffde047));
+                g.drawHorizontalLine ((int) pkY, bx - barW * 0.45f, bx + barW * 0.45f);
+            }
+        }
+
+        if (started)
+        {
+            rtaSilhouette.lineTo (w - 10.0f, botY);
+            rtaSilhouette.closeSubPath();
+            g.setColour (juce::Colour (0x20e67e22));
+            g.fillPath (rtaSilhouette);
+        }
+    }
 
     if (dspParams == nullptr) return;
 

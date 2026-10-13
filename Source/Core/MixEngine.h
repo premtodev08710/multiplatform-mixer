@@ -39,6 +39,9 @@ public:
     void process (const float* const* slotData, const int* slotChannels,
                   int numSamples, float* outL, float* outR) noexcept;
 
+    void setRtaChannel (int ch) noexcept { rtaChannel.store (ch, std::memory_order_relaxed); }
+    int getRtaChannel() const noexcept { return rtaChannel.load (std::memory_order_relaxed); }
+
     static constexpr double kGainRampSeconds   = 0.020;
     static constexpr double kSourceFadeSeconds = 0.010;
 
@@ -63,11 +66,18 @@ private:
     LinearSmoother mainGain;
 
     FxRackManager fxRack;
+    std::array<std::vector<float>, 12> busBufL, busBufR;
     std::array<std::vector<float>, 4> fxSendBufL, fxSendBufR;
     std::array<std::vector<float>, 4> fxRetBufL, fxRetBufR;
     std::vector<float> insBufL, insBufR;
     std::array<LinearSmoother, 8> fxReturnGains;
     std::array<LinearSmoother, 4> fxSendGains;
+
+    std::atomic<int> rtaChannel { 0 };
+    std::array<Biquad, 31> rtaFilters;
+    std::array<BiquadCoeffs, 31> rtaCoeffs;
+    void initRtaFilters (double sr) noexcept;
+    void processRta (const float* l, const float* r, int width, int n, int ch) noexcept;
 };
 
 } // namespace mps

@@ -24,6 +24,7 @@ public:
         Aux,
         Bus,
         Matrix,
+        Dca,
         MainC,
         Master
     };
@@ -44,12 +45,15 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    juce::MouseCursor getMouseCursor() override;
     void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
 
     void sliderValueChanged (juce::Slider* slider) override;
     void buttonClicked (juce::Button* button) override;
 
     std::function<void (int)> onSelected;
+    std::function<void (int)> onOpenDetail;
 
 private:
     void timerCallback() override;

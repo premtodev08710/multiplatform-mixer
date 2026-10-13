@@ -40,6 +40,16 @@ MainComponent::MainComponent()
     homeScreen.onChannelSelected = [this] (int ch) {
         detailScreen.setSelectedChannel (ch);
     };
+    homeScreen.onOpenDetail = [this] (int ch) {
+        detailScreen.setSelectedChannel (ch);
+        navButtons[NavDetail].setToggleState (true, juce::dontSendNotification);
+        showScreen (NavDetail);
+    };
+    homeScreen.onOpenDetailStrip = [this] (ChannelStripComponent::StripType type, int idx) {
+        detailScreen.setSelectedStrip (type, idx);
+        navButtons[NavDetail].setToggleState (true, juce::dontSendNotification);
+        showScreen (NavDetail);
+    };
 
     project.onTracksChanged = [this] {
         homeScreen.rebuildStrips();
@@ -102,6 +112,39 @@ void MainComponent::showScreen (int screenIdx)
     }
     else if (screenIdx == NavDetail)
     {
+        const int homeBank = homeScreen.getCurrentBank();
+        switch (homeBank)
+        {
+            case BankSelectorBar::BankCh1_8:
+            case BankSelectorBar::BankCh9_16:
+            case BankSelectorBar::BankCh17_24:
+            case BankSelectorBar::BankCh25_32:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::InputChannel)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::InputChannel, homeScreen.getSelectedChannel());
+                break;
+            case BankSelectorBar::BankAux1_8:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::Aux)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::Aux, 0);
+                break;
+            case BankSelectorBar::BankFx1_4:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::FxReturn)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::FxReturn, 0);
+                break;
+            case BankSelectorBar::BankBus1_8:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::Bus || detailScreen.getSelectedStripIndex() >= 8)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::Bus, 0);
+                break;
+            case BankSelectorBar::BankBus9_16:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::Bus || detailScreen.getSelectedStripIndex() < 8)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::Bus, 8);
+                break;
+            case BankSelectorBar::BankMtxMain:
+                if (detailScreen.getSelectedStripType() != ChannelStripComponent::StripType::Matrix)
+                    detailScreen.setSelectedStrip (ChannelStripComponent::StripType::Matrix, 0);
+                break;
+            default:
+                break;
+        }
         detailScreen.refreshFromModel();
     }
     else if (screenIdx == NavEffects)

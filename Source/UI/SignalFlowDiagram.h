@@ -13,6 +13,9 @@ public:
     SignalFlowDiagram();
     ~SignalFlowDiagram() override = default;
 
+    enum class StripMode { Input, Aux, FxReturn, Bus, Matrix };
+    void setStripMode (StripMode mode) { currentMode = mode; resized(); repaint(); }
+
     void setPreEq (bool pre) { isPre = pre; repaint(); }
     void setSwap (bool swap) { isSwapped = swap; repaint(); }
 
@@ -25,6 +28,7 @@ public:
     juce::TextButton postButton { "POST" };
 
 private:
+    StripMode currentMode = StripMode::Input;
     bool isPre = true;
     bool isSwapped = false;
 };

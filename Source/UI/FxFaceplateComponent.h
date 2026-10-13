@@ -37,6 +37,7 @@ public:
     void sliderValueChanged (juce::Slider* slider) override;
 
     std::function<void(FxType)> onTypeChangeRequested;
+    std::function<void()> onParametersChanged;
 
 private:
     void timerCallback() override;
@@ -47,6 +48,9 @@ private:
     // Dynamic 12 Dials for 1-row or 2-row knob configurations
     static constexpr int kMaxDials = 12;
     std::array<ConsoleDial, kMaxDials> dials;
+    std::array<int, kMaxDials> dialParameterIndices {};
+    std::array<juce::TextButton, 3> parameterPageButtons;
+    int currentParameterPage = 0;
 
     // 6 Vertical Faders (used for Cream Reverbs and Precision Limiter)
     std::array<juce::Slider, 6> faders;

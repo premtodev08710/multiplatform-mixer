@@ -253,8 +253,8 @@ void ConsoleLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
         g.setColour (juce::Colour (0xff5a626f));
         g.drawRoundedRectangle (capRect, 3.0f, 1.0f);
 
-        // Center white groove line on the cap
-        g.setColour (juce::Colours::white.withAlpha (0.9f));
+        // Center cyan groove line on the cap like M32/X32
+        g.setColour (juce::Colour (0xff00e5ff));
         g.fillRect (capX + 4.0f, capY + capH * 0.5f - 1.0f, capW - 8.0f, 2.0f);
     }
 }

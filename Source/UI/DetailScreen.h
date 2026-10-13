@@ -2,6 +2,7 @@
 #pragma once
 
 #include "BankSelectorBar.h"
+#include "ChannelStripComponent.h"
 #include "ConsoleDial.h"
 #include "ConsoleLookAndFeel.h"
 #include "GainReductionMeter.h"
@@ -29,8 +30,11 @@ public:
     DetailScreen (AudioEngine& engine, ProjectModel& project);
     ~DetailScreen() override;
 
+    void setSelectedStrip (ChannelStripComponent::StripType type, int index);
     void setSelectedChannel (int channel);
-    int getSelectedChannel() const noexcept { return selectedChannel; }
+    int getSelectedChannel() const noexcept { return currentStripIndex; }
+    ChannelStripComponent::StripType getSelectedStripType() const noexcept { return currentStripType; }
+    int getSelectedStripIndex() const noexcept { return currentStripIndex; }
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -45,6 +49,8 @@ private:
 
     AudioEngine& engine;
     ProjectModel& project;
+    ChannelStripComponent::StripType currentStripType = ChannelStripComponent::StripType::InputChannel;
+    int currentStripIndex = 0;
     int selectedChannel = 0;
     int selectedEqBand = 1; // 0=HPF, 1=Low, 2=Mid1, 3=Mid2, 4=High
 
@@ -101,7 +107,8 @@ private:
     ConsoleDial weightingDial { "WEIGHTING", -12.0, 12.0, 0.0, 0.5 };
 
     // Main LR Section (Right anchored)
-    juce::TextButton mainLrButton { "LR" };
+    juce::TextButton mainBusHeaderButton { "MAIN BUS" };
+    juce::TextButton mainLrButton { "MAIN LR" };
     juce::TextButton monoCenterButton { "MONO/C" };
     juce::Slider mainFader;
     juce::TextButton mainMuteButton { "MUTE" };
@@ -180,8 +187,53 @@ private:
     juce::TextButton eqBandButtons[6]; // LOW, LOW2, LOMID, HIMID, HIGH2, HIGH
 
     //==========================================================================
-    // Tab 5: SENDS Controls
-    ConsoleDial sendDials[8];
+    // Tab 5: SENDS Controls (16 MixBus Sends matching M32/X32-Mix layout)
+    struct BusBadgeComponent : public juce::Component
+    {
+        int busNumber = 1;
+        juce::String busName { "Bus1" };
+        bool isFx = false;
+
+        void setBus (int num, const juce::String& name, bool fx = false)
+        {
+            busNumber = num;
+            busName = name;
+            isFx = fx;
+            repaint();
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+            const float cr = 5.0f;
+
+            juce::Colour topCol = isFx ? juce::Colour (0xffd946ef) : juce::Colour (0xff00d4e5);
+            juce::Colour botCol = isFx ? juce::Colour (0xffa21caf) : juce::Colour (0xff009fb0);
+            juce::Colour textCol = isFx ? juce::Colours::white : juce::Colour (0xff0a1114);
+
+            juce::ColourGradient grad (topCol, bounds.getCentreX(), bounds.getY(),
+                                      botCol, bounds.getCentreX(), bounds.getBottom(), false);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (bounds, cr);
+
+            g.setColour (juce::Colours::white.withAlpha (0.4f));
+            g.drawRoundedRectangle (bounds, cr, 1.0f);
+
+            g.setColour (textCol);
+            g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+            g.drawText (juce::String (busNumber), bounds.removeFromTop (bounds.getHeight() * 0.52f),
+                        juce::Justification::centred, false);
+
+            g.setFont (juce::FontOptions (9.5f, juce::Font::plain));
+            g.drawText (busName, bounds, juce::Justification::centred, false);
+        }
+    };
+
+    BusBadgeComponent sendBusBadges[16];
+    juce::Label       sendValueLabels[16];
+    juce::Slider      sendFaders[16];
+    juce::TextButton  sendMuteButtons[16];
+    juce::TextButton  sendTapButtons[8]; // 8 pairs: Bus 1-2, 3-4, 5-6, 7-8, 9-10, 11-12, 13-14, 15-16
 
     // Tab 6: NAMING Controls
     juce::TextEditor nameEditor;
@@ -198,6 +250,28 @@ private:
 
     void updateTabVisibility();
     void updateEqSelectedBandDialValues();
+
+    ChannelDspParams* getCurrentDspParams();
+    int getMaxStripIndex (ChannelStripComponent::StripType type) const noexcept;
+    void setPanForCurrentStrip (float p);
+    void setFaderForCurrentStrip (float db);
+    float getFaderForCurrentStrip() const noexcept;
+    float getPanForCurrentStrip() const noexcept;
+    bool getMuteForCurrentStrip() const noexcept;
+    void setMuteForCurrentStrip (bool m);
+    bool getSoloForCurrentStrip() const noexcept;
+    void setSoloForCurrentStrip (bool s);
+    bool getMainAssignForCurrentStrip() const noexcept;
+    void setMainAssignForCurrentStrip (bool a);
+    bool getMonoAssignForCurrentStrip() const noexcept;
+    void setMonoAssignForCurrentStrip (bool a);
+    int getDcaMaskForCurrentStrip() const noexcept;
+    void setDcaMaskForCurrentStrip (int mask);
+    int getMuteGroupMaskForCurrentStrip() const noexcept;
+    void setMuteGroupMaskForCurrentStrip (int mask);
+    int getInsertSlotForCurrentStrip() const noexcept;
+    void setInsertSlotForCurrentStrip (int slot);
+
     bool ignoreCallbacks = false;
 };
 

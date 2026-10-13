@@ -1,4 +1,4 @@
-// Mix Practice Studio - Professional Console Effects DSP (41 FX Processors)
+// Mix Practice Studio - X32-Mix FX configuration and DSP
 #pragma once
 
 #include "DspMath.h"
@@ -14,67 +14,89 @@ namespace mps
 {
 
 //==============================================================================
-// 41 Comprehensive FX Types matching Professional Console Specifications
+// X32-Mix FX catalog in the order used by its effect picker.
 enum class FxType : int
 {
-    // 1. Rack 1-4: Reverb (1..7)
-    HallReverb = 0,         // 1. Hall Reverb (Default FX 1)
-    PlateReverb,            // 2. Plate Reverb
-    VintageReverb,          // 3. Vintage Reverb (EMT250)
-    VintageRoom,            // 4. Vintage Room
-    Ambience,               // 5. Ambience (Default FX 2)
-    GateReverb,             // 6. Gate Reverb
-    ReverseReverb,          // 7. Reverse Reverb
+    HallReverb = 0,
+    AmbienceReverb,
+    RichPlateReverb,
+    RoomReverb,
+    ChamberReverb,
+    PlateReverb,
+    VintageReverb,
+    VintageRoomReverb,
+    GatedReverb,
+    ReverseReverb,
+    StereoDelay,
+    TapDelay,
+    RhythmDelay,
+    StereoChorus,
+    StereoFlanger,
+    StereoPhaser,
+    DimensionC,
+    MoodFilter,
+    RotarySpeakerCabinet,
+    TremoloPanner,
+    Suboctaver,
+    DelayAndChamber,
+    ChorusAndChamber,
+    FlangerAndChamber,
+    DelayAndChorus,
+    DelayAndFlanger,
+    ModulationDelay,
+    DualGEQ,
+    StereoGEQ,
+    DualTruEQ,
+    StereoTruEQ,
+    DualDeEsser,
+    StereoDeEsser,
+    StereoXtecEQ1,
+    DualXtecEQ1,
+    StereoXtecEQ5,
+    DualXtecEQ5,
+    WaveDesigner,
+    StereoPrecisionLimiter,
+    Combinator,
+    DualCombinator,
+    FairCompressor,
+    MsFairCompressor,
+    DualFairCompressor,
+    StereoLeisureCompressor,
+    DualLeisureCompressor,
+    UltimoCompressor,
+    DualUltimoCompressor,
+    DualEnhancer,
+    StereoEnhancer,
+    DualExciter,
+    StereoExciter,
+    StereoImager,
+    EdisonEX1,
+    SoundMaxer,
+    DualGuitarAmp,
+    StereoGuitarAmp,
+    DualTubeStage,
+    StereoTubeStage,
+    DualPitch,
+    StereoPitch,
 
-    // 2. Rack 1-4: Delay (8..10)
-    StereoDelay,            // 8. Stereo Delay (Default FX 3)
-    Tap3Delay,              // 9. 3-Tap Delay
-    RhythmDelay,            // 10. Rhythm Delay
+    NumFxTypes = 61,
 
-    // 3. Rack 1-4: Modulation (11..17)
-    StereoChorus,           // 11. Stereo Chorus (Default FX 4)
-    DimensionalChorus,      // 12. Dimensional Chorus (Roland Dimension D)
-    StereoFlanger,          // 13. Stereo Flanger
-    StereoPhaser,           // 14. Stereo Phaser
-    MoodFilter,             // 15. Mood Filter
-    RotarySpeaker,          // 16. Rotary Speaker
-    TremoloPanner,          // 17. Tremolo / Panner
-
-    // 4. Rack 1-4: Pitch (18)
-    PitchShifter,           // 18. Pitch Shifter
-
-    // 5. Rack 5-8: Graphic EQ (19..22)
-    StereoGEQ,              // 19. Stereo GEQ (31-band stereo linked)
-    DualGEQ,                // 20. Dual GEQ (31-band dual mono - Default FX 5-8)
-    StereoTruEQ,            // 21. Stereo TruEQ
-    DualTruEQ,              // 22. Dual TruEQ
-
-    // 6. Premium FX: Dynamics / Compressors (23..30)
-    LeisureCompressor,      // 23. Leisure Compressor (Teletronix LA-2A)
-    UltimoCompressor,       // 24. Ultimo Compressor (Urei 1176)
-    FairCompressor,         // 25. Fair Compressor (Fairchild 670 Stereo)
-    MsFairCompressor,       // 26. M/S Fair Compressor (Fairchild 670 Mid/Side)
-    Combinator,             // 27. Combinator (5-Band Multiband Compressor)
-    PrecisionLimiter,       // 28. Precision Limiter (Brickwall peak limiter)
-    WaveDesigner,           // 29. Wave Designer (Transient Designer)
-    DualDeEsser,            // 30. Dual De-Esser
-
-    // 7. Premium FX: Tube EQ / Sound Enhancers (31..36)
-    XtecEq1,                // 31. XTEC EQ1 (Pultec EQP-1a)
-    XtecEq5,                // 32. XTEC EQ5 (Pultec MEQ-5)
-    StereoExciter,          // 33. Stereo Exciter (Harmonic Exciter)
-    DualExciter,            // 34. Dual Exciter
-    StereoEnhancer,         // 35. Stereo Enhancer (Dynamic Spectral Enhancer)
-    DualEnhancer,           // 36. Dual Enhancer
-
-    // 8. Premium FX: Utilities & Guitar Amp (37..41)
-    EdisonEx1,              // 37. Edison EX1 (Stereo Field Manipulator)
-    StereoImager,           // 38. Stereo Imager (Stereo Width & Balance)
-    GuitarAmp,              // 39. Guitar Amp (Preamplifier & Cabinet Simulator)
-    TubeStage,              // 40. Tube Stage (Analog Triode Saturation)
-    SubOctaver,             // 41. Sub Octaver (-1 Octave Sub-bass Generator)
-
-    NumFxTypes = 41
+    // Legacy aliases retained for source and X32 scene compatibility.
+    Ambience = AmbienceReverb,
+    VintageRoom = VintageRoomReverb,
+    GateReverb = GatedReverb,
+    Tap3Delay = TapDelay,
+    DimensionalChorus = DimensionC,
+    RotarySpeaker = RotarySpeakerCabinet,
+    PitchShifter = StereoPitch,
+    LeisureCompressor = StereoLeisureCompressor,
+    PrecisionLimiter = StereoPrecisionLimiter,
+    XtecEq1 = StereoXtecEQ1,
+    XtecEq5 = StereoXtecEQ5,
+    EdisonEx1 = EdisonEX1,
+    GuitarAmp = StereoGuitarAmp,
+    TubeStage = StereoTubeStage,
+    SubOctaver = Suboctaver
 };
 
 enum class FxCategory : int
@@ -116,14 +138,30 @@ constexpr std::array<float, 31> kGeqFrequencies = {
 // FX Slot Parameter Set
 struct FxSlotParams
 {
+    static constexpr int kNumParameters = 18;
+
     Param fxType;       // FxType enum
     Param bypass;       // 0 = active, 1 = bypassed
     Param insertMode;   // 0 = send/return (or normal), 1 = insert
     Param mix;          // 0.0 .. 1.0 (dry/wet)
 
-    // 8 Generic parameters adaptable per effect
+    // Three pages of six effect-specific parameters, matching X32-Mix.
     // e.g. Decay/Time, PreDelay/Feedback, Damping/Tone, Size/Depth, Speed/Ratio, etc.
-    Param p1, p2, p3, p4, p5, p6, p7, p8;
+    Param p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18;
+
+    Param& parameter (int index) noexcept
+    {
+        Param* const all[] = { &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9,
+                               &p10, &p11, &p12, &p13, &p14, &p15, &p16, &p17, &p18 };
+        return *all[std::max (0, std::min (kNumParameters - 1, index))];
+    }
+
+    const Param& parameter (int index) const noexcept
+    {
+        const Param* const all[] = { &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9,
+                                     &p10, &p11, &p12, &p13, &p14, &p15, &p16, &p17, &p18 };
+        return *all[std::max (0, std::min (kNumParameters - 1, index))];
+    }
 
     // 31-Band Graphic EQ Gains (-15 dB to +15 dB, 0 dB center)
     std::array<Param, 31> geqGainsL;
@@ -144,7 +182,16 @@ public:
     // Process stereo buffer in-place
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float decaySec, float preDelayMs,
-                  float dampingNorm, float roomSizeNorm, float mixNorm);
+                  float dampingNorm, float roomSizeNorm, float diffusionNorm,
+                  float levelDb, float mixNorm);
+    // Compatibility overload for callers that only provide the original controls.
+    void process (float* chL, float* chR, int numSamples,
+                  FxType type, float decaySec, float preDelayMs,
+                  float dampingNorm, float roomSizeNorm, float mixNorm)
+    {
+        process (chL, chR, numSamples, type, decaySec, preDelayMs,
+                 dampingNorm, roomSizeNorm, 70.0f, 0.0f, mixNorm);
+    }
 
 private:
     float sr = 48000.0f;
@@ -170,6 +217,14 @@ private:
 
     // Envelope for Gate Reverb and Reverse Reverb
     int gateCounter = 0;
+
+    // EMT 250 vintage 4.5kHz converter lowpass filters
+    Biquad emtLpfL, emtLpfR;
+    // Plate 100Hz rumble cut filters
+    Biquad plateHpfL, plateHpfR;
+    // Reverse reverb buffer
+    std::vector<float> reverseBufL, reverseBufR;
+    int reverseWrite = 0;
 };
 
 //==============================================================================
@@ -208,6 +263,19 @@ private:
     std::vector<float> modDelayBufL, modDelayBufR;
     int modWritePos = 0;
     float lfoPhase = 0.0f;
+
+    // Dimension D dual inverse-phase BBD delay lines & pre/de-emphasis
+    std::vector<float> dimBufL, dimBufR;
+    int dimWrite = 0;
+    Biquad dimPreL, dimPreR;
+    Biquad dimPostL, dimPostR;
+
+    // Leslie Rotary dual rotors (horn & drum)
+    float rotorPhaseHorn = 0.0f, rotorPhaseDrum = 0.0f;
+
+    // Moog Ladder 4-pole filter stages & envelope follower
+    float moogStageL[4] = {0}, moogStageR[4] = {0};
+    float moodEnv = 0.0f;
 
     // Phaser 4-stage allpass filters
     float phaserZ1L[4] = {0}, phaserZ1R[4] = {0};
@@ -268,19 +336,29 @@ public:
 
 private:
     float sr = 48000.0f;
-    // LA-2A dual-stage release envelope
+    // LA-2A dual-stage release envelope & T4 opto sidechain HF filter
     float la2aEnv = 0.0f, la2aTail = 0.0f;
+    Biquad optoHpfL, optoHpfR;
+
     // 1176 FET fast envelope
     float fetEnv = 0.0f;
+
     // Fairchild Vari-Mu envelope
     float fairEnvL = 0.0f, fairEnvR = 0.0f;
+
+    // Combinator 5-band crossover filters and envelope followers
+    Biquad crossFiltL[4], crossFiltR[4];
+    float bandEnvL[5] = {0}, bandEnvR[5] = {0};
+
     // Limiter lookahead buffer
     std::vector<float> lookaheadBufL, lookaheadBufR;
     int lookaheadWrite = 0;
     float limiterGain = 1.0f;
+
     // Transient shaper (fast vs slow envelope)
     float fastEnvL = 0.0f, slowEnvL = 0.0f;
     float fastEnvR = 0.0f, slowEnvR = 0.0f;
+
     // De-Esser bandpass filter
     Biquad sibilanceFiltL, sibilanceFiltR;
     float deEssEnv = 0.0f;
@@ -295,15 +373,29 @@ public:
     void reset();
 
     void process (float* chL, float* chR, int numSamples,
-                  FxType type, float p1, float p2, float p3, float p4, float mixNorm);
+                  FxType type, float p1, float p2, float p3, float p4, float p5, float p6, float mixNorm);
 
 private:
     float sr = 48000.0f;
+    // Pultec EQP-1A filters
     Biquad eqpLowBoostL, eqpLowBoostR;
     Biquad eqpLowAttenL, eqpLowAttenR;
     Biquad eqpHighBoostL, eqpHighBoostR;
     Biquad eqpHighAttenL, eqpHighAttenR;
+
+    // Pultec MEQ-5 Midrange filters
+    Biquad meqLowL, meqLowR;
+    Biquad meqMidL, meqMidR;
+    Biquad meqHighL, meqHighR;
+
+    // Aphex Exciter HPF
     Biquad exciterHpfL, exciterHpfR;
+
+    // BBE Sonic Maximizer 3-band phase alignment delay & crossover
+    std::vector<float> bbeLowBufL, bbeLowBufR;
+    int bbeWrite = 0;
+    Biquad bbeLpfL, bbeLpfR;
+    Biquad bbeHpfL, bbeHpfR;
 };
 
 //==============================================================================
@@ -319,9 +411,15 @@ public:
 
 private:
     float sr = 48000.0f;
-    // Guitar Amp tone stack & cab filters
-    Biquad cabFilt1L, cabFilt1R;
-    Biquad cabFilt2L, cabFilt2R;
+    // Guitar Amp 3-band tone stack
+    Biquad toneBassL, toneBassR;
+    Biquad toneMidL, toneMidR;
+    Biquad toneTrebleL, toneTrebleR;
+    // Guitar Amp 4x12 Celestion speaker cabinet resonance & roll-off
+    Biquad cabResoL, cabResoR;
+    Biquad cabScoopL, cabScoopR;
+    Biquad cabRollOffL, cabRollOffR;
+
     // Sub-octaver zero crossing tracker
     float lastInSignL = 1.0f;
     int subCycleCountL = 0;

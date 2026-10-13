@@ -323,29 +323,48 @@ static void setLastImportDir (const juce::File& f)
     sLastDir = f.isDirectory() ? f : f.getParentDirectory();
 }
 
+static bool isSupportedAudioFile (const juce::File& f)
+{
+    const auto ext = f.getFileExtension().toLowerCase();
+    return ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac"
+        || ext == ".mp3" || ext == ".ogg" || ext == ".m4a" || ext == ".aac";
+}
+
+static void collectAudioFilesRecursively (const juce::File& f, juce::Array<juce::File>& result)
+{
+    if (f.isDirectory())
+    {
+        auto children = f.findChildFiles (juce::File::findFiles, true, "*");
+        for (const auto& child : children)
+        {
+            if (isSupportedAudioFile (child))
+                result.add (child);
+        }
+    }
+    else if (isSupportedAudioFile (f))
+    {
+        result.add (f);
+    }
+}
+
 //==============================================================================
-// File Drag & Drop (External files from desktop / Finder)
+// File Drag & Drop (External files / folders from desktop / Finder)
 bool TracksScreen::isInterestedInFileDrag (const juce::StringArray& files)
 {
     for (const auto& path : files)
     {
-        const auto ext = juce::File (path).getFileExtension().toLowerCase();
-        if (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".mp3" || ext == ".ogg")
+        const juce::File f (path);
+        if (f.isDirectory() || isSupportedAudioFile (f))
             return true;
     }
     return false;
 }
 
-void TracksScreen::filesDropped (const juce::StringArray& files, int x, int y)
+void TracksScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*y*/)
 {
     juce::Array<juce::File> audioFiles;
     for (const auto& path : files)
-    {
-        const juce::File f (path);
-        const auto ext = f.getFileExtension().toLowerCase();
-        if (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".mp3" || ext == ".ogg")
-            audioFiles.add (f);
-    }
+        collectAudioFilesRecursively (juce::File (path), audioFiles);
 
     if (! audioFiles.isEmpty())
     {
@@ -359,9 +378,9 @@ void TracksScreen::filesDropped (const juce::StringArray& files, int x, int y)
 void TracksScreen::importAudioFiles()
 {
     fileChooser = std::make_unique<juce::FileChooser> (
-        "Select Multitrack Audio Files (WAV, AIFF, FLAC, MP3)",
+        "Select Multitrack Audio Files (WAV, AIFF, FLAC, MP3, AAC)",
         getLastImportDir(),
-        "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+        "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a;*.aac");
 
     // Standard JUCE multi-file open flags: openMode | canSelectFiles | canSelectMultipleItems
     const auto flags = juce::FileBrowserComponent::openMode
@@ -392,7 +411,8 @@ void TracksScreen::importFolderStems()
         if (folder.isDirectory())
         {
             setLastImportDir (folder);
-            auto files = folder.findChildFiles (juce::File::findFiles, false, "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+            juce::Array<juce::File> files;
+            collectAudioFilesRecursively (folder, files);
             if (! files.isEmpty())
                 assignFilesToSlots (files);
         }
@@ -408,7 +428,7 @@ void TracksScreen::assignFilesToSlots (const juce::Array<juce::File>& rawFiles)
     const double targetSr = engine.getSampleRate();
 
     // Find first empty track slot
-    int startSlot = 0;
+    int startSlot = -1;
     for (int s = 0; s < kMaxTracks; ++s)
     {
         if (engine.getTrackSlot (s) == nullptr)
@@ -417,6 +437,8 @@ void TracksScreen::assignFilesToSlots (const juce::Array<juce::File>& rawFiles)
             break;
         }
     }
+    if (startSlot < 0)
+        startSlot = 0; // If all slots occupied, start overwriting from slot 0
 
     for (int i = 0; i < files.size() && (startSlot + i) < kMaxTracks; ++i)
     {

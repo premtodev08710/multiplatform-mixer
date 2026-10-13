@@ -108,28 +108,71 @@ void SignalFlowDiagram::paint (juce::Graphics& g)
             p.lineTo (rect.getRight() - 6.0f, rect.getCentreY() - 2.0f);
             g.strokePath (p, juce::PathStrokeType (1.4f));
         }
+        else if (iconType == 6) // Fader / Output
+        {
+            g.fillRect (rect.getCentreX() - 3.0f, rect.getY() + 4.0f, 6.0f, rect.getHeight() - 8.0f);
+            g.drawHorizontalLine ((int) rect.getCentreY(), rect.getX() + 4.0f, rect.getRight() - 4.0f);
+        }
     };
 
-    drawBlock (blockPositions[0], "", 0); // Gain
-    drawBlock (blockPositions[1], "", 1); // Delay
-    drawBlock (blockPositions[2], "", 2); // LowCut
-    drawBlock (isSwapped ? blockPositions[5] : blockPositions[3], "", 3); // EQ
-    drawBlock (blockPositions[4], "", 4); // INS
-    drawBlock (isSwapped ? blockPositions[3] : blockPositions[5], "", 5); // Dyn
+    if (currentMode == StripMode::Input)
+    {
+        drawBlock (blockPositions[0], "", 0); // Gain
+        drawBlock (blockPositions[1], "", 1); // Delay
+        drawBlock (blockPositions[2], "", 2); // LowCut
+        drawBlock (isSwapped ? blockPositions[5] : blockPositions[3], "", 3); // EQ
+        drawBlock (blockPositions[4], "", 4); // INS
+        drawBlock (isSwapped ? blockPositions[3] : blockPositions[5], "", 5); // Dyn
+    }
+    else if (currentMode == StripMode::Aux)
+    {
+        drawBlock (startX + 60.0f, "", 0);   // Gain
+        drawBlock (startX + 220.0f, "", 3);  // EQ
+        drawBlock (endX - 35.0f, "", 6);     // Fader
+    }
+    else if (currentMode == StripMode::FxReturn)
+    {
+        drawBlock (endX - 35.0f, "", 6);     // Fader
+    }
+    else if (currentMode == StripMode::Bus || currentMode == StripMode::Matrix)
+    {
+        const float busX = endX - 110.0f;
+        drawBlock (busX - 55.0f, "", 2);     // Filter/Curve
+        drawBlock (busX - 20.0f, "", 3);     // EQ
+        drawBlock (busX + 15.0f, "", 6);     // Fader
+    }
 }
 
 void SignalFlowDiagram::resized()
 {
     const auto bounds = getLocalBounds();
     const int startX = bounds.getX() + 10;
+    const int endX = bounds.getRight() - 20;
 
-    // SWAP button above EQ/Dyn
-    swapButton.setBounds (startX + 275, 4, 46, 16);
+    const bool showFlowButtons = (currentMode == StripMode::Input || currentMode == StripMode::Bus || currentMode == StripMode::Matrix);
+    swapButton.setVisible (showFlowButtons);
+    preButton.setVisible (showFlowButtons);
+    insButton.setVisible (showFlowButtons);
+    postButton.setVisible (showFlowButtons);
 
-    // PRE, INS, POST below blocks
-    preButton.setBounds (startX + 252, 42, 30, 18);
-    insButton.setBounds (startX + 288, 42, 30, 18);
-    postButton.setBounds (startX + 324, 42, 32, 18);
+    if (showFlowButtons)
+    {
+        if (currentMode == StripMode::Bus || currentMode == StripMode::Matrix)
+        {
+            const int busX = endX - 120;
+            swapButton.setBounds (busX - 14, 2, 46, 16);
+            preButton.setBounds (busX - 32, 40, 30, 18);
+            insButton.setBounds (busX + 4, 40, 30, 18);
+            postButton.setBounds (busX + 40, 40, 32, 18);
+        }
+        else
+        {
+            swapButton.setBounds (startX + 275, 4, 46, 16);
+            preButton.setBounds (startX + 252, 42, 30, 18);
+            insButton.setBounds (startX + 288, 42, 30, 18);
+            postButton.setBounds (startX + 324, 42, 32, 18);
+        }
+    }
 }
 
 } // namespace mps
