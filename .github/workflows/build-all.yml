@@ -2,7 +2,7 @@ name: Build Multiplatform (Windows EXE, macOS DMG, Android APK)
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'codex/**' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
