@@ -23,6 +23,7 @@ android {
                 arguments "-DJUCE_BUILD_CONFIGURATION=Release",
                           "-DJUCE_WEB_BROWSER=0",
                           "-DJUCE_USE_CURL=0"
+                targets "MixPracticeStudio"
             }
         }
     }
@@ -41,6 +42,14 @@ android {
         }
     }
 
+    sourceSets {
+        main.java.srcDirs += [
+            "../../external/JUCE/modules/juce_core/native/javacore/init",
+            "../../external/JUCE/modules/juce_core/native/javacore/app",
+            "../../external/JUCE/modules/juce_gui_basics/native/javaopt/app"
+        ]
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -48,6 +57,4 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
 }

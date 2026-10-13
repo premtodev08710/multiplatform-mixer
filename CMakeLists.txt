@@ -23,6 +23,11 @@ juce_add_gui_app(MixPracticeStudio
     ICON_BIG Resources/app_icon.png
 )
 
+# JUCE's Android Java bootstrap loads this library by its fixed name.
+if(ANDROID)
+    set_target_properties(MixPracticeStudio PROPERTIES OUTPUT_NAME juce_jni)
+endif()
+
 target_sources(MixPracticeStudio PRIVATE
     # Core DSP & Transport (Pure C++ / cross-platform)
     Source/Core/DspMath.h
@@ -120,19 +125,21 @@ target_link_libraries(MixPracticeStudio PRIVATE
 )
 
 #==============================================================================
-# Automated Core Unit Tests
-add_executable(MixPracticeCoreTests
-    Tests/CoreTests.cpp
-    Source/Core/MixEngine.cpp
-    Source/Core/EffectsDsp.cpp
-    Source/Core/TimelineStreamer.cpp
-    Source/Core/SincResampler.cpp
-)
+# Automated Core Unit Tests (Desktop Host Only)
+if(NOT ANDROID)
+    add_executable(MixPracticeCoreTests
+        Tests/CoreTests.cpp
+        Source/Core/MixEngine.cpp
+        Source/Core/EffectsDsp.cpp
+        Source/Core/TimelineStreamer.cpp
+        Source/Core/SincResampler.cpp
+    )
 
-target_include_directories(MixPracticeCoreTests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/Source
-)
+    target_include_directories(MixPracticeCoreTests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    )
 
-enable_testing()
-add_test(NAME CoreDspAndTransportTests COMMAND MixPracticeCoreTests)
+    enable_testing()
+    add_test(NAME CoreDspAndTransportTests COMMAND MixPracticeCoreTests)
+endif()
