@@ -116,6 +116,7 @@ jobs:
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26b
+          link-to-sdk: true
 
       - name: Install Linux build dependencies for JUCE tools
         run: |
@@ -129,8 +130,29 @@ jobs:
       - name: Setup JUCE Framework
         run: |
           if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
-            git clone --depth 1 https://github.com/juce-framework/JUCE.git external/JUCE
+            git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
           fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          juce_file = Path("external/JUCE/modules/juce_audio_devices/native/juce_Midi_android.cpp")
+          with juce_file.open("r", newline="") as source_file:
+              source = source_file.read()
+          replacements = {
+              "std::shared_ptr result = VirtualEndpointImplNative::make":
+                  "std::shared_ptr<VirtualEndpointImplNative> result = VirtualEndpointImplNative::make",
+              "std::shared_ptr result = LegacyVirtualPortImplNative::make":
+                  "std::shared_ptr<LegacyVirtualPortImplNative> result = LegacyVirtualPortImplNative::make",
+              "std::shared_ptr port = VirtualPortConnection::make":
+                  "std::shared_ptr<VirtualPortConnection> port = VirtualPortConnection::make",
+          }
+          for old, new in replacements.items():
+              if source.count(old) != (2 if "LegacyVirtualPortImplNative" in old else 1):
+                  raise SystemExit(f"Unexpected JUCE Android MIDI source: {old}")
+              source = source.replace(old, new)
+          with juce_file.open("w", newline="") as juce_file_out:
+              juce_file_out.write(source)
+          PY
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3

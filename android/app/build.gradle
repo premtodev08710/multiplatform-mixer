@@ -5,6 +5,8 @@ plugins {
 android {
     namespace 'com.mixpractice.studio'
     compileSdk 34
+    // Match the NDK installed by nttld/setup-ndk in the Android workflow.
+    ndkVersion '26.1.10909125'
 
     defaultConfig {
         applicationId "com.mixpractice.studio"
