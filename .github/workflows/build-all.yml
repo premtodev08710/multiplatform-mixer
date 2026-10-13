@@ -117,11 +117,25 @@ jobs:
         with:
           ndk-version: r26b
 
+      - name: Install Linux build dependencies for JUCE tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev \
+            ladspa-sdk libcurl4-openssl-dev libfreetype-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev libwebkit2gtk-4.1-dev \
+            libglu1-mesa-dev mesa-common-dev ninja-build
+
       - name: Setup JUCE Framework
         run: |
           if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
             git clone --depth 1 https://github.com/juce-framework/JUCE.git external/JUCE
           fi
+
+      - name: Build juceaide for Host
+        run: |
+          cmake -B juceaide-host -S external/JUCE/extras/Build/juceaide -DCMAKE_BUILD_TYPE=Release
+          cmake --build juceaide-host --config Release
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -130,8 +144,13 @@ jobs:
 
       - name: Build Android APK with Gradle
         run: |
+          JUCEAIDE_BIN="$(pwd)/juceaide-host/juceaide_artefacts/juceaide"
+          if [ ! -f "$JUCEAIDE_BIN" ]; then
+            JUCEAIDE_BIN="$(pwd)/juceaide-host/juceaide_artefacts/Release/juceaide"
+          fi
+          echo "Using juceaide at: $JUCEAIDE_BIN"
           cd android
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug -PJUCE_TOOL_PATH="$JUCEAIDE_BIN" --stacktrace
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
