@@ -247,7 +247,7 @@ void HomeScreen::paint (juce::Graphics& g)
 
     // Left control panel background
     auto leftArea = getLocalBounds().removeFromLeft (116).reduced (4, 4);
-    leftArea.removeFromTop (48); // below bank selector
+    leftArea.removeFromTop (40); // below bank selector
     g.setColour (ConsoleLookAndFeel::bgPanel);
     g.fillRoundedRectangle (leftArea.toFloat(), 4.0f);
     g.setColour (ConsoleLookAndFeel::borderSubtle);
@@ -259,11 +259,15 @@ void HomeScreen::resized()
     auto area = getLocalBounds().reduced (4);
 
     // 1. Top Bank Selector Bar (Full width across mixer)
-    bankSelectorBar.setBounds (area.removeFromTop (48));
-    area.removeFromTop (4);
+    bankSelectorBar.setBounds (area.removeFromTop (40));
+    area.removeFromTop (2);
 
-    // 2. Left Control Panel (~116px wide)
-    auto leftArea = area.removeFromLeft (116).reduced (4, 6);
+    // Keep the mixer strips usable on compact phones by reclaiming width from
+    // the utility and master columns when the available area is narrow.
+    const bool compactWidth = getWidth() < 1000;
+    const int sidePanelW = compactWidth ? 92 : 116;
+    const int masterW = compactWidth ? 68 : 86;
+    auto leftArea = area.removeFromLeft (sidePanelW).reduced (4, 6);
 
     // Sends On Faders button & target dropdown
     sendsOnFadersButton.setBounds (leftArea.removeFromTop (32));
@@ -301,7 +305,6 @@ void HomeScreen::resized()
     masterStrip->setVisible (showMasterOnRight);
     if (showMasterOnRight)
     {
-        const int masterW = 86;
         masterStrip->setBounds (area.removeFromRight (masterW).reduced (2, 0));
         area.removeFromRight (4);
     }

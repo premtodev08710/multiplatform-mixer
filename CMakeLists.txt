@@ -26,7 +26,19 @@ juce_add_gui_app(MixPracticeStudio
 # JUCE's Android Java bootstrap loads this library by its fixed name.
 if(ANDROID)
     set_target_properties(MixPracticeStudio PROPERTIES OUTPUT_NAME juce_jni)
+    # JUCE's Android Activity calls these native callbacks from onResume/onNewIntent.
+    # Register them for the Activity included in this app, or startup fails with
+    # UnsatisfiedLinkError when the Activity resumes.
+    target_compile_definitions(MixPracticeStudio PRIVATE
+        JUCE_PUSH_NOTIFICATIONS=1
+        JUCE_PUSH_NOTIFICATIONS_ACTIVITY=\"com/rmsl/juce/JuceActivity\")
 endif()
+
+target_compile_definitions(MixPracticeStudio PRIVATE
+    JUCE_CORE_INCLUDE_JNI_HELPERS=1
+    JUCE_USE_MP3AUDIOFORMAT=1
+    JUCE_USE_FLAC=1
+    JUCE_USE_OGGVORBIS=1)
 
 target_sources(MixPracticeStudio PRIVATE
     # Core DSP & Transport (Pure C++ / cross-platform)
@@ -142,4 +154,49 @@ if(NOT ANDROID)
 
     enable_testing()
     add_test(NAME CoreDspAndTransportTests COMMAND MixPracticeCoreTests)
+
+    add_executable(UiSnapshotTest
+        Tests/UiSnapshotTest.cpp
+        Source/Audio/AudioFileTrack.cpp
+        Source/Audio/AudioEngine.cpp
+        Source/Model/ProjectModel.cpp
+        Source/Network/X32OscClient.cpp
+        Source/UI/ConsoleLookAndFeel.cpp
+        Source/UI/ConsoleDial.cpp
+        Source/UI/TrapezoidPanIndicator.cpp
+        Source/UI/TransferCurveGraph.cpp
+        Source/UI/GainReductionMeter.cpp
+        Source/UI/BankSelectorBar.cpp
+        Source/UI/SignalFlowDiagram.cpp
+        Source/UI/LedMeter.cpp
+        Source/UI/InteractiveEqGraph.cpp
+        Source/UI/ChannelStripComponent.cpp
+        Source/UI/TimelineRangeComponent.cpp
+        Source/UI/TransportBar.cpp
+        Source/UI/HomeScreen.cpp
+        Source/UI/DetailScreen.cpp
+        Source/UI/EffectsScreen.cpp
+        Source/UI/FxFaceplateComponent.cpp
+        Source/UI/TracksScreen.cpp
+        Source/UI/ScenesScreen.cpp
+        Source/UI/SetupScreen.cpp
+        Source/UI/MainComponent.cpp
+        Source/Core/MixEngine.cpp
+        Source/Core/EffectsDsp.cpp
+        Source/Core/TimelineStreamer.cpp
+        Source/Core/SincResampler.cpp
+    )
+    target_link_libraries(UiSnapshotTest PRIVATE
+        juce::juce_audio_basics
+        juce::juce_audio_devices
+        juce::juce_audio_formats
+        juce::juce_audio_processors
+        juce::juce_audio_utils
+        juce::juce_core
+        juce::juce_data_structures
+        juce::juce_events
+        juce::juce_graphics
+        juce::juce_gui_basics
+        juce::juce_gui_extra
+    )
 endif()

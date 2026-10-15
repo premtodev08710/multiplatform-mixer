@@ -1,6 +1,6 @@
 # Mix Practice Studio
 
-**Mix Practice Studio** คือแอปพลิเคชันฝึกซ้อมและเรียนรู้การมิกซ์เสียงแบบมัลติแทร็ก (Multitrack Mixing Practice Studio) สำหรับ **macOS** และ **Android**
+**Mix Practice Studio** คือแอปพลิเคชันฝึกซ้อมและเรียนรู้การมิกซ์เสียงแบบมัลติแทร็ก (Multitrack Mixing Practice Studio) สำหรับ **Windows**, **macOS** และ **Android**
 พัฒนาด้วย **C++17** และ **JUCE Framework 8** ออกแบบสถาปัตยกรรมระดับสตูดิโอมืออาชีพ โดยประมวลผลเสียงจริงในตัว (Real-time In-Engine DSP) ทำงานออฟไลน์ได้ 100% ไม่ใช่แอปรีโมตควบคุมมิกเซอร์ และไม่ต้องเชื่อมต่อฮาร์ดแวร์ภายนอก
 
 ---
@@ -13,11 +13,13 @@
 4. [โครงสร้างโค้ดโปรเจกต์](#โครงสร้างโค้ดโปรเจกต์)
 5. [ฟังก์ชันที่พร้อมใช้งานในปัจจุบัน (Implemented Features)](#ฟังก์ชันที่พร้อมใช้งานในปัจจุบัน)
 6. [การทดสอบและผลลัพธ์ (Automated Tests)](#การทดสอบและผลลัพธ์)
-7. [ขั้นตอนการ Build และติดตั้ง](#ขั้นตอนการ-build-และติดตั้ง)
-   - [macOS](#การ-build-บน-macos)
-   - [Android](#การ-build-สำหรับ-android)
-8. [คู่มือการใช้งานทีละขั้นตอน (Workflow Guide)](#คู่มือการใช้งานทีละขั้นตอน)
-9. [ข้อจำกัดและแผนพัฒนาถัดไป (Roadmap)](#ข้อจำกัดและแผนพัฒนาถัดไป)
+7. [คู่มือการติดตั้งแอปพลิเคชัน (Installation Guide)](#7-คู่มือการติดตั้งแอปพลิเคชัน-installation-guide)
+   - [Android (.apk)](#android-ติดตั้งไฟล์-apk)
+   - [Windows (.exe)](#windows-ติดตั้งไฟล์-exe)
+   - [macOS (.app)](#macos-ติดตั้งไฟล์-app)
+8. [ขั้นตอนการ Build จากซอร์สโค้ด (Developer Build Guide)](#8-ขั้นตอนการ-build-จากซอร์สโค้ด)
+9. [คู่มือการใช้งานทีละขั้นตอน (Workflow Guide)](#9-คู่มือการใช้งานทีละขั้นตอน)
+10. [ข้อจำกัดและแผนพัฒนาถัดไป (Roadmap)](#10-ข้อจำกัดและแผนพัฒนาถัดไป)
 
 ---
 
@@ -221,7 +223,51 @@ appmultitrack/
 
 ---
 
-## 7. ขั้นตอนการ Build และติดตั้ง
+## 7. คู่มือการติดตั้งแอปพลิเคชัน (Installation Guide)
+
+> 📖 **ดูคู่มือการติดตั้งฉบับเต็มอย่างละเอียดได้ที่:** [INSTALL.md](file:///Users/premtodev/Documents/ระบบต่างๆ/appmultitrack/INSTALL.md)
+
+| ระบบปฏิบัติการ | ไฟล์ที่ใช้ | วิธีการติดตั้งโดยสังเขป |
+| :--- | :--- | :--- |
+| **Android** | `MixPracticeStudio.apk` | ติดตั้งผ่านตัวจัดการไฟล์ หรือ `adb install -r MixPracticeStudio.apk` |
+| **Windows** | `Mix Practice Studio.exe` | เป็นแบบ Portable แตกไฟล์/วางโฟลเดอร์ที่ต้องการแล้วเปิดใช้งานได้ทันที |
+| **macOS** | `Mix Practice Studio.app` | ลากตัวแอปเข้าโฟลเดอร์ `/Applications` |
+
+---
+
+### Android (ติดตั้งไฟล์ .apk)
+1. คัดลอกไฟล์ `MixPracticeStudio.apk` ลงบนโทรศัพท์หรือแท็บเล็ต Android (แนะนำ Android 10+ ขึ้นไป)
+2. แตะเปิดไฟล์ผ่านแอป **Files (ตัวจัดการไฟล์)**
+3. หากระบบเตือนเรื่องความปลอดภัย:
+   - ไปที่ **การตั้งค่า (Settings)** > เปิด **อนุญาตจากแหล่งที่มานี้ (Allow from this source)**
+   - หาก Google Play Protect เตือน ให้กด **รายละเอียดเพิ่มเติม (More details)** > **ติดตั้งต่อไป (Install anyway)**
+4. แอปถูกออกแบบให้ทำงานใน **แนวนอน (Landscape)** และขอแนะนำให้เสียบหูฟังแบบมีสายเพื่อลดความหน่วงเสียง
+
+---
+
+### Windows (ติดตั้งไฟล์ .exe)
+1. นำไฟล์ `Mix Practice Studio.exe` ไปวางไว้ในโฟลเดอร์ที่คุณต้องการ (เช่น `C:\Program Files\Mix Practice Studio\`)
+2. คลิกขวา > **Send to > Desktop** เพื่อสร้างทางลัด (Shortcut)
+3. หากเปิดครั้งแรกแล้วมีหน้าต่างสีฟ้า **Windows protected your PC (SmartScreen)**:
+   - คลิกที่คำว่า **"More info" (ข้อมูลเพิ่มเติม)**
+   - คลิกปุ่ม **"Run anyway" (เรียกใช้ต่อไป)**
+4. แนะนำให้เชื่อมต่อ Audio Interface และเลือกใช้งานระบบเสียงแบบ **ASIO Driver** เพื่อให้ได้ Latency ต่ำที่สุด
+
+---
+
+### macOS (ติดตั้งไฟล์ .app)
+1. ลากไฟล์ `Mix Practice Studio.app` ไปวางในโฟลเดอร์ **/Applications**
+2. **การปลดล็อก Gatekeeper สำหรับการเปิดครั้งแรก:**
+   - **วิธีที่ 1 (ผ่าน Finder):** คลิกขวา (หรือกด Control ค้างไว้แล้วคลิก) ที่ไอคอนแอป เลือก **Open (เปิด)** แล้วกดปุ่ม **Open** ยืนยันอีกครั้ง
+   - **วิธีที่ 2 (ผ่าน Terminal):** หากระบบแจ้งว่าแอปเสียหาย (is damaged) ให้รันคำสั่ง:
+     ```bash
+     xattr -cr "/Applications/Mix Practice Studio.app"
+     ```
+3. เมื่อเปิดแอปและระบบขอสิทธิ์เข้าถึง Microphone/Audio ให้กด **Allow (อนุญาต)**
+
+---
+
+## 8. ขั้นตอนการ Build จากซอร์สโค้ด (Developer Build Guide)
 
 ### การ Build บน macOS
 
@@ -251,6 +297,21 @@ open "build/MixPracticeStudio_artefacts/Release/Mix Practice Studio.app"
 
 ---
 
+### การ Build บน Windows
+
+#### ข้อกำหนดเบื้องต้น:
+- Windows 10/11 64-bit
+- Visual Studio 2022 Community (Desktop development with C++)
+- CMake 3.22+
+
+#### คำสั่งในการ Build:
+```bash
+cmake -B build-win -G "Visual Studio 17 2022" -A x64
+cmake --build build-win --config Release --target MixPracticeStudio
+```
+
+---
+
 ### การ Build สำหรับ Android
 
 #### ข้อกำหนดเบื้องต้น:
@@ -272,7 +333,7 @@ open "build/MixPracticeStudio_artefacts/Release/Mix Practice Studio.app"
 
 ---
 
-## 8. คู่มือการใช้งานทีละขั้นตอน
+## 9. คู่มือการใช้งานทีละขั้นตอน (Workflow Guide)
 
 1. **เปิดแอปพลิเคชัน:** รัน `Mix Practice Studio` หน้าจอเริ่มต้นจะแสดงหน้า **Home** พร้อม Channel Strips
 2. **นำเข้าไฟล์เสียง (Import Tracks):**
@@ -301,8 +362,9 @@ open "build/MixPracticeStudio_artefacts/Release/Mix Practice Studio.app"
 
 ---
 
-## 9. ข้อจำกัดและแผนพัฒนาถัดไป
+## 10. ข้อจำกัดและแผนพัฒนาถัดไป (Roadmap)
 
 - **เฟสปัจจุบันที่สำเร็จแล้ว:** Phase 1 (Working Vertical Slice) & Phase 2 (Channel DSP Processing) สมบูรณ์พร้อมใช้งาน
 - **Phase 3 (Bus & FX):** การเพิ่ม Aux Bus 4-16 ช่อง, Sends on Faders, Effect Rack (Reverb / Delay)
 - **Phase 4 (Expansion):** DCA Groups, Mute Groups, Real-time RTA Spectrum Analyzer บนหน้าต่าง EQ, Stereo Mixdown Export (WAV Bounce)
+

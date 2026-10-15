@@ -16,6 +16,12 @@ public:
 
     void initialise (const juce::String& /*commandLine*/) override
     {
+       #if JUCE_ANDROID
+        juce::RuntimePermissions::request (juce::RuntimePermissions::readMediaAudio, [] (bool) {
+            juce::RuntimePermissions::request (juce::RuntimePermissions::readExternalStorage, [] (bool) {});
+        });
+       #endif
+
         mainWindow = std::make_unique<MainWindow> (getApplicationName());
     }
 
@@ -53,6 +59,19 @@ public:
            #endif
 
             setVisible (true);
+
+           #if JUCE_ANDROID
+            // JUCE only hides Android's system bars in kiosk mode. Without this,
+            // the edge-to-edge status bar overlays the top navigation buttons.
+            juce::Desktop::getInstance().setKioskModeComponent (this);
+           #endif
+        }
+
+        ~MainWindow() override
+        {
+           #if JUCE_ANDROID
+            juce::Desktop::getInstance().setKioskModeComponent (nullptr);
+           #endif
         }
 
         void closeButtonPressed() override

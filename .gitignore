@@ -3,3 +3,22 @@ build-*/
 .DS_Store
 external/JUCE/
 *.tmp
+
+# Executables and App Bundles
+*.exe
+*.apk
+*.app/
+*.dmg
+*.zip
+
+# Android Local & Cache Files
+android/.gradle/
+android/.idea/
+android/local.properties
+android/app/.cxx/
+android/app/build/
+android/build/
+
+# Local reference repositories and scenes
+X32-Behringer-master/
+scene.scn

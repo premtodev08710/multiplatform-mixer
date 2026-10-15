@@ -26,7 +26,10 @@ public:
     void paintListBoxItem (int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected) override;
     void selectedRowsChanged (int lastRowSelected) override;
 
+    std::function<void()> onBack;
+
 private:
+    juce::TextButton backButton { "< Mixer" };
     AudioEngine& engine;
     ProjectModel& project;
 

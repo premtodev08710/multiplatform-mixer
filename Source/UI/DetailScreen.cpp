@@ -27,6 +27,12 @@ DetailScreen::DetailScreen (AudioEngine& eng, ProjectModel& proj)
         }
     };
 
+    // Back to Mixer button (occupies logo area in Detail view)
+    backToMixerButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202630));
+    backToMixerButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
+    backToMixerButton.addListener (this);
+    addAndMakeVisible (backToMixerButton);
+
     // Left Preview Strip Setup
     setupLeftStrip();
 
@@ -1547,6 +1553,12 @@ void DetailScreen::updateTabVisibility()
 
 void DetailScreen::buttonClicked (juce::Button* b)
 {
+    if (b == &backToMixerButton)
+    {
+        if (onBack) onBack();
+        return;
+    }
+
     for (int i = 0; i < NumTabs; ++i)
     {
         if (b == &tabButtons[i])
@@ -1906,25 +1918,104 @@ void DetailScreen::sliderValueChanged (juce::Slider* s)
     }
 }
 
+DetailScreen::ConfigLayout DetailScreen::computeConfigLayout() const
+{
+    ConfigLayout layout;
+    const int totalW = getWidth();
+    const int totalH = getHeight();
+    const bool compactH = (totalH < 560);
+    const int bankH = compactH ? 40 : 48;
+    const int subtabH = compactH ? 24 : 28;
+    const int tabStartX = 94;
+    const int subtabY = bankH + 2;
+
+    const int contentX = tabStartX;
+    const int contentY = subtabY + subtabH + 3;
+    const int contentW = totalW - contentX - 6;
+    const int contentH = totalH - contentY - 4;
+
+    layout.cardRect = juce::Rectangle<int> (contentX, contentY, contentW, contentH).reduced (3);
+
+    const bool isInput = (currentStripType == ChannelStripComponent::StripType::InputChannel);
+    const bool isMtx   = (currentStripType == ChannelStripComponent::StripType::Matrix);
+
+    const int pad = 8;
+    const int cardX = layout.cardRect.getX() + pad;
+    const int cardY = layout.cardRect.getY() + pad;
+    const int availW = layout.cardRect.getWidth() - 2 * pad;
+    const int availH = layout.cardRect.getHeight() - 2 * pad;
+
+    const int mainBoxW = isMtx ? 0 : std::clamp ((int) (availW * 0.155f), 125, 155);
+    const int leftAreaW = isMtx ? availW : (availW - mainBoxW - pad);
+
+    // Row 1: Flow Box
+    const int flowH = std::clamp ((int) (availH * 0.23f), 52, 64);
+    layout.flowBox = juce::Rectangle<int> (cardX, cardY, leftAreaW, flowH);
+
+    // Remaining parameters area below Flow Box
+    const int paramY = cardY + flowH + pad;
+    const int paramH = availH - flowH - pad;
+
+    // Widths inside leftAreaW:
+    const int utilsW = std::clamp ((int) (leftAreaW * 0.15f), 98, 122);
+    const int remainingW = leftAreaW - utilsW - pad;
+    const int preampW = isInput ? std::clamp ((int) (remainingW * 0.58f), 310, 430)
+                                : std::clamp ((int) (remainingW * 0.44f), 220, 320);
+    const int dcaAutoW = remainingW - preampW - pad;
+
+    layout.preampBox = juce::Rectangle<int> (cardX, paramY, preampW, paramH);
+
+    if (! isMtx)
+    {
+        if (isInput)
+        {
+            const int dcaH = (paramH - pad) / 2;
+            layout.dcaBox = juce::Rectangle<int> (cardX + preampW + pad, paramY, dcaAutoW, dcaH);
+            layout.autoBox = juce::Rectangle<int> (cardX + preampW + pad, paramY + dcaH + pad, dcaAutoW, paramH - dcaH - pad);
+        }
+        else
+        {
+            layout.dcaBox = juce::Rectangle<int> (cardX + preampW + pad, paramY, dcaAutoW, paramH);
+            layout.autoBox = {};
+        }
+        layout.dcaColW = (int) (dcaAutoW * 0.54f);
+    }
+    else
+    {
+        layout.dcaBox = {};
+        layout.autoBox = {};
+        layout.dcaColW = 0;
+    }
+
+    const int utilsX = cardX + preampW + pad + (layout.dcaBox.isEmpty() ? 0 : (dcaAutoW + pad));
+    const int actualUtilsW = isMtx ? (leftAreaW - (utilsX - cardX)) : utilsW;
+    layout.utilsBox = juce::Rectangle<int> (utilsX, paramY, actualUtilsW, paramH);
+
+    if (! isMtx)
+        layout.mainBox = juce::Rectangle<int> (layout.cardRect.getRight() - pad - mainBoxW, cardY, mainBoxW, availH);
+    else
+        layout.mainBox = {};
+
+    return layout;
+}
+
 void DetailScreen::paint (juce::Graphics& g)
 {
     g.fillAll (ConsoleLookAndFeel::bgDark);
 
-    auto centerArea = getLocalBounds();
-    centerArea.removeFromTop (86); // Bank bar (52) + subtab bar (34)
-    centerArea.removeFromLeft (98); // Left strip + margin
+    const auto cfgLayout = computeConfigLayout();
+    const auto cardRect = cfgLayout.cardRect.toFloat();
 
     // 1. Draw Section Card Background (dark slate charcoal with 1px border)
-    const auto cardRect = centerArea.reduced (4).toFloat();
     g.setColour (juce::Colour (0xff1e2229));
     g.fillRoundedRectangle (cardRect, 4.0f);
     g.setColour (juce::Colour (0xff323a46));
     g.drawRoundedRectangle (cardRect, 4.0f, 1.0f);
 
     // 2. Draw Left Strip Fader Scale Markings
-    const float faderTop = (float) faderSlider.getY() + 10.0f;
-    const float faderBottom = (float) faderSlider.getBottom() - 10.0f;
-    const float faderSpan = faderBottom - faderTop;
+    const float faderTop = (float) faderSlider.getY() + 8.0f;
+    const float faderBottom = (float) faderSlider.getBottom() - 8.0f;
+    const float faderSpan = std::max (10.0f, faderBottom - faderTop);
 
     const struct { float db; const char* txt; } marks[] = {
         { 10.0f, "10" }, { 5.0f, "5" }, { 0.0f, "0" }, { -5.0f, "-5" },
@@ -1932,14 +2023,14 @@ void DetailScreen::paint (juce::Graphics& g)
         { -50.0f, "-50" }, { -70.0f, "-70" }, { -90.0f, "-oo" }
     };
 
-    g.setFont (juce::FontOptions (8.0f));
+    g.setFont (juce::FontOptions (7.5f));
     g.setColour (juce::Colour (0xff8a94a2));
     for (const auto& m : marks)
     {
         const float pos = faderDbToPos (m.db);
         const float y = faderBottom - pos * faderSpan;
-        g.drawText (m.txt, 6, (int) y - 5, 18, 10, juce::Justification::centredRight);
-        g.drawHorizontalLine ((int) y, 26.0f, 29.0f);
+        g.drawText (m.txt, 4, (int) y - 5, 18, 10, juce::Justification::centredRight);
+        g.drawHorizontalLine ((int) y, 24.0f, 27.0f);
     }
 
     // 3. Tab-Specific Card Dividers / Box Outlines
@@ -1951,33 +2042,13 @@ void DetailScreen::paint (juce::Graphics& g)
         const bool isBus   = (currentStripType == ChannelStripComponent::StripType::Bus);
         const bool isMtx   = (currentStripType == ChannelStripComponent::StripType::Matrix);
 
-        const float pad = 12.0f;
-        const float cardX = cardRect.getX() + pad;
-        const float cardY = cardRect.getY() + pad;
-        const float availW = cardRect.getWidth() - 2.0f * pad;
-        const float availH = cardRect.getHeight() - 2.0f * pad;
-
-        const float mainBoxW = isMtx ? 0.0f : 165.0f;
-        const float leftAreaW = isMtx ? availW : (availW - mainBoxW - pad);
-
-        const float row1H = 74.0f;
-        const float row2H = std::floor ((availH - row1H - 2.0f * pad) * 0.55f);
-        const float row2Y = cardY + row1H + pad;
-        const float row3H = availH - (row1H + pad + row2H + pad);
-        const float row3Y = row2Y + row2H + pad;
-
-        const float utilsW = 135.0f;
-        const float preampW = leftAreaW - utilsW - pad;
-
-        const float autoW = isInput ? std::clamp (leftAreaW * 0.38f, 250.0f, 300.0f) : 0.0f;
-        const float dcaW = isInput ? (leftAreaW - autoW - pad) : leftAreaW;
+        const auto l = cfgLayout;
 
         // 1. Flow Box (Top)
-        const juce::Rectangle<float> flowBox (cardX, cardY, leftAreaW, row1H);
         g.setColour (juce::Colour (0xff242932));
-        g.fillRoundedRectangle (flowBox, 4.0f);
+        g.fillRoundedRectangle (l.flowBox.toFloat(), 4.0f);
         g.setColour (juce::Colour (0xff3d4756));
-        g.drawRoundedRectangle (flowBox, 4.0f, 1.0f);
+        g.drawRoundedRectangle (l.flowBox.toFloat(), 4.0f, 1.0f);
 
         g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
         g.setColour (juce::Colour (0xff8a94a2));
@@ -1985,9 +2056,8 @@ void DetailScreen::paint (juce::Graphics& g)
                                 (isAux ? "AUX SIGNAL FLOW" :
                                 (isFx ? "FX RETURN SIGNAL FLOW" :
                                 (isBus ? "MIX BUS SIGNAL FLOW" : "MATRIX SIGNAL FLOW")));
-        g.drawText (flowTitle, (int) flowBox.getX() + 10, (int) flowBox.getY() + 4, 200, 14, juce::Justification::centredLeft);
+        g.drawText (flowTitle, l.flowBox.getX() + 10, l.flowBox.getY() + 4, 200, 14, juce::Justification::centredLeft);
 
-        // Connecting line from SOURCE button to Signal Flow diagram (Input only)
         if (isInput)
         {
             const float srcLineY = (float) sourceButton.getY() + (float) sourceButton.getHeight() * 0.5f;
@@ -1995,12 +2065,11 @@ void DetailScreen::paint (juce::Graphics& g)
             g.drawLine ((float) sourceButton.getRight(), srcLineY, (float) signalFlow.getX() + 8.0f, srcLineY, 2.0f);
         }
 
-        // 2. Preamp Box (Middle Left)
-        const juce::Rectangle<float> preampBox (cardX, row2Y, preampW, row2H);
+        // 2. Preamp Box
         g.setColour (juce::Colour (0xff242932));
-        g.fillRoundedRectangle (preampBox, 4.0f);
+        g.fillRoundedRectangle (l.preampBox.toFloat(), 4.0f);
         g.setColour (juce::Colour (0xff3d4756));
-        g.drawRoundedRectangle (preampBox, 4.0f, 1.0f);
+        g.drawRoundedRectangle (l.preampBox.toFloat(), 4.0f, 1.0f);
 
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
         g.setColour (juce::Colour (0xffb0bec5));
@@ -2008,184 +2077,169 @@ void DetailScreen::paint (juce::Graphics& g)
                                   (isAux ? "PREAMP / GAIN" :
                                   (isFx ? "FX RETURN CONFIG" :
                                   (isBus ? "MIX BUS CONFIG" : "MATRIX CONFIG")));
-        g.drawText (preampTitle, (int) preampBox.getX() + 10, (int) preampBox.getY() + 6, 200, 14, juce::Justification::centredLeft);
+        g.drawText (preampTitle, l.preampBox.getX() + 10, l.preampBox.getY() + 6, 200, 14, juce::Justification::centredLeft);
 
-        if (isInput)
+        // 3. DCA Box
+        if (! l.dcaBox.isEmpty())
         {
-            // Subtle vertical dividers inside preampBox
+            g.setColour (juce::Colour (0xff242932));
+            g.fillRoundedRectangle (l.dcaBox.toFloat(), 4.0f);
+            g.setColour (juce::Colour (0xff3d4756));
+            g.drawRoundedRectangle (l.dcaBox.toFloat(), 4.0f, 1.0f);
+
+            g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+            g.setColour (juce::Colour (0xffb0bec5));
+            g.drawText ("DCA GROUPS (1-8)", l.dcaBox.getX() + 8, l.dcaBox.getY() + 5, l.dcaColW, 14, juce::Justification::centredLeft);
+            g.drawText ("MUTE GROUPS (1-6)", l.dcaBox.getX() + l.dcaColW + 6, l.dcaBox.getY() + 5, l.dcaBox.getWidth() - l.dcaColW - 12, 14, juce::Justification::centredLeft);
+
+            // Divider inside DCA box
             g.setColour (juce::Colour (0xff2d3440));
-            g.drawVerticalLine ((int) (cardX + 96.0f), row2Y + 24.0f, row2Y + row2H - 10.0f);
-            g.drawVerticalLine ((int) (cardX + 234.0f), row2Y + 24.0f, row2Y + row2H - 10.0f);
-            g.drawVerticalLine ((int) (cardX + 356.0f), row2Y + 24.0f, row2Y + row2H - 10.0f);
+            g.drawVerticalLine ((float) (l.dcaBox.getX() + l.dcaColW), (float) l.dcaBox.getY() + 5.0f, (float) l.dcaBox.getBottom() - 5.0f);
         }
 
-        // 3. Insert & Utils Box (Middle Right)
-        const juce::Rectangle<float> utilsBox (cardX + preampW + pad, row2Y, utilsW, row2H);
-        g.setColour (juce::Colour (0xff242932));
-        g.fillRoundedRectangle (utilsBox, 4.0f);
-        g.setColour (juce::Colour (0xff3d4756));
-        g.drawRoundedRectangle (utilsBox, 4.0f, 1.0f);
+        // 4. Automix Box
+        if (! l.autoBox.isEmpty())
+        {
+            g.setColour (juce::Colour (0xff242932));
+            g.fillRoundedRectangle (l.autoBox.toFloat(), 4.0f);
+            g.setColour (juce::Colour (0xff3d4756));
+            g.drawRoundedRectangle (l.autoBox.toFloat(), 4.0f, 1.0f);
 
-        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+            g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+            g.setColour (juce::Colour (0xffb0bec5));
+            g.drawText ("AUTOMIXING (DUGAN)", l.autoBox.getX() + 10, l.autoBox.getY() + 5, l.autoBox.getWidth() - 20, 14, juce::Justification::centredLeft);
+        }
+
+        // 5. Utils Box
+        g.setColour (juce::Colour (0xff242932));
+        g.fillRoundedRectangle (l.utilsBox.toFloat(), 4.0f);
+        g.setColour (juce::Colour (0xff3d4756));
+        g.drawRoundedRectangle (l.utilsBox.toFloat(), 4.0f, 1.0f);
+
+        g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
         g.setColour (juce::Colour (0xffb0bec5));
         const char* utilsTitle = (isInput || isBus || isMtx) ? "INSERT / UTILS" : "UTILS";
-        g.drawText (utilsTitle, (int) utilsBox.getX(), (int) utilsBox.getY() + 6, (int) utilsBox.getWidth(), 14, juce::Justification::centred);
+        g.drawText (utilsTitle, l.utilsBox.getX(), l.utilsBox.getY() + 5, l.utilsBox.getWidth(), 14, juce::Justification::centred);
 
-        g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+        g.setFont (juce::FontOptions (8.0f, juce::Font::bold));
         g.setColour (juce::Colour (0xff788494));
         if (isInput || isBus || isMtx)
-            g.drawText ("INSERT POINT", (int) utilsBox.getX() + 10, (int) row2Y + 24, (int) utilsW - 20, 12, juce::Justification::centred);
-        g.drawText ("CLIPBOARD", (int) utilsBox.getX() + 10, (int) row2Y + (isInput || isBus || isMtx ? 80 : 28), (int) utilsW - 20, 12, juce::Justification::centred);
-
-        // 4. DCA & Mute Groups Box (Bottom Left)
-        if (! isMtx)
-        {
-            const juce::Rectangle<float> dcaBox (cardX, row3Y, dcaW, row3H);
-            g.setColour (juce::Colour (0xff242932));
-            g.fillRoundedRectangle (dcaBox, 4.0f);
-            g.setColour (juce::Colour (0xff3d4756));
-            g.drawRoundedRectangle (dcaBox, 4.0f, 1.0f);
-
-            g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-            g.setColour (juce::Colour (0xffb0bec5));
-            const int dcaColW = (int) (dcaW * 0.52f);
-            g.drawText ("DCA GROUPS (1-8)", (int) dcaBox.getX() + 10, (int) dcaBox.getY() + 6, dcaColW, 14, juce::Justification::centredLeft);
-            g.drawText ("MUTE GROUPS (1-6)", (int) dcaBox.getX() + dcaColW + 10, (int) dcaBox.getY() + 6, (int) dcaW - dcaColW - 20, 14, juce::Justification::centredLeft);
-
-            // Vertical divider inside DCA box
-            g.setColour (juce::Colour (0xff2d3440));
-            g.drawVerticalLine ((int) (dcaBox.getX() + dcaColW), dcaBox.getY() + 6.0f, dcaBox.getBottom() - 6.0f);
-        }
-
-        // 5. Automix Box (Bottom Center)
-        if (isInput)
-        {
-            const juce::Rectangle<float> autoBox (cardX + dcaW + pad, row3Y, autoW, row3H);
-            g.setColour (juce::Colour (0xff242932));
-            g.fillRoundedRectangle (autoBox, 4.0f);
-            g.setColour (juce::Colour (0xff3d4756));
-            g.drawRoundedRectangle (autoBox, 4.0f, 1.0f);
-
-            g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-            g.setColour (juce::Colour (0xffb0bec5));
-            g.drawText ("AUTOMIXING (DUGAN)", (int) autoBox.getX() + 10, (int) autoBox.getY() + 6, (int) autoBox.getWidth() - 20, 14, juce::Justification::centredLeft);
-        }
+            g.drawText ("INSERT POINT", l.utilsBox.getX() + 4, l.utilsBox.getY() + 50, l.utilsBox.getWidth() - 8, 12, juce::Justification::centred);
 
         // 6. Main Box on Right
-        if (! isMtx)
+        if (! l.mainBox.isEmpty())
         {
-            const juce::Rectangle<float> mainBox (cardRect.getRight() - pad - mainBoxW, cardY, mainBoxW, availH);
             g.setColour (juce::Colour (0xff242932));
-            g.fillRoundedRectangle (mainBox, 4.0f);
+            g.fillRoundedRectangle (l.mainBox.toFloat(), 4.0f);
             g.setColour (juce::Colour (0xff4a5465));
-            g.drawRoundedRectangle (mainBox, 4.0f, 1.2f);
+            g.drawRoundedRectangle (l.mainBox.toFloat(), 4.0f, 1.2f);
 
             // Main Header Accent Stripe
             g.setColour (juce::Colour (0xffffa000));
-            g.fillRect (mainBox.getX() + 12.0f, mainBox.getY() + 4.0f, mainBox.getWidth() - 24.0f, 3.0f);
+            g.fillRect ((float) l.mainBox.getX() + 10.0f, (float) l.mainBox.getY() + 3.0f, (float) l.mainBox.getWidth() - 20.0f, 2.5f);
 
-            g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+            g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
             g.setColour (juce::Colours::white);
-            g.drawText ("MAIN BUS", (int) mainBox.getX(), (int) mainBox.getY() + 10, (int) mainBox.getWidth(), 18, juce::Justification::centred);
+            g.drawText ("MAIN BUS", l.mainBox.getX(), l.mainBox.getY() + 7, l.mainBox.getWidth(), 16, juce::Justification::centred);
 
             // Main Fader Scale Markings
             const float mfTop = (float) mainFader.getY() + 8.0f;
             const float mfBottom = (float) mainFader.getBottom() - 8.0f;
-            const float mfSpan = mfBottom - mfTop;
+            const float mfSpan = std::max (10.0f, mfBottom - mfTop);
             const struct { float db; const char* txt; } fMarks[] = {
                 { 10.0f, "+10" }, { 0.0f, "0" }, { -5.0f, "-5" }, { -10.0f, "-10" },
                 { -20.0f, "-20" }, { -30.0f, "-30" }, { -50.0f, "-50" }, { -90.0f, "-oo" }
             };
-            g.setFont (juce::FontOptions (8.0f));
+            g.setFont (juce::FontOptions (7.5f));
             g.setColour (juce::Colour (0xff788494));
             for (const auto& m : fMarks)
             {
                 const float pos = faderDbToPos (m.db);
                 const float my = mfBottom - pos * mfSpan;
-                const float lineX = (float) mainFader.getX() - 4.0f;
+                const float lineX = (float) mainFader.getX() - 3.0f;
                 g.drawHorizontalLine ((int) my, lineX - 4.0f, lineX);
-                g.drawText (m.txt, (int) (lineX - 26.0f), (int) (my - 5.0f), 22, 10, juce::Justification::centredRight);
+                g.drawText (m.txt, (int) (lineX - 24.0f), (int) (my - 5.0f), 20, 10, juce::Justification::centredRight);
             }
         }
     }
     else if (currentTab == TabGate || currentTab == TabDyn)
     {
-        // 3 Distinct Rounded Boxes on the LEFT (Controls on Left)
-        const float leftX = cardRect.getX() + 14.0f;
-        const float leftW = std::clamp (cardRect.getWidth() * 0.40f, 380.0f, 410.0f);
-        const float boxH = std::floor ((cardRect.getHeight() - 36.0f) / 3.0f);
+        const float leftX = cardRect.getX() + 10.0f;
+        const float leftW = std::clamp (cardRect.getWidth() * 0.44f, 320.0f, 420.0f);
+        const float boxH = std::floor ((cardRect.getHeight() - 26.0f) / 3.0f);
 
         // Box 1
-        const juce::Rectangle<float> box1 (leftX, cardRect.getY() + 10.0f, leftW, boxH);
+        const juce::Rectangle<float> box1 (leftX, cardRect.getY() + 8.0f, leftW, boxH);
         g.setColour (juce::Colour (0xff242932));
         g.fillRoundedRectangle (box1, 3.0f);
         g.setColour (juce::Colour (0xff3d4756));
         g.drawRoundedRectangle (box1, 3.0f, 1.0f);
 
         // Box 2
-        const juce::Rectangle<float> box2 (leftX, cardRect.getY() + 18.0f + boxH, leftW, boxH);
+        const juce::Rectangle<float> box2 (leftX, cardRect.getY() + 12.0f + boxH, leftW, boxH);
         g.setColour (juce::Colour (0xff242932));
         g.fillRoundedRectangle (box2, 3.0f);
         g.setColour (juce::Colour (0xff3d4756));
         g.drawRoundedRectangle (box2, 3.0f, 1.0f);
 
         // Box 3
-        const juce::Rectangle<float> box3 (leftX, cardRect.getY() + 26.0f + 2.0f * boxH, leftW, boxH);
+        const juce::Rectangle<float> box3 (leftX, cardRect.getY() + 16.0f + 2.0f * boxH, leftW, boxH);
         g.setColour (juce::Colour (0xff242932));
         g.fillRoundedRectangle (box3, 3.0f);
         g.setColour (juce::Colour (0xff3d4756));
         g.drawRoundedRectangle (box3, 3.0f, 1.0f);
 
         // Section header labels on the left boxes
-        g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
         g.setColour (juce::Colour (0xff90a4ae));
         if (currentTab == TabGate)
         {
-            g.drawText ("THRESHOLD & RANGE", (int) box1.getX() + 16, (int) box1.getY() + 4, 180, 14, juce::Justification::left);
-            g.drawText ("ENVELOPE DYNAMICS", (int) box2.getX() + 16, (int) box2.getY() + 4, 180, 14, juce::Justification::left);
-            g.drawText ("SIDECHAIN FILTER", (int) box3.getX() + 16, (int) box3.getY() + 4, 180, 14, juce::Justification::left);
+            g.drawText ("THRESHOLD & RANGE", (int) box1.getX() + 12, (int) box1.getY() + 3, 180, 14, juce::Justification::left);
+            g.drawText ("ENVELOPE DYNAMICS", (int) box2.getX() + 12, (int) box2.getY() + 3, 180, 14, juce::Justification::left);
+            g.drawText ("SIDECHAIN FILTER", (int) box3.getX() + 12, (int) box3.getY() + 3, 180, 14, juce::Justification::left);
         }
         else
         {
-            g.drawText ("THRESHOLD, RATIO & GAIN", (int) box1.getX() + 16, (int) box1.getY() + 4, 200, 14, juce::Justification::left);
-            g.drawText ("ENVELOPE & PARALLEL MIX", (int) box2.getX() + 16, (int) box2.getY() + 4, 200, 14, juce::Justification::left);
-            g.drawText ("SIDECHAIN FILTER", (int) box3.getX() + 16, (int) box3.getY() + 4, 200, 14, juce::Justification::left);
+            g.drawText ("THRESHOLD, RATIO & GAIN", (int) box1.getX() + 12, (int) box1.getY() + 3, 200, 14, juce::Justification::left);
+            g.drawText ("ENVELOPE & PARALLEL MIX", (int) box2.getX() + 12, (int) box2.getY() + 3, 200, 14, juce::Justification::left);
+            g.drawText ("SIDECHAIN FILTER", (int) box3.getX() + 12, (int) box3.getY() + 3, 200, 14, juce::Justification::left);
         }
 
         // Display Monitor Frame on the RIGHT (Full Width to Right Margin)
-        const float rightX = leftX + leftW + 12.0f;
-        const float rightW = cardRect.getRight() - rightX - 10.0f;
-        const juce::Rectangle<float> dispBox (rightX, cardRect.getY() + 10.0f, rightW, cardRect.getHeight() - 20.0f);
+        const float rightX = leftX + leftW + 10.0f;
+        const float rightW = cardRect.getRight() - rightX - 8.0f;
+        const juce::Rectangle<float> dispBox (rightX, cardRect.getY() + 8.0f, rightW, cardRect.getHeight() - 16.0f);
         g.setColour (juce::Colour (0xff161920));
         g.fillRoundedRectangle (dispBox, 4.0f);
         g.setColour (juce::Colour (0xff3d4756));
         g.drawRoundedRectangle (dispBox, 4.0f, 1.0f);
 
-        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
         g.setColour (juce::Colour (0xff78909c));
-        g.drawText ("TRANSFER CURVE / MONITOR", (int) dispBox.getX(), (int) dispBox.getY() + 5, (int) dispBox.getWidth(), 14, juce::Justification::centred);
+        g.drawText ("TRANSFER CURVE / MONITOR", (int) dispBox.getX(), (int) dispBox.getY() + 4, (int) dispBox.getWidth(), 14, juce::Justification::centred);
     }
     else if (currentTab == TabEq)
     {
-        // Left Box surrounding GAIN, FREQ & Q
-        const juce::Rectangle<float> eqLeftBox (cardRect.getX() + 14.0f, cardRect.getY() + 12.0f, 124.0f, cardRect.getHeight() - 24.0f);
+        const bool compactEq = (cardRect.getHeight() < 340.0f);
+        const float leftBoxW = compactEq ? 190.0f : 124.0f;
+        const juce::Rectangle<float> eqLeftBox (cardRect.getX() + 10.0f, cardRect.getY() + 8.0f, leftBoxW, cardRect.getHeight() - 16.0f);
         g.setColour (juce::Colour (0xff242932));
         g.fillRoundedRectangle (eqLeftBox, 3.0f);
         g.setColour (juce::Colour (0xff3d4756));
         g.drawRoundedRectangle (eqLeftBox, 3.0f, 1.0f);
 
         // Header for band selection on the right
-        const float bandHeaderX = cardRect.getRight() - 6.0f * 54.0f - 24.0f;
-        g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+        const float bandHeaderX = cardRect.getRight() - 6.0f * 50.0f - 24.0f;
+        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
         g.setColour (juce::Colour (0xff90a4ae));
-        g.drawText ("SELECT", (int) bandHeaderX, (int) cardRect.getBottom() - 54, 6 * 54, 14, juce::Justification::centred);
+        g.drawText ("SELECT", (int) bandHeaderX, (int) cardRect.getBottom() - 44, 6 * 50, 14, juce::Justification::centred);
     }
     else if (currentTab == TabSends)
     {
         const int numCols = 16;
-        const float faderTopY = (float) sendFaders[0].getY() + 10.0f;
-        const float faderBottomY = (float) sendFaders[0].getBottom() - 10.0f;
-        const float faderRangeH = faderBottomY - faderTopY;
+        const float faderTopY = (float) sendFaders[0].getY() + 8.0f;
+        const float faderBottomY = (float) sendFaders[0].getBottom() - 8.0f;
+        const float faderRangeH = std::max (10.0f, faderBottomY - faderTopY);
 
         const struct { float db; const char* txt; } marks[] = {
             { 10.0f, "10" }, { 5.0f, "5" }, { 0.0f, "0" }, { -5.0f, "-5" },
@@ -2215,7 +2269,7 @@ void DetailScreen::paint (juce::Graphics& g)
         }
 
         // Horizontal tick lines across each fader column
-        g.setFont (juce::FontOptions (8.0f));
+        g.setFont (juce::FontOptions (7.5f));
         for (const auto& m : marks)
         {
             const float pos = faderDbToPos (m.db);
@@ -2226,8 +2280,8 @@ void DetailScreen::paint (juce::Graphics& g)
             {
                 const float fX = (float) sendFaders[i].getX();
                 const float fW = (float) sendFaders[i].getWidth();
-                const float leftTick = fX + 4.0f;
-                const float rightTick = fX + fW - 4.0f;
+                const float leftTick = fX + 3.0f;
+                const float rightTick = fX + fW - 3.0f;
 
                 if (isUnity)
                 {
@@ -2237,7 +2291,7 @@ void DetailScreen::paint (juce::Graphics& g)
                 else
                 {
                     g.setColour (juce::Colour (0x35607080));
-                    g.drawHorizontalLine ((int) y, leftTick + 4.0f, rightTick - 4.0f);
+                    g.drawHorizontalLine ((int) y, leftTick + 3.0f, rightTick - 3.0f);
                 }
             }
         }
@@ -2249,316 +2303,361 @@ void DetailScreen::resized()
     const int totalW = getWidth();
     const int totalH = getHeight();
 
+    const bool compactH = (totalH < 560);
+    const int bankH = compactH ? 40 : 48;
+    const int subtabH = compactH ? 24 : 28;
+
     // 1. Top Bank Selector Bar
-    bankSelectorBar.setBounds (0, 0, totalW, 52);
+    bankSelectorBar.setBounds (0, 0, totalW, bankH);
+    backToMixerButton.setBounds (3, 3, 86, bankH - 6);
+    backToMixerButton.toFront (false);
 
-    // 2. Left Preview Strip (x: 4, y: 56, w: 90, h: totalH - 60)
-    scribbleName.setBounds (4, 56, 88, 26);
-    panIndicator.setBounds (4, 84, 88, 26);
-    channelNumLabel.setBounds (10, 112, 30, 24);
-
-    const int faderTop = 138;
-    const int faderBottom = totalH - 36;
-    faderSlider.setBounds (28, faderTop, 36, faderBottom - faderTop);
-    channelMeter.setBounds (68, faderTop + 4, 18, faderBottom - faderTop - 8);
-
-    prevChannelButton.setBounds (4, totalH - 30, 42, 24);
-    nextChannelButton.setBounds (50, totalH - 30, 42, 24);
-
-    // 3. Sub-Tab Buttons Row
-    const int tabStartX = 98;
+    // 2. Sub-Tab Buttons Row
+    const int tabStartX = 94;
     const int tabAvailW = totalW - tabStartX - 8;
     const int tabW = std::min (105, tabAvailW / NumTabs);
+    const int subtabY = bankH + 2;
 
     for (int i = 0; i < NumTabs; ++i)
-        tabButtons[i].setBounds (tabStartX + i * tabW, 56, tabW - 2, 26);
+        tabButtons[i].setBounds (tabStartX + i * tabW, subtabY, tabW - 2, subtabH);
+
+    // 3. Left Preview Strip
+    const int stripX = 4;
+    const int stripW = 86;
+    const int scribbleH = compactH ? 22 : 26;
+    const int panH = compactH ? 22 : 26;
+    const int numH = compactH ? 18 : 22;
+    const int navBtnH = compactH ? 22 : 24;
+
+    scribbleName.setBounds (stripX, subtabY, stripW, scribbleH);
+    panIndicator.setBounds (stripX, scribbleName.getBottom() + 2, stripW, panH);
+    channelNumLabel.setBounds (stripX + 4, panIndicator.getBottom() + 1, 30, numH);
+
+    const int faderTop = channelNumLabel.getBottom() + 2;
+    const int faderBottom = totalH - navBtnH - 6;
+    faderSlider.setBounds (stripX + 22, faderTop, 36, faderBottom - faderTop);
+    channelMeter.setBounds (stripX + 60, faderTop + 2, 16, faderBottom - faderTop - 4);
+
+    prevChannelButton.setBounds (stripX, totalH - navBtnH - 2, (stripW - 4) / 2, navBtnH);
+    nextChannelButton.setBounds (stripX + (stripW - 4) / 2 + 4, totalH - navBtnH - 2, (stripW - 4) / 2, navBtnH);
 
     // 4. Center Content Area
     const int contentX = tabStartX;
-    const int contentY = 86;
-    const int contentW = totalW - contentX - 8;
-    const int contentH = totalH - contentY - 8;
+    const int contentY = subtabY + subtabH + 3;
+    const int contentW = totalW - contentX - 6;
+    const int contentH = totalH - contentY - 4;
+
+    const auto cfgLayout = computeConfigLayout();
 
     if (currentTab == TabConfig)
     {
         const bool isInput = (currentStripType == ChannelStripComponent::StripType::InputChannel);
         const bool isAux   = (currentStripType == ChannelStripComponent::StripType::Aux);
-        const bool isFx    = (currentStripType == ChannelStripComponent::StripType::FxReturn);
-        const bool isBus   = (currentStripType == ChannelStripComponent::StripType::Bus);
         const bool isMtx   = (currentStripType == ChannelStripComponent::StripType::Matrix);
 
-        auto centerBounds = getLocalBounds();
-        centerBounds.removeFromTop (86);
-        centerBounds.removeFromLeft (98);
-        const auto cardRect = centerBounds.reduced (4);
+        const auto flowBox = cfgLayout.flowBox;
+        const auto preampBox = cfgLayout.preampBox;
+        const auto dcaBox = cfgLayout.dcaBox;
+        const auto autoBox = cfgLayout.autoBox;
+        const auto utilsBox = cfgLayout.utilsBox;
+        const auto mainBox = cfgLayout.mainBox;
 
-        const int pad = 12;
-        const int cardX = cardRect.getX() + pad;
-        const int cardY = cardRect.getY() + pad;
-        const int availW = cardRect.getWidth() - 2 * pad;
-        const int availH = cardRect.getHeight() - 2 * pad;
-
-        const int mainBoxW = isMtx ? 0 : 165;
-        const int leftAreaW = isMtx ? availW : (availW - mainBoxW - pad);
-
-        const int row1H = 74;
-        const int row2H = (int) std::floor ((availH - row1H - 2 * pad) * 0.55f);
-        const int row2Y = cardY + row1H + pad;
-        const int row3H = availH - (row1H + pad + row2H + pad);
-        const int row3Y = row2Y + row2H + pad;
-
-        const int utilsW = 135;
-        const int preampW = leftAreaW - utilsW - pad;
-
-        const int autoW = isInput ? std::clamp ((int) (leftAreaW * 0.38f), 250, 300) : 0;
-        const int dcaW = isInput ? (leftAreaW - autoW - pad) : leftAreaW;
-
-        // 1. Top Row: Routing & Signal Flow
-        if (isInput)
+        // 1. Flow Box (Signal Flow & Source button)
+        if (isInput || isAux)
         {
-            sourceButton.setBounds (cardX + 14, cardY + 28, 68, 28);
-            signalFlow.setBounds (cardX + 90, cardY + 8, leftAreaW - 98, 58);
-        }
-        else if (isAux)
-        {
-            sourceButton.setBounds (cardX + 14, row2Y + 24, 76, 26);
-            signalFlow.setBounds (cardX + 10, cardY + 8, leftAreaW - 20, 58);
+            sourceButton.setBounds (flowBox.getX() + 10, flowBox.getY() + (flowBox.getHeight() - 26) / 2, 64, 26);
+            signalFlow.setBounds (flowBox.getX() + 80, flowBox.getY() + 4, flowBox.getWidth() - 88, flowBox.getHeight() - 8);
         }
         else
         {
-            signalFlow.setBounds (cardX + 10, cardY + 8, leftAreaW - 20, 58);
+            signalFlow.setBounds (flowBox.getX() + 8, flowBox.getY() + 4, flowBox.getWidth() - 16, flowBox.getHeight() - 8);
         }
 
-        // 2. Middle Row Left: Preamp & Filters Box
+        // 2. Preamp Box
+        const int pX = preampBox.getX();
+        const int pY = preampBox.getY();
+        const int pW = preampBox.getWidth();
+        const int pH = preampBox.getHeight();
+
         if (isInput)
         {
-            const int col1X = cardX + 14;
-            linkButton.setBounds (col1X, row2Y + 36, 72, 28);
-            phaseButton.setBounds (col1X, row2Y + 72, 72, 28);
-            phantom48vButton.setBounds (col1X, row2Y + 108, 72, 28);
+            const int btnW = std::clamp ((pW - 24) / 5, 52, 66);
+            const int btnH = std::clamp ((pH - 36) / 3, 20, 26);
+            const int btnGap = std::clamp ((pH - 22 - 3 * btnH) / 3, 3, 7);
+            linkButton.setBounds (pX + 10, pY + 22, btnW, btnH);
+            phaseButton.setBounds (pX + 10, linkButton.getBottom() + btnGap, btnW, btnH);
+            phantom48vButton.setBounds (pX + 10, phaseButton.getBottom() + btnGap, btnW, btnH);
 
-            const int col2X = cardX + 104;
-            gainDial.setBounds (col2X, row2Y + 28, 100, 115);
-            preampMeter.setBounds (col2X + 104, row2Y + 32, 16, 110);
+            const int dialAreaW = pW - btnW - 26;
+            const int dialColW = dialAreaW / 3;
+            const int dialX1 = pX + 10 + btnW + 8;
+            const int dialSize = std::clamp (std::min (dialColW - 18, pH - 30), 52, 88);
+            const int dialY = pY + 20 + (pH - 24 - dialSize) / 2;
+            gainDial.setBounds (dialX1, dialY, dialSize, dialSize);
+            preampMeter.setBounds (dialX1 + dialSize + 4, dialY + 2, 14, dialSize - 4);
 
-            const int col3X = cardX + 242;
-            delayDial.setBounds (col3X, row2Y + 28, 100, 115);
-            delayButton.setBounds (col3X + 12, row2Y + 150, 76, 28);
+            const int dialX2 = dialX1 + dialColW;
+            const int subDialSize = std::clamp (std::min (dialColW - 6, pH - 52), 46, 76);
+            delayDial.setBounds (dialX2 + (dialColW - subDialSize) / 2, pY + 18, subDialSize, subDialSize);
+            const int tglH = std::clamp (pH - subDialSize - 26, 18, 24);
+            delayButton.setBounds (dialX2 + (dialColW - 58) / 2, delayDial.getBottom() + 3, 58, tglH);
 
-            const int col4X = cardX + 364;
-            lowCutDial.setBounds (col4X, row2Y + 28, 100, 115);
-            lowCutButton.setBounds (col4X + 12, row2Y + 150, 76, 28);
+            const int dialX3 = dialX2 + dialColW;
+            lowCutDial.setBounds (dialX3 + (dialColW - subDialSize) / 2, pY + 18, subDialSize, subDialSize);
+            lowCutButton.setBounds (dialX3 + (dialColW - 58) / 2, lowCutDial.getBottom() + 3, 58, tglH);
         }
         else if (isAux)
         {
-            // Aux: Link, Phase, Gain, PreampMeter, 48V
-            const int col1X = cardX + 14;
-            linkButton.setBounds (col1X, row2Y + 58, 76, 28);
-            phaseButton.setBounds (col1X, row2Y + 94, 76, 28);
+            const int btnW = 64;
+            const int btnH = std::clamp ((pH - 36) / 3, 20, 26);
+            linkButton.setBounds (pX + 12, pY + 26, btnW, btnH);
+            phaseButton.setBounds (pX + 12, linkButton.getBottom() + 6, btnW, btnH);
+            phantom48vButton.setBounds (pX + 12, phaseButton.getBottom() + 6, btnW, btnH);
 
-            const int col2X = cardX + 110;
-            gainDial.setBounds (col2X, row2Y + 26, 100, 115);
-            preampMeter.setBounds (col2X + 104, row2Y + 28, 16, 110);
-            phantom48vButton.setBounds (col2X + 130, row2Y + 68, 64, 28);
+            const int dialSize = std::clamp (pH - 32, 54, 95);
+            gainDial.setBounds (pX + btnW + 24, pY + 20 + (pH - 24 - dialSize) / 2, dialSize, dialSize);
+            preampMeter.setBounds (pX + btnW + 24 + dialSize + 6, pY + 24, 16, dialSize - 8);
         }
         else if (isMtx)
         {
-            // Matrix: Link and Phase side-by-side
-            linkButton.setBounds (cardX + 20, row2Y + 40, 76, 32);
-            phaseButton.setBounds (cardX + 108, row2Y + 40, 76, 32);
+            linkButton.setBounds (pX + 14, pY + 30, 72, 28);
+            phaseButton.setBounds (pX + 94, pY + 30, 72, 28);
         }
         else // Bus, FxReturn
         {
-            // Only Link
-            linkButton.setBounds (cardX + 20, row2Y + 40, 76, 32);
+            linkButton.setBounds (pX + 14, pY + 30, 72, 28);
         }
 
-        // Middle Row Right: Insert & Utils
-        const int uX = cardX + preampW + pad;
-        if (isInput || isBus || isMtx)
+        // 3. DCA & Mute Groups Box
+        if (! dcaBox.isEmpty())
         {
-            insertButton.setBounds (uX + 14, row2Y + 40, utilsW - 28, 30);
-            copyButton.setBounds (uX + 14, row2Y + 96, utilsW - 28, 28);
-            pasteButton.setBounds (uX + 14, row2Y + 132, utilsW - 28, 28);
-        }
-        else // Aux, FxReturn
-        {
-            copyButton.setBounds (uX + 14, row2Y + 46, utilsW - 28, 30);
-            pasteButton.setBounds (uX + 14, row2Y + 86, utilsW - 28, 30);
-        }
+            const int dcaColW = cfgLayout.dcaColW;
+            const int mgColW = dcaBox.getWidth() - dcaColW;
+            const int btnH = std::clamp ((dcaBox.getHeight() - 28) / 2, 18, 24);
+            const int bStartY = dcaBox.getY() + 22;
 
-        // 3. Bottom Row Left: DCA & Mute Groups
-        if (! isMtx)
-        {
-            const int dcaColW = (int) (dcaW * 0.52f);
-            const int dcaBtnW = std::clamp ((dcaColW - 36) / 4, 30, 48);
-            const int dcaBtnH = 30;
-            const int dcaStartX = cardX + 14;
-            const int dcaStartY = row3Y + 30;
+            const int dcaBtnW = std::clamp ((dcaColW - 20) / 4, 20, 36);
             for (int i = 0; i < 4; ++i)
-                dcaButtons[i].setBounds (dcaStartX + i * (dcaBtnW + 5), dcaStartY, dcaBtnW, dcaBtnH);
+                dcaButtons[i].setBounds (dcaBox.getX() + 8 + i * (dcaBtnW + 3), bStartY, dcaBtnW, btnH);
             for (int i = 4; i < 8; ++i)
-                dcaButtons[i].setBounds (dcaStartX + (i - 4) * (dcaBtnW + 5), dcaStartY + dcaBtnH + 8, dcaBtnW, dcaBtnH);
+                dcaButtons[i].setBounds (dcaBox.getX() + 8 + (i - 4) * (dcaBtnW + 3), bStartY + btnH + 3, dcaBtnW, btnH);
 
-            const int mgColW = dcaW - dcaColW;
-            const int mgBtnW = std::clamp ((mgColW - 36) / 3, 34, 52);
-            const int mgStartX = cardX + dcaColW + 14;
+            const int mgBtnW = std::clamp ((mgColW - 16) / 3, 22, 40);
+            const int mgStartX = dcaBox.getX() + dcaColW + 6;
             for (int i = 0; i < 3; ++i)
-                muteGroupButtons[i].setBounds (mgStartX + i * (mgBtnW + 6), dcaStartY, mgBtnW, dcaBtnH);
+                muteGroupButtons[i].setBounds (mgStartX + i * (mgBtnW + 3), bStartY, mgBtnW, btnH);
             for (int i = 3; i < 6; ++i)
-                muteGroupButtons[i].setBounds (mgStartX + (i - 3) * (mgBtnW + 6), dcaStartY + dcaBtnH + 8, mgBtnW, dcaBtnH);
+                muteGroupButtons[i].setBounds (mgStartX + (i - 3) * (mgBtnW + 3), bStartY + btnH + 3, mgBtnW, btnH);
         }
 
-        // Bottom Row Center: Automixing (Input only)
-        if (isInput)
+        // 4. Automix Box
+        if (! autoBox.isEmpty())
         {
-            const int aX = cardX + dcaW + pad;
-            automixOffButton.setBounds (aX + 14, row3Y + 30, 64, 26);
-            automixXButton.setBounds (aX + 14, row3Y + 62, 64, 26);
-            automixYButton.setBounds (aX + 14, row3Y + 94, 64, 26);
-            weightingDial.setBounds (aX + 92, row3Y + 24, 95, 105);
+            const int autoBtnW = std::clamp ((autoBox.getWidth() - 95) / 3, 28, 44);
+            const int autoBtnH = std::clamp (autoBox.getHeight() - 28, 20, 25);
+            automixOffButton.setBounds (autoBox.getX() + 10, autoBox.getY() + 22, autoBtnW, autoBtnH);
+            automixXButton.setBounds (automixOffButton.getRight() + 4, autoBox.getY() + 22, autoBtnW, autoBtnH);
+            automixYButton.setBounds (automixXButton.getRight() + 4, autoBox.getY() + 22, autoBtnW, autoBtnH);
+
+            const int weightSize = std::clamp (autoBox.getHeight() - 24, 44, 76);
+            weightingDial.setBounds (autoBox.getRight() - weightSize - 10, autoBox.getY() + 18, weightSize, weightSize);
         }
 
-        // 4. Right Column: Main Bus
-        if (! isMtx)
+        // 5. Utils Box
+        const int uX = utilsBox.getX();
+        const int uY = utilsBox.getY();
+        const int uW = utilsBox.getWidth();
+        insertButton.setBounds (uX + 8, uY + 22, uW - 16, 26);
+        const int clipY = isInput || isMtx ? 74 : 26;
+        copyButton.setBounds (uX + 8, uY + clipY, uW - 16, 24);
+        pasteButton.setBounds (uX + 8, copyButton.getBottom() + 4, uW - 16, 24);
+
+        // 6. Main Box on Right
+        if (! mainBox.isEmpty())
         {
-            const int mX = cardRect.getRight() - pad - mainBoxW;
-            const int mBtnW = mainBoxW - 32;
-            mainBusHeaderButton.setBounds (mX + 16, cardY + 8, mBtnW, 24);
-            mainLrButton.setBounds (mX + 16, cardY + 38, mBtnW, 30);
-            monoCenterButton.setBounds (mX + 16, cardY + 74, mBtnW, 28);
-            const int faderY = cardY + 115;
-            const int faderH = availH - 175;
-            mainFader.setBounds (mX + (mainBoxW - 40) / 2 + 10, faderY, 40, faderH);
-            mainMuteButton.setBounds (mX + 16, cardY + availH - 46, (mBtnW - 8) / 2, 32);
-            mainSoloButton.setBounds (mX + 16 + (mBtnW - 8) / 2 + 8, cardY + availH - 46, (mBtnW - 8) / 2, 32);
+            mainBusHeaderButton.setBounds (mainBox.getX() + 10, mainBox.getY() + 6, mainBox.getWidth() - 20, 20);
+            mainLrButton.setBounds (mainBox.getX() + 10, mainBox.getY() + 28, mainBox.getWidth() - 20, 24);
+            monoCenterButton.setBounds (mainBox.getX() + 10, mainLrButton.getBottom() + 3, mainBox.getWidth() - 20, 22);
+
+            const int muteW = (mainBox.getWidth() - 24) / 2;
+            const int muteY = mainBox.getBottom() - 30;
+            mainMuteButton.setBounds (mainBox.getX() + 10, muteY, muteW, 25);
+            mainSoloButton.setBounds (mainBox.getX() + 10 + muteW + 4, muteY, muteW, 25);
+
+            const int fTop = monoCenterButton.getBottom() + 5;
+            const int fBottom = muteY - 5;
+            mainFader.setBounds (mainBox.getX() + (mainBox.getWidth() - 36) / 2 + 8, fTop, 36, fBottom - fTop);
         }
         else
         {
             // Matrix: Mute and Solo at the bottom right corner
             const int btnW = 66;
-            mainMuteButton.setBounds (cardRect.getRight() - 150, cardRect.getBottom() - 44, btnW, 32);
-            mainSoloButton.setBounds (cardRect.getRight() - 76, cardRect.getBottom() - 44, btnW, 32);
+            mainMuteButton.setBounds (cfgLayout.cardRect.getRight() - 150, cfgLayout.cardRect.getBottom() - 36, btnW, 28);
+            mainSoloButton.setBounds (cfgLayout.cardRect.getRight() - 76, cfgLayout.cardRect.getBottom() - 36, btnW, 28);
         }
     }
     else if (currentTab == TabGate)
     {
-        // Controls on the LEFT (Swapped from right to left)
-        const int leftBoxW = std::clamp ((int) (contentW * 0.40f), 380, 410);
+        const int leftBoxW = std::clamp ((int) (contentW * 0.44f), 320, 420);
         const int boxH = (int) std::floor ((contentH - 42) / 3.0f);
 
         // Box 1 (Threshold & Range)
         const int b1Y = contentY + 10;
-        gateThreshDial.setBounds (contentX + 32, b1Y + 22, 95, 95);
-        gateRangeDial.setBounds (contentX + 160, b1Y + 22, 95, 95);
+        const int dial1Size = std::clamp (boxH - 24, 46, 86);
+        const int d1Y = b1Y + 18 + (boxH - 18 - dial1Size) / 2;
+        gateThreshDial.setBounds (contentX + 24, d1Y, dial1Size, dial1Size);
+        gateRangeDial.setBounds (contentX + 24 + dial1Size + 16, d1Y, dial1Size, dial1Size);
 
         // Box 2 (Envelopes)
         const int b2Y = b1Y + boxH + 8;
-        gateAttackDial.setBounds (contentX + 24, b2Y + 22, 88, 95);
-        gateHoldDial.setBounds (contentX + 130, b2Y + 22, 88, 95);
-        gateReleaseDial.setBounds (contentX + 236, b2Y + 22, 88, 95);
+        const int dial2Size = std::clamp ((leftBoxW - 36) / 3, 44, 80);
+        const int d2Y = b2Y + 18 + (boxH - 18 - dial2Size) / 2;
+        gateAttackDial.setBounds (contentX + 16, d2Y, dial2Size, dial2Size);
+        gateHoldDial.setBounds (contentX + 16 + dial2Size + 4, d2Y, dial2Size, dial2Size);
+        gateReleaseDial.setBounds (contentX + 16 + 2 * (dial2Size + 4), d2Y, dial2Size, dial2Size);
 
         // Box 3 (Sidechain Filter)
         const int b3Y = b2Y + boxH + 8;
-        gateFiltFreqDial.setBounds (contentX + 24, b3Y + 22, 88, 95);
-        gateSlopeDial.setBounds (contentX + 130, b3Y + 22, 88, 95);
-        gateFilterButton.setBounds (contentX + 236, b3Y + 32, 60, 26);
-        gateSoloButton.setBounds (contentX + 236, b3Y + 68, 60, 26);
-        gateKeySourceButton.setBounds (contentX + 306, b3Y + 50, 64, 26);
+        const int dial3Size = std::clamp (boxH - 24, 44, 78);
+        const int d3Y = b3Y + 18 + (boxH - 18 - dial3Size) / 2;
+        gateFiltFreqDial.setBounds (contentX + 16, d3Y, dial3Size, dial3Size);
+        gateSlopeDial.setBounds (contentX + 16 + dial3Size + 6, d3Y, dial3Size, dial3Size);
 
-        // Display Screen on the RIGHT (Full Width to right edge)
+        const int btnColX = contentX + 16 + 2 * (dial3Size + 6);
+        const int btnW = std::clamp (leftBoxW - (btnColX - contentX) - 14, 52, 70);
+        const int scBtnH = std::clamp ((boxH - 26) / 2, 18, 24);
+        gateFilterButton.setBounds (btnColX, b3Y + 18, btnW, scBtnH);
+        gateSoloButton.setBounds (btnColX, b3Y + 18 + scBtnH + 4, btnW, scBtnH);
+        gateKeySourceButton.setBounds (btnColX + btnW + 4, b3Y + 18 + (scBtnH + 4) / 2, std::min (60, leftBoxW - (btnColX + btnW + 8)), scBtnH);
+
+        // Display Screen on the RIGHT
         const int dispX = contentX + leftBoxW + 14;
         const int dispW = contentW - leftBoxW - 22;
-        const int meterW = 34;
-        const int pad = 12;
+        const int meterW = 30;
+        const int pad = 10;
         const int graphW = dispW - meterW - pad * 3;
-        const int graphH = std::clamp (contentH - 100, 240, 360);
-        const int graphY = contentY + 22;
+        const int btnAreaH = 32;
+        const int graphH = std::clamp (contentH - 44 - btnAreaH, 100, 360);
+        const int graphY = contentY + 18;
 
         gateGraph.setBounds (dispX + pad, graphY, graphW, graphH);
         gateGrMeter.setBounds (dispX + pad * 2 + graphW, graphY, meterW, graphH);
 
-        const int btnY = graphY + graphH + 18;
-        gateTypeButton.setBounds (dispX + pad, btnY, 86, 28);
-        gateActiveButton.setBounds (dispX + pad + 96, btnY, 76, 28);
+        const int btnY = graphY + graphH + 8;
+        gateTypeButton.setBounds (dispX + pad, btnY, 80, 24);
+        gateActiveButton.setBounds (dispX + pad + 86, btnY, 70, 24);
     }
     else if (currentTab == TabDyn)
     {
-        // Controls on the LEFT (Swapped from right to left)
-        const int leftBoxW = std::clamp ((int) (contentW * 0.40f), 380, 410);
+        const int leftBoxW = std::clamp ((int) (contentW * 0.44f), 320, 430);
         const int boxH = (int) std::floor ((contentH - 42) / 3.0f);
 
         // Box 1 (Dynamics Main)
         const int b1Y = contentY + 10;
-        compThreshDial.setBounds (contentX + 20, b1Y + 22, 80, 95);
-        compRatioDial.setBounds (contentX + 110, b1Y + 22, 80, 95);
-        compGainDial.setBounds (contentX + 200, b1Y + 22, 80, 95);
-        compKneeDial.setBounds (contentX + 290, b1Y + 22, 80, 95);
+        const int dial1Size = std::clamp ((leftBoxW - 32) / 4, 44, 76);
+        const int d1Y = b1Y + 18 + (boxH - 18 - dial1Size) / 2;
+        compThreshDial.setBounds (contentX + 14, d1Y, dial1Size, dial1Size);
+        compRatioDial.setBounds (contentX + 14 + dial1Size + 3, d1Y, dial1Size, dial1Size);
+        compGainDial.setBounds (contentX + 14 + 2 * (dial1Size + 3), d1Y, dial1Size, dial1Size);
+        compKneeDial.setBounds (contentX + 14 + 3 * (dial1Size + 3), d1Y, dial1Size, dial1Size);
 
         // Box 2 (Envelopes & Mix)
         const int b2Y = b1Y + boxH + 8;
-        compAttackDial.setBounds (contentX + 20, b2Y + 22, 80, 95);
-        compHoldDial.setBounds (contentX + 110, b2Y + 22, 80, 95);
-        compReleaseDial.setBounds (contentX + 200, b2Y + 22, 80, 95);
-        compMixDial.setBounds (contentX + 290, b2Y + 22, 80, 95);
+        compAttackDial.setBounds (contentX + 14, b2Y + 18 + (boxH - 18 - dial1Size) / 2, dial1Size, dial1Size);
+        compHoldDial.setBounds (contentX + 14 + dial1Size + 3, b2Y + 18 + (boxH - 18 - dial1Size) / 2, dial1Size, dial1Size);
+        compReleaseDial.setBounds (contentX + 14 + 2 * (dial1Size + 3), b2Y + 18 + (boxH - 18 - dial1Size) / 2, dial1Size, dial1Size);
+        compMixDial.setBounds (contentX + 14 + 3 * (dial1Size + 3), b2Y + 18 + (boxH - 18 - dial1Size) / 2, dial1Size, dial1Size);
 
         // Box 3 (Sidechain Filter)
         const int b3Y = b2Y + boxH + 8;
-        compFiltFreqDial.setBounds (contentX + 24, b3Y + 22, 88, 95);
-        compSlopeDial.setBounds (contentX + 130, b3Y + 22, 88, 95);
-        compFilterButton.setBounds (contentX + 236, b3Y + 32, 60, 26);
-        compSoloButton.setBounds (contentX + 236, b3Y + 68, 60, 26);
-        compKeySourceButton.setBounds (contentX + 306, b3Y + 50, 64, 26);
+        const int dial3Size = std::clamp (boxH - 24, 44, 76);
+        const int d3Y = b3Y + 18 + (boxH - 18 - dial3Size) / 2;
+        compFiltFreqDial.setBounds (contentX + 16, d3Y, dial3Size, dial3Size);
+        compSlopeDial.setBounds (contentX + 16 + dial3Size + 6, d3Y, dial3Size, dial3Size);
 
-        // Display Screen on the RIGHT (Full Width to right edge)
+        const int btnColX = contentX + 16 + 2 * (dial3Size + 6);
+        const int btnW = std::clamp (leftBoxW - (btnColX - contentX) - 14, 52, 68);
+        const int scBtnH = std::clamp ((boxH - 26) / 2, 18, 24);
+        compFilterButton.setBounds (btnColX, b3Y + 18, btnW, scBtnH);
+        compSoloButton.setBounds (btnColX, b3Y + 18 + scBtnH + 4, btnW, scBtnH);
+        compKeySourceButton.setBounds (btnColX + btnW + 4, b3Y + 18 + (scBtnH + 4) / 2, std::min (58, leftBoxW - (btnColX + btnW + 8)), scBtnH);
+
+        // Display Screen on the RIGHT
         const int dispX = contentX + leftBoxW + 14;
         const int dispW = contentW - leftBoxW - 22;
-        const int meterW = 34;
-        const int pad = 12;
+        const int meterW = 30;
+        const int pad = 10;
         const int graphW = dispW - meterW - pad * 3;
-        const int graphH = std::clamp (contentH - 100, 240, 360);
-        const int graphY = contentY + 22;
+        const int modeAreaH = 54;
+        const int graphH = std::clamp (contentH - 44 - modeAreaH, 100, 360);
+        const int graphY = contentY + 18;
 
         compGraph.setBounds (dispX + pad, graphY, graphW, graphH);
         compGrMeter.setBounds (dispX + pad * 2 + graphW, graphY, meterW, graphH);
 
-        const int btnY = graphY + graphH + 14;
-        compTypeCompButton.setBounds (dispX + pad, btnY, 50, 24);
-        compTypeExpButton.setBounds (dispX + pad + 54, btnY, 50, 24);
-        compModeManButton.setBounds (dispX + pad + 114, btnY, 50, 24);
-        compModeAutoButton.setBounds (dispX + pad + 168, btnY, 50, 24);
-        compDetPeakButton.setBounds (dispX + pad + 228, btnY, 50, 24);
-        compDetRmsButton.setBounds (dispX + pad + 282, btnY, 50, 24);
-        compCharLinButton.setBounds (dispX + pad + 342, btnY, 50, 24);
-        compCharLogButton.setBounds (dispX + pad + 396, btnY, 50, 24);
+        const int btnY = graphY + graphH + 6;
+        const int modeBtnW = std::clamp ((dispW - 2 * pad) / 8 - 3, 34, 50);
+        const int modeBtnH = 22;
+        compTypeCompButton.setBounds (dispX + pad, btnY, modeBtnW, modeBtnH);
+        compTypeExpButton.setBounds (dispX + pad + (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compModeManButton.setBounds (dispX + pad + 2 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compModeAutoButton.setBounds (dispX + pad + 3 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compDetPeakButton.setBounds (dispX + pad + 4 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compDetRmsButton.setBounds (dispX + pad + 5 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compCharLinButton.setBounds (dispX + pad + 6 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
+        compCharLogButton.setBounds (dispX + pad + 7 * (modeBtnW + 3), btnY, modeBtnW, modeBtnH);
 
-        compActiveButton.setBounds (dispX + pad, btnY + 30, 68, 28);
+        compActiveButton.setBounds (dispX + pad, btnY + modeBtnH + 4, 64, 24);
     }
     else if (currentTab == TabEq)
     {
-        // Left Box controls (GAIN, FREQ, Q, EQ IN, LO CUT)
-        eqGainDial.setBounds (contentX + 28, contentY + 20, 96, 92);
-        eqFreqDial.setBounds (contentX + 28, contentY + 116, 96, 92);
-        eqQDial.setBounds (contentX + 28, contentY + 212, 96, 92);
-        eqActiveButton.setBounds (contentX + 24, contentY + 314, 48, 28);
-        eqLoCutButton.setBounds (contentX + 78, contentY + 314, 52, 28);
+        const bool compactEq = (contentH < 340);
+        const int leftBoxW = compactEq ? 190 : 124;
 
-        // Center/Right Graph Area (Full Width to right edge)
-        const int graphX = contentX + 138;
-        const int graphW = contentW - 146;
-        const int graphH = contentH - 64;
+        if (compactEq)
+        {
+            // 2x2 layout inside leftBox
+            const int dialSize = std::clamp ((contentH - 44) / 2, 50, 78);
+            const int d1Y = contentY + 16;
+            const int d2Y = d1Y + dialSize + 4;
+            eqGainDial.setBounds (contentX + 16, d1Y, dialSize, dialSize);
+            eqFreqDial.setBounds (contentX + 16 + dialSize + 6, d1Y, dialSize, dialSize);
+            eqQDial.setBounds (contentX + 16, d2Y, dialSize, dialSize);
+
+            const int btnX = contentX + 16 + dialSize + 6;
+            const int btnH = std::clamp ((dialSize - 6) / 2, 20, 26);
+            eqActiveButton.setBounds (btnX, d2Y + 4, dialSize, btnH);
+            eqLoCutButton.setBounds (btnX, d2Y + 4 + btnH + 4, dialSize, btnH);
+        }
+        else
+        {
+            // Vertical stack
+            const int dialH = std::clamp ((contentH - 70) / 3, 60, 92);
+            eqGainDial.setBounds (contentX + 16, contentY + 16, 92, dialH);
+            eqFreqDial.setBounds (contentX + 16, contentY + 16 + dialH + 4, 92, dialH);
+            eqQDial.setBounds (contentX + 16, contentY + 16 + 2 * (dialH + 4), 92, dialH);
+            const int btnY = contentY + 16 + 3 * (dialH + 4) + 4;
+            eqActiveButton.setBounds (contentX + 14, btnY, 44, 26);
+            eqLoCutButton.setBounds (contentX + 62, btnY, 48, 26);
+        }
+
+        // Center/Right Graph Area
+        const int graphX = contentX + leftBoxW + 12;
+        const int graphW = contentW - leftBoxW - 20;
+        const int botH = 28;
+        const int graphH = contentH - botH - 24;
         eqGraph.setBounds (graphX, contentY + 10, graphW, graphH);
 
         // Bottom Bar controls
-        const int botY = contentY + graphH + 18;
-        eqResetButton.setBounds (graphX + 10, botY, 48, 26);
-        eqModeButton.setBounds (graphX + 62, botY, 48, 26);
-        eqRtaButton.setBounds (graphX + 114, botY, 48, 26);
-        eqLoCutBottomButton.setBounds (graphX + 166, botY, 56, 26);
+        const int botY = contentY + graphH + 16;
+        eqResetButton.setBounds (graphX + 6, botY, 46, 24);
+        eqModeButton.setBounds (graphX + 56, botY, 46, 24);
+        eqRtaButton.setBounds (graphX + 106, botY, 46, 24);
+        eqLoCutBottomButton.setBounds (graphX + 156, botY, 54, 24);
 
-        const int bandStartX = graphX + graphW - 6 * 56 - 6;
+        const int bandStartX = graphX + graphW - 6 * 50 - 6;
         for (int i = 0; i < 6; ++i)
-            eqBandButtons[i].setBounds (bandStartX + i * 56, botY, 52, 26);
+            eqBandButtons[i].setBounds (bandStartX + i * 50, botY, 46, 24);
     }
     else if (currentTab == TabSends)
     {
@@ -2567,17 +2666,17 @@ void DetailScreen::resized()
         const int colW = std::clamp (availW / numCols, 44, 76);
         const int colStartX = contentX + 10 + (availW - colW * numCols) / 2;
 
-        const int badgeH = 34;
-        const int valH   = 16;
-        const int tapH   = 22;
-        const int muteH  = 24;
+        const int badgeH = compactH ? 26 : 34;
+        const int valH   = 14;
+        const int tapH   = compactH ? 18 : 22;
+        const int muteH  = compactH ? 20 : 24;
 
-        const int topY   = contentY + 10;
+        const int topY   = contentY + 8;
         const int valY   = topY + badgeH + 2;
-        const int tapY   = valY + valH + 4;
-        const int faderY = tapY + tapH + 6;
-        const int muteY  = contentY + contentH - muteH - 10;
-        const int faderH = std::max (60, muteY - faderY - 8);
+        const int tapY   = valY + valH + 3;
+        const int faderY = tapY + tapH + 5;
+        const int muteY  = contentY + contentH - muteH - 8;
+        const int faderH = std::max (40, muteY - faderY - 6);
 
         for (int i = 0; i < numCols; ++i)
         {
@@ -2586,10 +2685,10 @@ void DetailScreen::resized()
             sendBusBadges[i].setBounds (colX + 2, topY, badgeW, badgeH);
             sendValueLabels[i].setBounds (colX + 2, valY, badgeW, valH);
 
-            const int muteW = std::clamp (colW - 14, 24, 30);
+            const int muteW = std::clamp (colW - 14, 22, 28);
             sendMuteButtons[i].setBounds (colX + (colW - muteW) / 2, muteY, muteW, muteH);
 
-            const int faderW = std::clamp (colW - 8, 28, 42);
+            const int faderW = std::clamp (colW - 8, 26, 40);
             sendFaders[i].setBounds (colX + (colW - faderW) / 2, faderY, faderW, faderH);
         }
 

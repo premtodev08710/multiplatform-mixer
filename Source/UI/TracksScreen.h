@@ -43,9 +43,15 @@ public:
     void moveTrackRow (int fromSlot, int toSlot);
     void removeTrackSlot (int slot);
 
+    std::function<void()> onBack;
+
 private:
+    juce::TextButton backButton { "< Mixer" };
     void importAudioFiles();
+    void importAudioFilesInternal();
     void importFolderStems();
+    void importFolderStemsInternal();
+    void processLoadedFilesInBackground (const juce::Array<juce::File>& rawFiles);
 
     AudioEngine& engine;
     ProjectModel& project;

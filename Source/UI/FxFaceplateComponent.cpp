@@ -1599,7 +1599,7 @@ void FxFaceplateComponent::paintVintageReverb (juce::Graphics& g, juce::Rectangl
     // Header Title Silkscreen
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
     g.setColour (ConsoleLookAndFeel::accentCyan);
-    g.drawText ("Vintage Reverb / Hallgerät", (int) area.getX() + 180, (int) area.getY() + 18, 300, 20, juce::Justification::centred);
+    g.drawText (juce::String::fromUTF8 ("Vintage Reverb / Hallgerät"), (int) area.getX() + 180, (int) area.getY() + 18, 300, 20, juce::Justification::centred);
 
     // Left Dual Meter Ladders
     const juce::Rectangle<float> meterBox (area.getX() + 45.0f, area.getY() + 25.0f, 90.0f, area.getHeight() - 50.0f);

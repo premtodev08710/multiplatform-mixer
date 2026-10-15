@@ -26,23 +26,28 @@ void BankSelectorBar::paint (juce::Graphics& g)
     const auto bounds = getLocalBounds().toFloat();
     const float h = bounds.getHeight();
 
-    // 1. Logo Block on the Left (width ~92px)
+    // 1. Logo Block on the Left (width ~90px)
     const float logoW = 90.0f;
     const juce::Rectangle<float> logoArea (bounds.getX() + 2.0f, bounds.getY() + 2.0f, logoW, h - 4.0f);
 
+    const bool compact = (h < 46.0f);
+
     // Styled MPS Logo
-    g.setFont (juce::FontOptions (18.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (compact ? 15.0f : 18.0f, juce::Font::bold));
     g.setColour (juce::Colours::white);
-    g.drawText ("MPS", (int) logoArea.getX(), (int) logoArea.getY() + 2, (int) logoW, 20, juce::Justification::centred);
+    g.drawText ("MPS", (int) logoArea.getX(), (int) logoArea.getY() + 1, (int) logoW, compact ? 16 : 20, juce::Justification::centred);
 
-    g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+    g.setFont (juce::FontOptions (compact ? 7.5f : 8.5f, juce::Font::bold));
     g.setColour (juce::Colour (0xffb0bec5));
-    g.drawText ("DEMO MODE", (int) logoArea.getX(), (int) logoArea.getY() + 22, (int) logoW, 12, juce::Justification::centred);
+    g.drawText ("DEMO MODE", (int) logoArea.getX(), (int) logoArea.getY() + (compact ? 16 : 22), (int) logoW, 11, juce::Justification::centred);
 
-    // Info (i) and bulb icons
-    g.setColour (juce::Colour (0xff78909c));
-    g.setFont (juce::FontOptions (10.0f));
-    g.drawText ("(i)  \U0001F4A1", (int) logoArea.getX(), (int) logoArea.getY() + 34, (int) logoW, 14, juce::Justification::centred);
+    if (! compact)
+    {
+        // Info (i) and bulb icons
+        g.setColour (juce::Colour (0xff78909c));
+        g.setFont (juce::FontOptions (9.0f));
+        g.drawText ("(i)  \U0001F4A1", (int) logoArea.getX(), (int) logoArea.getY() + 34, (int) logoW, 12, juce::Justification::centred);
+    }
 
     // 2. 10 Bank Buttons
     const char* bankNames[NumBanks] = {
@@ -52,7 +57,7 @@ void BankSelectorBar::paint (juce::Graphics& g)
     };
 
     const float banksStartX = logoArea.getRight() + 4.0f;
-    const float availW = bounds.getRight() - banksStartX - 4.0f;
+    const float availW = bounds.getRight() - banksStartX - 44.0f;
     const float buttonW = availW / (float) NumBanks;
 
     for (int i = 0; i < NumBanks; ++i)
@@ -71,10 +76,11 @@ void BankSelectorBar::paint (juce::Graphics& g)
         g.drawRoundedRectangle (btnRect, 2.0f, isSel ? 1.5f : 1.0f);
 
         // Miniature 8-column LED meters
-        const float meterTopY = btnRect.getY() + 4.0f;
-        const float meterH = 26.0f;
+        const float meterTopY = btnRect.getY() + (compact ? 2.0f : 4.0f);
+        const float meterH = compact ? 18.0f : 26.0f;
         const float meterAreaW = btnRect.getWidth() - 6.0f;
         const float colW = meterAreaW / 8.0f;
+        const float segStep = meterH / 6.0f;
 
         for (int c = 0; c < 8; ++c)
         {
@@ -127,8 +133,8 @@ void BankSelectorBar::paint (juce::Graphics& g)
             const float segThresh[6] = { 0.0f, -6.0f, -12.0f, -18.0f, -30.0f, -50.0f };
             for (int s = 0; s < 6; ++s)
             {
-                const float sy = meterTopY + (float) s * 4.2f;
-                const juce::Rectangle<float> dotRect (mx + 1.0f, sy, colW - 2.0f, 3.0f);
+                const float sy = meterTopY + (float) s * segStep;
+                const juce::Rectangle<float> dotRect (mx + 0.5f, sy, colW - 1.0f, std::max (2.0f, segStep - 1.0f));
 
                 const bool lit = (chDb >= segThresh[s]);
                 juce::Colour segCol = juce::Colour (0xff1e232b);
@@ -144,10 +150,10 @@ void BankSelectorBar::paint (juce::Graphics& g)
         }
 
         // Bank Title at bottom
-        g.setFont (juce::FontOptions (9.0f, isSel ? juce::Font::bold : juce::Font::plain));
+        g.setFont (juce::FontOptions (compact ? 8.0f : 9.0f, isSel ? juce::Font::bold : juce::Font::plain));
         g.setColour (isSel ? juce::Colour (0xffe5eaf2) : juce::Colour (0xff8a94a2));
-        g.drawText (bankNames[i], (int) btnRect.getX(), (int) btnRect.getBottom() - 14,
-                    (int) btnRect.getWidth(), 12, juce::Justification::centred);
+        g.drawText (bankNames[i], (int) btnRect.getX(), (int) btnRect.getBottom() - (compact ? 12 : 14),
+                    (int) btnRect.getWidth(), compact ? 11 : 12, juce::Justification::centred);
     }
 }
 
@@ -161,10 +167,10 @@ void BankSelectorBar::mouseDown (const juce::MouseEvent& e)
     const auto bounds = getLocalBounds().toFloat();
     const float logoW = 90.0f;
     const float banksStartX = bounds.getX() + 2.0f + logoW + 4.0f;
-    const float availW = bounds.getRight() - banksStartX - 4.0f;
+    const float availW = bounds.getRight() - banksStartX - 44.0f;
     const float buttonW = availW / (float) NumBanks;
 
-    if (e.position.x >= banksStartX && e.position.x <= bounds.getRight() - 4.0f)
+    if (e.position.x >= banksStartX && e.position.x <= bounds.getRight() - 44.0f)
     {
         const int idx = (int) ((e.position.x - banksStartX) / buttonW);
         if (idx >= 0 && idx < NumBanks)

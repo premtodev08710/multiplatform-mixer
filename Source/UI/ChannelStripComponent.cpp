@@ -553,7 +553,7 @@ void ChannelStripComponent::paint (juce::Graphics& g)
     }
 
     // 2. Scribble Strip Banner Box (colored badge at top)
-    const float scribbleH = 46.0f;
+    const float scribbleH = 38.0f;
     juce::Rectangle<float> scribbleRect (bounds.getX() + 3.0f, bounds.getY() + 3.0f, bounds.getWidth() - 6.0f, scribbleH);
 
     juce::Colour bannerColour = juce::Colour (0xff37474f);
@@ -611,42 +611,42 @@ void ChannelStripComponent::resized()
     auto area = getLocalBounds().reduced (3);
 
     // Scribble strip
-    auto scribbleArea = area.removeFromTop (46);
-    scribbleName.setBounds (scribbleArea.removeFromTop (26));
+    auto scribbleArea = area.removeFromTop (38);
+    scribbleName.setBounds (scribbleArea.removeFromTop (22));
     scribbleSource.setBounds (scribbleArea);
 
-    area.removeFromTop (3);
+    area.removeFromTop (2);
 
     const bool hasPanAndSolo = (stripType != StripType::Master && stripType != StripType::MainC);
 
     if (stripType == StripType::InputChannel)
     {
-        gainLabel.setBounds (area.removeFromTop (16).reduced (2, 0));
-        area.removeFromTop (2);
+        gainLabel.setBounds (area.removeFromTop (14).reduced (2, 0));
+        area.removeFromTop (1);
     }
 
     if (hasPanAndSolo)
     {
-        panSlider.setBounds (area.removeFromTop (44).reduced (4, 1));
-        area.removeFromTop (3);
+        panSlider.setBounds (area.removeFromTop (36).reduced (3, 1));
+        area.removeFromTop (2);
 
         // Solo & Mute buttons
-        auto btnArea = area.removeFromTop (24);
+        auto btnArea = area.removeFromTop (22);
         soloButton.setBounds (btnArea.removeFromLeft (btnArea.getWidth() / 2).reduced (2, 0));
         muteButton.setBounds (btnArea.reduced (2, 0));
     }
     else
     {
         // Master Mute
-        area.removeFromTop (12);
-        muteButton.setBounds (area.removeFromTop (28).reduced (6, 0));
+        area.removeFromTop (6);
+        muteButton.setBounds (area.removeFromTop (24).reduced (4, 0));
     }
 
-    area.removeFromTop (6);
+    area.removeFromTop (3);
 
     // Bottom dB readout
-    faderValueLabel.setBounds (area.removeFromBottom (20).reduced (2, 0));
-    area.removeFromBottom (4);
+    faderValueLabel.setBounds (area.removeFromBottom (18).reduced (2, 0));
+    area.removeFromBottom (2);
 
     // Fader & Meter columns side by side
     auto faderMeterArea = area;

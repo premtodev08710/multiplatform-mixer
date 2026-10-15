@@ -23,7 +23,10 @@ public:
 
     void buttonClicked (juce::Button* button) override;
 
+    std::function<void()> onBack;
+
 private:
+    juce::TextButton backButton { "< Mixer Console" };
     void timerCallback() override;
 
     AudioEngine& engine;

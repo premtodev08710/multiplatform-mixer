@@ -22,6 +22,11 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
         true,   // Stereo pairs
         false   // Hide advanced
     );
+    backButton.addListener (this);
+    backButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202630));
+    backButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
+    addAndMakeVisible (backButton);
+
     addAndMakeVisible (deviceSelector.get());
 
     useSpeakersButton.addListener (this);
@@ -129,6 +134,12 @@ void SetupScreen::timerCallback()
 
 void SetupScreen::buttonClicked (juce::Button* b)
 {
+    if (b == &backButton)
+    {
+        if (onBack) onBack();
+        return;
+    }
+
     if (b == &x32ConnectButton)
     {
         if (oscClient.isConnected())
@@ -178,66 +189,104 @@ void SetupScreen::paint (juce::Graphics& g)
 {
     g.fillAll (ConsoleLookAndFeel::bgDark);
 
-    auto bounds = getLocalBounds().reduced (16).toFloat();
-    const float halfH = (bounds.getHeight() - 12.0f) * 0.5f;
+    auto bounds = getLocalBounds().reduced (14).toFloat();
+    const bool sideBySide = (getWidth() >= 750);
 
-    auto topCard = bounds.removeFromTop (halfH);
-    bounds.removeFromTop (12.0f);
-    auto bottomCard = bounds;
+    juce::Rectangle<float> leftCard, rightCard;
+    if (sideBySide)
+    {
+        const float gap = 12.0f;
+        const float leftW = std::floor ((bounds.getWidth() - gap) * 0.54f);
+        leftCard = bounds.removeFromLeft (leftW);
+        bounds.removeFromLeft (gap);
+        rightCard = bounds;
+    }
+    else
+    {
+        const float gap = 10.0f;
+        const float topH = std::floor ((bounds.getHeight() - gap) * 0.52f);
+        leftCard = bounds.removeFromTop (topH);
+        bounds.removeFromTop (gap);
+        rightCard = bounds;
+    }
 
-    // Top Card (Audio Device)
+    // Left Card (Audio Device)
     g.setColour (ConsoleLookAndFeel::bgPanel);
-    g.fillRoundedRectangle (topCard, 4.0f);
+    g.fillRoundedRectangle (leftCard, 4.0f);
     g.setColour (ConsoleLookAndFeel::borderSubtle);
-    g.drawRoundedRectangle (topCard, 4.0f, 1.0f);
+    g.drawRoundedRectangle (leftCard, 4.0f, 1.0f);
 
-    // Bottom Card (X32 Network Remote)
+    // Right Card (X32 Network Remote)
     g.setColour (ConsoleLookAndFeel::bgPanel);
-    g.fillRoundedRectangle (bottomCard, 4.0f);
+    g.fillRoundedRectangle (rightCard, 4.0f);
     g.setColour (ConsoleLookAndFeel::borderSubtle);
-    g.drawRoundedRectangle (bottomCard, 4.0f, 1.0f);
+    g.drawRoundedRectangle (rightCard, 4.0f, 1.0f);
 }
 
 void SetupScreen::resized()
 {
-    auto area = getLocalBounds().reduced (24);
-    const int halfH = (area.getHeight() - 16) / 2;
+    auto area = getLocalBounds().reduced (14);
+    const bool sideBySide = (getWidth() >= 750);
 
-    // Top: Audio Device Setup
-    auto topArea = area.removeFromTop (halfH);
-    titleLabel.setBounds (topArea.removeFromTop (26));
-    statusLabel.setBounds (topArea.removeFromTop (20));
-    topArea.removeFromTop (6);
+    juce::Rectangle<int> leftArea, rightArea;
+    if (sideBySide)
+    {
+        const int gap = 12;
+        const int leftW = (int) std::floor ((area.getWidth() - gap) * 0.54f);
+        leftArea = area.removeFromLeft (leftW).reduced (12, 10);
+        area.removeFromLeft (gap);
+        rightArea = area.reduced (12, 10);
+    }
+    else
+    {
+        const int gap = 10;
+        const int topH = (int) std::floor ((area.getHeight() - gap) * 0.52f);
+        leftArea = area.removeFromTop (topH).reduced (10, 8);
+        area.removeFromTop (gap);
+        rightArea = area.reduced (10, 8);
+    }
 
-    auto quickRow = topArea.removeFromTop (28);
-    useSpeakersButton.setBounds (quickRow.removeFromLeft (180).reduced (2));
+    // Left: Audio Device Setup
+    auto titleRow = leftArea.removeFromTop (26);
+    backButton.setBounds (titleRow.removeFromLeft (130));
+    titleRow.removeFromLeft (8);
+    titleLabel.setBounds (titleRow);
+
+    statusLabel.setBounds (leftArea.removeFromTop (18));
+    leftArea.removeFromTop (4);
+
+    auto quickRow = leftArea.removeFromTop (26);
+    const int quickW = (quickRow.getWidth() - 8) / 2;
+    useSpeakersButton.setBounds (quickRow.removeFromLeft (quickW));
     quickRow.removeFromLeft (8);
-    useHeadphonesButton.setBounds (quickRow.removeFromLeft (180).reduced (2));
-    topArea.removeFromTop (8);
+    useHeadphonesButton.setBounds (quickRow);
+    leftArea.removeFromTop (6);
 
     if (deviceSelector != nullptr)
-        deviceSelector->setBounds (topArea);
+        deviceSelector->setBounds (leftArea);
 
-    area.removeFromTop (16);
+    // Right: X32 OSC Remote Network Setup
+    x32TitleLabel.setBounds (rightArea.removeFromTop (24));
+    x32StatusLabel.setBounds (rightArea.removeFromTop (18));
+    rightArea.removeFromTop (8);
 
-    // Bottom: X32 OSC Remote Network Setup
-    auto bottomArea = area;
-    x32TitleLabel.setBounds (bottomArea.removeFromTop (26));
-    x32StatusLabel.setBounds (bottomArea.removeFromTop (20));
-    bottomArea.removeFromTop (10);
+    auto ipRow = rightArea.removeFromTop (28);
+    const int ipLabelW = 40;
+    const int portLabelW = 44;
+    const int portEditorW = std::clamp (ipRow.getWidth() / 5, 55, 75);
+    const int ipEditorW = std::max (90, ipRow.getWidth() - ipLabelW - portLabelW - portEditorW - 12);
+    x32IpLabel.setBounds (ipRow.removeFromLeft (ipLabelW));
+    x32IpEditor.setBounds (ipRow.removeFromLeft (ipEditorW).reduced (0, 1));
+    ipRow.removeFromLeft (6);
+    x32PortLabel.setBounds (ipRow.removeFromLeft (portLabelW));
+    x32PortEditor.setBounds (ipRow.reduced (0, 1));
 
-    auto ipRow = bottomArea.removeFromTop (32);
-    x32IpLabel.setBounds (ipRow.removeFromLeft (140));
-    x32IpEditor.setBounds (ipRow.removeFromLeft (180).reduced (0, 2));
-    ipRow.removeFromLeft (16);
-    x32PortLabel.setBounds (ipRow.removeFromLeft (90));
-    x32PortEditor.setBounds (ipRow.removeFromLeft (90).reduced (0, 2));
-
-    bottomArea.removeFromTop (12);
-    auto btnRow = bottomArea.removeFromTop (34);
-    x32ConnectButton.setBounds (btnRow.removeFromLeft (180));
-    btnRow.removeFromLeft (12);
-    x32AutoDiscoverButton.setBounds (btnRow.removeFromLeft (160));
+    rightArea.removeFromTop (10);
+    auto btnRow = rightArea.removeFromTop (32);
+    const int btnW = (btnRow.getWidth() - 8) / 2;
+    x32ConnectButton.setBounds (btnRow.removeFromLeft (btnW));
+    btnRow.removeFromLeft (8);
+    x32AutoDiscoverButton.setBounds (btnRow);
 }
 
 } // namespace mps

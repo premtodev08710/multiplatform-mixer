@@ -49,6 +49,17 @@ private:
 
     juce::TextButton navButtons[NumNavTabs];
     int currentScreen = NavHome;
+    bool showTopNavBar = false;
+
+    class SettingsButton : public juce::Button
+    {
+    public:
+        SettingsButton();
+        void paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+    };
+
+    SettingsButton settingsButton;
+    void showSettingsMenu();
 
     // Screens
     HomeScreen homeScreen { engine, project };

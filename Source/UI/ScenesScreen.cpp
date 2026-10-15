@@ -7,6 +7,11 @@ namespace mps
 ScenesScreen::ScenesScreen (AudioEngine& eng, ProjectModel& proj)
     : engine (eng), project (proj)
 {
+    backButton.addListener (this);
+    backButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202630));
+    backButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
+    addAndMakeVisible (backButton);
+
     saveProjectButton.addListener (this);
     addAndMakeVisible (saveProjectButton);
 
@@ -68,6 +73,12 @@ void ScenesScreen::selectedRowsChanged (int lastRowSelected)
 
 void ScenesScreen::buttonClicked (juce::Button* b)
 {
+    if (b == &backButton)
+    {
+        if (onBack) onBack();
+        return;
+    }
+
     if (b == &captureSceneButton)
     {
         const auto name = sceneNameEditor.getText().trim();
@@ -209,12 +220,45 @@ void ScenesScreen::resized()
 {
     auto bounds = getLocalBounds().reduced (12);
 
+    if (getWidth() < 900)
+    {
+        // Stack project actions above the scene list on phones instead of
+        // squeezing the list into a narrow side column.
+        auto projectRow = bounds.removeFromTop (30);
+        backButton.setBounds (projectRow.removeFromLeft (86));
+        projectRow.removeFromLeft (6);
+        const int actionW = (projectRow.getWidth() - 8) / 2;
+        saveProjectButton.setBounds (projectRow.removeFromLeft (actionW));
+        projectRow.removeFromLeft (8);
+        loadProjectButton.setBounds (projectRow);
+        bounds.removeFromTop (4);
+        copyAudioToggle.setBounds (bounds.removeFromTop (24));
+        bounds.removeFromTop (6);
+
+        auto topRow = bounds.removeFromTop (30);
+        const int gap = 4;
+        const int editorW = std::min (160, topRow.getWidth() / 3);
+        sceneNameEditor.setBounds (topRow.removeFromLeft (editorW));
+        topRow.removeFromLeft (gap);
+        const int buttonW = std::max (70, (topRow.getWidth() - 2 * gap) / 3);
+        captureSceneButton.setBounds (topRow.removeFromLeft (buttonW));
+        topRow.removeFromLeft (gap);
+        recallSceneButton.setBounds (topRow.removeFromLeft (buttonW));
+        topRow.removeFromLeft (gap);
+        importScnButton.setBounds (topRow);
+        bounds.removeFromTop (6);
+        sceneList.setBounds (bounds);
+        return;
+    }
+
     // Left Box
     auto leftBox = bounds.removeFromLeft (320).reduced (16, 44);
-    saveProjectButton.setBounds (leftBox.removeFromTop (32));
+    backButton.setBounds (leftBox.removeFromTop (30));
+    leftBox.removeFromTop (8);
+    saveProjectButton.setBounds (leftBox.removeFromTop (30));
+    leftBox.removeFromTop (8);
+    loadProjectButton.setBounds (leftBox.removeFromTop (30));
     leftBox.removeFromTop (10);
-    loadProjectButton.setBounds (leftBox.removeFromTop (32));
-    leftBox.removeFromTop (12);
     copyAudioToggle.setBounds (leftBox.removeFromTop (26));
 
     bounds.removeFromLeft (12);

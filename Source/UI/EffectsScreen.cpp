@@ -23,6 +23,11 @@ EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
     }
     groupButtons[0].setToggleState (true, juce::dontSendNotification);
 
+    backButton.addListener (this);
+    backButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202630));
+    backButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
+    addAndMakeVisible (backButton);
+
     setupSlots();
 
     // Hardware Simulated Front Panel Faceplate
@@ -160,6 +165,12 @@ void EffectsScreen::refreshFromModel()
 
 void EffectsScreen::buttonClicked (juce::Button* b)
 {
+    if (b == &backButton)
+    {
+        if (onBack) onBack();
+        return;
+    }
+
     for (int g = 0; g < NumGroups; ++g)
     {
         if (b == &groupButtons[g])
@@ -238,9 +249,6 @@ void EffectsScreen::paint (juce::Graphics& g)
     // Group Tab Bar Outline
     g.setColour (juce::Colour (0xff20242b));
     g.fillRect (0, 0, totalW, 46);
-    g.setColour (ConsoleLookAndFeel::textPrimary);
-    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-    g.drawText ("FX RACK", 12, 10, 90, 24, juce::Justification::left);
     g.setColour (ConsoleLookAndFeel::borderSubtle);
     g.drawHorizontalLine (46, 0.0f, (float) totalW);
 
@@ -273,10 +281,11 @@ void EffectsScreen::resized()
     const int totalW = getWidth();
     const int totalH = getHeight();
 
-    // 1. Group Selector Tabs
-    const int tabW = std::min (300, std::max (220, (totalW - 32) / 3));
-    groupButtons[0].setBounds (116, 9, tabW, 29);
-    groupButtons[1].setBounds (124 + tabW, 9, tabW, 29);
+    // 1. Group Selector Tabs & Back Button
+    backButton.setBounds (8, 9, 84, 29);
+    const int tabW = std::min (260, std::max (180, (totalW - 120) / 3));
+    groupButtons[0].setBounds (100, 9, tabW, 29);
+    groupButtons[1].setBounds (108 + tabW, 9, tabW, 29);
 
     // 2. Upper 4 Modular Rack Cards
     const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
@@ -306,7 +315,14 @@ void EffectsScreen::resized()
 
     // 3. Lower Hardware Faceplate Area
     const int faceplateY = 232;
-    faceplate.setBounds (12, faceplateY, totalW - 24, std::max (100, totalH - faceplateY - 10));
+    const int faceplateVisibleH = std::max (1, totalH - faceplateY - 10);
+    // FX faceplates have detailed control layouts designed for a taller rack.
+    // Scale the whole faceplate uniformly on short phone screens so every
+    // switch and parameter remains visible and touchable.
+    const float faceplateScale = std::min (1.0f, faceplateVisibleH / 220.0f);
+    faceplate.setTransform (juce::AffineTransform::scale (faceplateScale));
+    faceplate.setBounds (12, faceplateY,
+                         juce::roundToInt ((totalW - 24) / faceplateScale), 220);
 }
 
 } // namespace mps

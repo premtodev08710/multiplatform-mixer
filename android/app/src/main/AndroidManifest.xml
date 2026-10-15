@@ -16,7 +16,8 @@
         android:label="Mix Practice Studio"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:requestLegacyExternalStorage="true">
 
         <activity
             android:name="com.rmsl.juce.JuceActivity"

@@ -284,8 +284,10 @@ void TransportBar::resized()
     // Row 2: Transport Controls, Range Buttons & Status Display
     auto row2 = area;
 
-    // Transport buttons on left
-    const int btnW = 54;
+    // Use a tighter, width-aware row on small phones. Keep every control
+    // present while reserving enough room for the time and status readouts.
+    const bool compact = getWidth() < 1000;
+    const int btnW = compact ? 44 : 54;
     playButton.setBounds (row2.removeFromLeft (btnW));
     row2.removeFromLeft (4);
     pauseButton.setBounds (row2.removeFromLeft (btnW));
@@ -293,27 +295,29 @@ void TransportBar::resized()
     stopButton.setBounds (row2.removeFromLeft (btnW));
     row2.removeFromLeft (4);
     loopButton.setBounds (row2.removeFromLeft (btnW));
-    row2.removeFromLeft (10);
+    row2.removeFromLeft (compact ? 5 : 10);
 
     // Section markers
-    setAButton.setBounds (row2.removeFromLeft (36));
+    const int markerW = compact ? 30 : 36;
+    setAButton.setBounds (row2.removeFromLeft (markerW));
+    row2.removeFromLeft (2);
+    setBButton.setBounds (row2.removeFromLeft (markerW));
+    row2.removeFromLeft (2);
+    allRangeButton.setBounds (row2.removeFromLeft (compact ? 34 : 40));
     row2.removeFromLeft (3);
-    setBButton.setBounds (row2.removeFromLeft (36));
-    row2.removeFromLeft (3);
-    allRangeButton.setBounds (row2.removeFromLeft (40));
-    row2.removeFromLeft (4);
-    sectionMenuButton.setBounds (row2.removeFromLeft (78));
-    row2.removeFromLeft (12);
+    sectionMenuButton.setBounds (row2.removeFromLeft (compact ? 62 : 78));
+    row2.removeFromLeft (compact ? 4 : 12);
 
     // Right-aligned status
-    cpuLabel.setBounds (row2.removeFromRight (60));
-    row2.removeFromRight (4);
-    statusLabel.setBounds (row2.removeFromRight (140));
-    row2.removeFromRight (12);
+    cpuLabel.setBounds (row2.removeFromRight (compact ? 42 : 60));
+    row2.removeFromRight (3);
+    statusLabel.setBounds (row2.removeFromRight (compact ? 86 : 140));
+    row2.removeFromRight (compact ? 4 : 12);
 
     // Middle time & range labels
-    timeLabel.setBounds (row2.removeFromLeft (150));
-    row2.removeFromLeft (8);
+    const int timeW = compact ? 112 : 150;
+    timeLabel.setBounds (row2.removeFromLeft (timeW));
+    row2.removeFromLeft (compact ? 3 : 8);
     rangeLabel.setBounds (row2);
 }
 

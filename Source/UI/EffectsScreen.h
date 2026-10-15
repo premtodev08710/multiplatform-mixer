@@ -30,7 +30,10 @@ public:
 
     void refreshFromModel();
 
+    std::function<void()> onBack;
+
 private:
+    juce::TextButton backButton { "< Mixer" };
     AudioEngine& engine;
     ProjectModel& project;
 

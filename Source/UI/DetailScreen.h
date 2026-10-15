@@ -44,7 +44,10 @@ public:
 
     void refreshFromModel();
 
+    std::function<void()> onBack;
+
 private:
+    juce::TextButton backToMixerButton { "< MIXER" };
     void timerCallback() override;
 
     AudioEngine& engine;
@@ -247,6 +250,19 @@ private:
     void setupEqTab();
     void setupSendsTab();
     void setupNamingTab();
+
+    struct ConfigLayout
+    {
+        juce::Rectangle<int> cardRect;
+        juce::Rectangle<int> flowBox;
+        juce::Rectangle<int> preampBox;
+        juce::Rectangle<int> dcaBox;
+        juce::Rectangle<int> autoBox;
+        juce::Rectangle<int> utilsBox;
+        juce::Rectangle<int> mainBox;
+        int dcaColW = 0;
+    };
+    ConfigLayout computeConfigLayout() const;
 
     void updateTabVisibility();
     void updateEqSelectedBandDialValues();

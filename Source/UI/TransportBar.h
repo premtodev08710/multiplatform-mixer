@@ -42,7 +42,7 @@ private:
     juce::TextButton setAButton { "[ A ]" };
     juce::TextButton setBButton { "[ B ]" };
     juce::TextButton allRangeButton { "ALL" };
-    juce::TextButton sectionMenuButton { "SECTION ▼" };
+    juce::TextButton sectionMenuButton { juce::CharPointer_UTF8 ("SECTION \xe2\x96\xbc") };
 
     // Time & Range Labels
     juce::Label timeLabel;
