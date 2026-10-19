@@ -1077,6 +1077,78 @@ TEST (busInsertFxProcessing)
     CHECK_NEAR (rig.L(), dryLevel, 0.01f);
 }
 
+TEST (all61FxModelsProcessDefaultAndNormalizedParameters)
+{
+    const double sr = 48000.0;
+    const int N = 32768; // ~680ms so delays/reverbs with 100% wet mix output their delayed reflections
+    std::vector<float> inL (N, 0.0f), inR (N, 0.0f);
+    for (int i = 0; i < N; ++i)
+    {
+        const float t = (float) i / (float) sr;
+        inL[(size_t) i] = 0.35f * std::sin (2.0f * kPi * 220.0f * t) + 0.15f * std::sin (2.0f * kPi * 1200.0f * t);
+        inR[(size_t) i] = 0.35f * std::cos (2.0f * kPi * 220.0f * t) + 0.15f * std::sin (2.0f * kPi * 1500.0f * t);
+    }
+
+    for (int idx = 0; idx < (int) FxType::NumFxTypes; ++idx)
+    {
+        const auto type = (FxType) idx;
+        FxSlotProcessor proc;
+        proc.prepare (sr);
+
+        // Mode A: Default parameters
+        {
+            FxSlotParams params;
+            params.setDefaultsForType (type);
+            params.geqGainsL[10].set (4.5f);
+            params.geqGainsR[10].set (-3.5f);
+
+            std::vector<float> outL (N, 0.0f), outR (N, 0.0f);
+            proc.process (inL.data(), inR.data(), outL.data(), outR.data(), N, params);
+
+            float energy = 0.0f;
+            bool finiteOk = true;
+            for (int i = 0; i < N; ++i)
+            {
+                if (! std::isfinite (outL[(size_t) i]) || ! std::isfinite (outR[(size_t) i]))
+                    finiteOk = false;
+                energy += std::abs (outL[(size_t) i]) + std::abs (outR[(size_t) i]);
+            }
+            if (energy <= 0.01f)
+                std::printf ("  [Mode A Low Energy] idx=%d (%s) energy=%f\n", idx, getFxMetadata (type).name, energy);
+            CHECK (finiteOk);
+            CHECK (energy > 0.01f);
+        }
+
+        // Mode B: UI-normalized [0.0..1.0] parameters
+        {
+            proc.reset();
+            FxSlotParams params;
+            params.setDefaultsForType (type);
+            for (int p = 0; p < 18; ++p)
+                params.parameter (p).set (0.25f);
+            params.geqGainsL[15].set (6.0f);
+            params.geqGainsR[15].set (-6.0f);
+
+            std::vector<float> outL (N, 0.0f), outR (N, 0.0f);
+            proc.process (inL.data(), inR.data(), outL.data(), outR.data(), N, params);
+
+            float energy = 0.0f;
+            bool finiteOk = true;
+            for (int i = 0; i < N; ++i)
+            {
+                if (! std::isfinite (outL[(size_t) i]) || ! std::isfinite (outR[(size_t) i]))
+                    finiteOk = false;
+                energy += std::abs (outL[(size_t) i]) + std::abs (outR[(size_t) i]);
+            }
+            if (energy <= 0.01f)
+                std::printf ("  [Mode B Low Energy] idx=%d (%s) energy=%f\n", idx, getFxMetadata (type).name, energy);
+            CHECK (finiteOk);
+            CHECK (energy > 0.01f);
+        }
+    }
+}
+
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }
+
 
 

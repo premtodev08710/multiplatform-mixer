@@ -68,11 +68,13 @@ target_sources(MixPracticeStudio PRIVATE
     Source/Model/ProjectModel.h
     Source/Model/ProjectModel.cpp
 
-    # Network Remote Control (Behringer X32 OSC Protocol) & Telemetry
+    # Network Remote Control (Behringer X32 OSC Protocol), Telemetry & AdMob
     Source/Network/X32OscClient.h
     Source/Network/X32OscClient.cpp
     Source/Network/InstallTelemetry.h
     Source/Network/InstallTelemetry.cpp
+    Source/Network/AdMobManager.h
+    Source/Network/AdMobManager.cpp
 
     # UI Components
     Source/UI/ConsoleLookAndFeel.h
@@ -167,6 +169,8 @@ if(NOT ANDROID)
         Source/Audio/AudioEngine.cpp
         Source/Model/ProjectModel.cpp
         Source/Network/X32OscClient.cpp
+        Source/Network/InstallTelemetry.cpp
+        Source/Network/AdMobManager.cpp
         Source/UI/ConsoleLookAndFeel.cpp
         Source/UI/ConsoleDial.cpp
         Source/UI/TrapezoidPanIndicator.cpp
@@ -191,6 +195,11 @@ if(NOT ANDROID)
         Source/Core/EffectsDsp.cpp
         Source/Core/TimelineStreamer.cpp
         Source/Core/SincResampler.cpp
+    )
+    target_compile_definitions(UiSnapshotTest PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_APPLICATION_VERSION_STRING="1.0.0"
     )
     target_link_libraries(UiSnapshotTest PRIVATE
         juce::juce_audio_basics

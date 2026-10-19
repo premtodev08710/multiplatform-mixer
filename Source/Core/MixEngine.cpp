@@ -292,7 +292,19 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const int t1 = insSlotParams.insertTargets[1].getInt();
             const int myCode = (int) c + 1;
 
-            if (t0 == myCode && t1 == myCode)
+            if (t0 == myCode && t1 != myCode && t1 != 0)
+            {
+                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t1 == myCode && t0 != myCode && t0 != 0)
+            {
+                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (chL.data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+            else
             {
                 const float* inR = (width == 2) ? chR.data() : chL.data();
                 fxRack.processSlot (chInsSlot - 1, chL.data(), inR,
@@ -300,18 +312,6 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
                 if (width == 2)
                     std::memcpy (chR.data(), insBufR.data(), sizeof (float) * (size_t) n);
-            }
-            else if (t0 == myCode)
-            {
-                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
-                                    insBufL.data(), insBufR.data(), n, insSlotParams);
-                std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
-            }
-            else if (t1 == myCode)
-            {
-                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
-                                    insBufL.data(), insBufR.data(), n, insSlotParams);
-                std::memcpy (chL.data(), insBufR.data(), sizeof (float) * (size_t) n);
             }
         }
 
@@ -391,6 +391,12 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
     {
         auto& busParam = params.buses[(size_t) b];
 
+        // When FX 1..4 (Slot 0..3) is in Send/Return mode (insertMode == 0),
+        // Buses 13..16 (b = 12..15) act as dedicated FX Send masters and are processed
+        // in the FX 1..4 loop below so they do not leak dry bus signal into Main LR.
+        if (b >= 12 && params.fxSlots[(size_t) (b - 12)].insertMode.getInt() == 0)
+            continue;
+
         // Check Mute Groups on bus
         bool busMgMuted = false;
         const int busMgMask = busParam.muteGroups.getInt();
@@ -433,15 +439,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const int t1 = insSlotParams.insertTargets[1].getInt();
             const int myCode = 100 + (b + 1);
 
-            if (t0 == myCode && t1 == myCode)
-            {
-                fxRack.processSlot (busInsSlot - 1,
-                                    busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
-                                    insBufL.data(), insBufR.data(), n, insSlotParams);
-                std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
-                std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
-            }
-            else if (t0 == myCode)
+            if (t0 == myCode && t1 != myCode && t1 != 0)
             {
                 fxRack.processSlot (busInsSlot - 1,
                                     busBufL[(size_t) b].data(), busBufL[(size_t) b].data(),
@@ -449,7 +447,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
                 std::memcpy (busBufR[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
             }
-            else if (t1 == myCode)
+            else if (t1 == myCode && t0 != myCode && t0 != 0)
             {
                 fxRack.processSlot (busInsSlot - 1,
                                     busBufR[(size_t) b].data(), busBufR[(size_t) b].data(),
@@ -457,12 +455,20 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 std::memcpy (busBufL[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
                 std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
             }
+            else
+            {
+                fxRack.processSlot (busInsSlot - 1,
+                                    busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
+                std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
         }
 
         const bool busMuted = busParam.mute.getBool() || busMgMuted || busDcaMuted;
         const float busGain = busMuted ? 0.0f : (faderDbToGain (busParam.faderDb.get()) * busDcaGain);
         const bool busRoutedToMain = busParam.mainAssign.getBool() && (! anySolo || busParam.solo.getBool());
-        const auto busPan = panMonoConstantPower (busParam.pan.get());
+        const auto busBal = balanceStereo (busParam.pan.get());
 
         float busPk = 0.0f;
         for (int i = 0; i < n; ++i)
@@ -473,8 +479,8 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
             if (busRoutedToMain)
             {
-                sumL[(size_t) i] += bL * busPan.left  + bR * busPan.left;
-                sumR[(size_t) i] += bL * busPan.right + bR * busPan.right;
+                sumL[(size_t) i] += bL * busBal.left;
+                sumR[(size_t) i] += bR * busBal.right;
             }
         }
         meters.buses[(size_t) b].update (busPk);
@@ -576,15 +582,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const int t1 = insSlotParams.insertTargets[1].getInt();
             const int myCode = 200 + (m + 1);
 
-            if (t0 == myCode && t1 == myCode)
-            {
-                fxRack.processSlot (mtxInsSlot - 1,
-                                    mtxBufL[(size_t) m].data(), mtxBufR[(size_t) m].data(),
-                                    insBufL.data(), insBufR.data(), n, insSlotParams);
-                std::memcpy (mtxBufL[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
-                std::memcpy (mtxBufR[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
-            }
-            else if (t0 == myCode)
+            if (t0 == myCode && t1 != myCode && t1 != 0)
             {
                 fxRack.processSlot (mtxInsSlot - 1,
                                     mtxBufL[(size_t) m].data(), mtxBufL[(size_t) m].data(),
@@ -592,12 +590,20 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 std::memcpy (mtxBufL[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
                 std::memcpy (mtxBufR[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
             }
-            else if (t1 == myCode)
+            else if (t1 == myCode && t0 != myCode && t0 != 0)
             {
                 fxRack.processSlot (mtxInsSlot - 1,
                                     mtxBufR[(size_t) m].data(), mtxBufR[(size_t) m].data(),
                                     insBufL.data(), insBufR.data(), n, insSlotParams);
                 std::memcpy (mtxBufL[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
+                std::memcpy (mtxBufR[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+            else
+            {
+                fxRack.processSlot (mtxInsSlot - 1,
+                                    mtxBufL[(size_t) m].data(), mtxBufR[(size_t) m].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (mtxBufL[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
                 std::memcpy (mtxBufR[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
             }
         }

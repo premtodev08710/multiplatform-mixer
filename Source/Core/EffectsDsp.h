@@ -187,7 +187,13 @@ public:
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float decaySec, float preDelayMs,
                   float dampingNorm, float roomSizeNorm, float diffusionNorm,
-                  float levelDb, float mixNorm);
+                  float levelDb, float mixNorm,
+                  float loCutHz = 20.0f, float hiCutHz = 18000.0f,
+                  float bassMult = 1.0f, float spreadNorm = 100.0f,
+                  float spinNorm = 50.0f,
+                  float echoLMs = 0.0f, float echoRMs = 0.0f,
+                  float echoFeedLNorm = 0.0f, float echoFeedRNorm = 0.0f);
+
     // Compatibility overload for callers that only provide the original controls.
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float decaySec, float preDelayMs,
@@ -204,6 +210,10 @@ private:
     std::vector<float> preDelayBufL, preDelayBufR;
     int preDelayWritePos = 0;
 
+    // LARC Page 3 pre-echo delay buffers
+    std::vector<float> echoBufL, echoBufR;
+    int echoWritePos = 0;
+
     // 8 Parallel Comb Filters with prime delay lengths
     static constexpr int kNumCombs = 8;
     std::vector<float> combBufL[kNumCombs];
@@ -216,7 +226,7 @@ private:
     std::vector<float> allpassBufL[kNumAllPasses], allpassBufR[kNumAllPasses];
     int allpassPosL[kNumAllPasses] = {0}, allpassPosR[kNumAllPasses] = {0};
 
-    // LFO for Vintage EMT250 modulation
+    // LFO for Vintage EMT250 & LARC Spin modulation
     float lfoPhase = 0.0f;
 
     // Envelope for Gate Reverb and Reverse Reverb
@@ -226,6 +236,10 @@ private:
     Biquad emtLpfL, emtLpfR;
     // Plate 100Hz rumble cut filters
     Biquad plateHpfL, plateHpfR;
+    // LARC / general Lo Cut, Hi Cut, and Bass Multiplier filters
+    Biquad loCutFiltL, loCutFiltR;
+    Biquad hiCutFiltL, hiCutFiltR;
+    Biquad bassShelfL, bassShelfR;
     // Reverse reverb buffer
     std::vector<float> reverseBufL, reverseBufR;
     int reverseWrite = 0;
@@ -241,13 +255,16 @@ public:
 
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float timeLMs, float timeRMs,
-                  float feedbackNorm, float crossMix, float highDamp, float mixNorm);
+                  float feedbackNorm, float crossMix, float highDamp, float mixNorm,
+                  float loCutHz = 20.0f, float hiCutHz = 18000.0f);
 
 private:
     float sr = 48000.0f;
     std::vector<float> delayBufL, delayBufR;
     int writePos = 0;
     float lpStateL = 0.0f, lpStateR = 0.0f;
+    Biquad loCutL, loCutR;
+    Biquad hiCutL, hiCutR;
 };
 
 //==============================================================================
@@ -274,22 +291,25 @@ private:
     Biquad dimPreL, dimPreR;
     Biquad dimPostL, dimPostR;
 
-    // Leslie Rotary dual rotors (horn & drum)
+    // Leslie Rotary dual rotors (horn & drum) with dedicated crossover filters
     float rotorPhaseHorn = 0.0f, rotorPhaseDrum = 0.0f;
+    Biquad hornHpfL, hornHpfR;
+    Biquad drumLpfL, drumLpfR;
 
     // Moog Ladder 4-pole filter stages & envelope follower
     float moogStageL[4] = {0}, moogStageR[4] = {0};
     float moodEnv = 0.0f;
 
-    // Phaser 4-stage allpass filters
+    // Phaser 4-stage allpass filters + feedback state
     float phaserZ1L[4] = {0}, phaserZ1R[4] = {0};
+    float phaserFbL = 0.0f, phaserFbR = 0.0f;
 
     // Mood Filter biquad
     Biquad moodBiquadL, moodBiquadR;
 };
 
 //==============================================================================
-// Pitch Shifter Processor (-12 to +12 semitones)
+// Pitch Shifter Processor (-12 to +12 semitones, Stereo & Dual Voice)
 class PitchShifterDsp
 {
 public:
@@ -299,11 +319,17 @@ public:
     void process (float* chL, float* chR, int numSamples,
                   float semitones, float mixNorm);
 
+    void processDual (float* chL, float* chR, int numSamples,
+                      float semi1, float cent1, float delay1Ms, float gain1Norm, float pan1Norm,
+                      float semi2, float cent2, float delay2Ms, float gain2Norm, float pan2Norm,
+                      float mixNorm);
+
 private:
     float sr = 48000.0f;
     std::vector<float> ringBufL, ringBufR;
     int writePos = 0;
     float readPos1 = 0.0f, readPos2 = 0.0f;
+    float readPos1B = 0.0f, readPos2B = 0.0f;
     static constexpr int kWindowSize = 2048;
 };
 
@@ -318,7 +344,8 @@ public:
     void process (float* chL, float* chR, int numSamples,
                   const std::array<Param, 31>& gainsL,
                   const std::array<Param, 31>& gainsR,
-                  bool linkedStereo);
+                  bool linkedStereo,
+                  bool isTrueEq = false);
 
 private:
     float sr = 48000.0f;
@@ -336,16 +363,18 @@ public:
     void reset();
 
     void process (float* chL, float* chR, int numSamples,
-                  FxType type, float p1, float p2, float p3, float p4, float mixNorm);
+                  FxType type, float p1, float p2, float p3, float p4, float mixNorm,
+                  float p5 = 50.0f, float p6 = 50.0f);
 
 private:
     float sr = 48000.0f;
     // LA-2A dual-stage release envelope & T4 opto sidechain HF filter
     float la2aEnv = 0.0f, la2aTail = 0.0f;
+    float la2aEnvR = 0.0f, la2aTailR = 0.0f;
     Biquad optoHpfL, optoHpfR;
 
     // 1176 FET fast envelope
-    float fetEnv = 0.0f;
+    float fetEnv = 0.0f, fetEnvR = 0.0f;
 
     // Fairchild Vari-Mu envelope
     float fairEnvL = 0.0f, fairEnvR = 0.0f;
@@ -365,7 +394,7 @@ private:
 
     // De-Esser bandpass filter
     Biquad sibilanceFiltL, sibilanceFiltR;
-    float deEssEnv = 0.0f;
+    float deEssEnv = 0.0f, deEssEnvR = 0.0f;
 };
 
 //==============================================================================
@@ -411,24 +440,29 @@ public:
     void reset();
 
     void process (float* chL, float* chR, int numSamples,
-                  FxType type, float p1, float p2, float p3, float p4, float mixNorm);
+                  FxType type, float p1, float p2, float p3, float p4, float mixNorm,
+                  float p5 = 50.0f, float p6 = 50.0f);
 
 private:
     float sr = 48000.0f;
-    // Guitar Amp 3-band tone stack
+    // Guitar Amp 3-band tone stack + presence
     Biquad toneBassL, toneBassR;
     Biquad toneMidL, toneMidR;
     Biquad toneTrebleL, toneTrebleR;
+    Biquad tonePresenceL, tonePresenceR;
     // Guitar Amp 4x12 Celestion speaker cabinet resonance & roll-off
     Biquad cabResoL, cabResoR;
     Biquad cabScoopL, cabScoopR;
     Biquad cabRollOffL, cabRollOffR;
 
-    // Sub-octaver zero crossing tracker
-    float lastInSignL = 1.0f;
-    int subCycleCountL = 0;
-    float subSquareL = 1.0f;
+    // Sub-octaver zero crossing trackers (Channel A & Channel B, -1 Oct & -2 Oct)
+    float lastInSignL = 1.0f, lastInSignR = 1.0f;
+    int subCycleCountL = 0, subCycleCountR = 0;
+    int subCycleCount2L = 0, subCycleCount2R = 0;
+    float subSquareL = 1.0f, subSquareR = 1.0f;
+    float subSquare2L = 1.0f, subSquare2R = 1.0f;
     Biquad subLpfL, subLpfR;
+    Biquad subLpf2L, subLpf2R;
 };
 
 //==============================================================================

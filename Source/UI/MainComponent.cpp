@@ -189,7 +189,11 @@ void MainComponent::checkAndShowTermsOfService()
 {
     auto markerFile = getTermsAcceptedMarkerFile();
     if (markerFile.existsAsFile())
-        return; // Already accepted
+    {
+        // Terms already accepted; initialize AdMob and show launch interstitial
+        adMob.initialize (AdMobManager::kShowOnAppLaunch);
+        return;
+    }
 
     const juce::String title = juce::CharPointer_UTF8 ("\xe0\xb9\x80\xe0\xb8\x87\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x99\xe0\xb9\x84\xe0\xb8\x82\xe0\xb8\x81\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99 (Terms of Service)");
     const juce::String message = juce::CharPointer_UTF8 (
@@ -213,7 +217,7 @@ void MainComponent::checkAndShowTermsOfService()
         juce::CharPointer_UTF8 ("\xe0\xb8\xa2\xe0\xb8\xad\xe0\xb8\xa1\xe0\xb8\xa3\xe0\xb8\xb1\xe0\xb8\x9a (Accept)"),
         juce::CharPointer_UTF8 ("\xe0\xb8\x95\xe0\xb8\xb4\xe0\xb8\x94\xe0\xb8\x95\xe0\xb9\x88\xe0\xb8\xad Facebook"),
         nullptr,
-        juce::ModalCallbackFunction::create ([markerFile] (int result) {
+        juce::ModalCallbackFunction::create ([this, markerFile] (int result) {
             if (result == 1) // Accept
             {
                 markerFile.replaceWithText ("accepted on " + juce::Time::getCurrentTime().toISO8601 (true));
@@ -223,13 +227,18 @@ void MainComponent::checkAndShowTermsOfService()
                 juce::URL ("https://www.facebook.com/premsak.sed").launchInDefaultBrowser();
                 markerFile.replaceWithText ("accepted on " + juce::Time::getCurrentTime().toISO8601 (true));
             }
+            adMob.initialize (AdMobManager::kShowOnAppLaunch);
         })
     );
 }
 
 void MainComponent::showScreen (int screenIdx)
 {
+    const bool isScreenSwitch = (currentScreen != screenIdx);
     currentScreen = screenIdx;
+
+    if (isScreenSwitch)
+        adMob.notifyScreenTransition (engine.getStreamer().isPlaying());
 
     homeScreen.setVisible (screenIdx == NavHome);
     detailScreen.setVisible (screenIdx == NavDetail);

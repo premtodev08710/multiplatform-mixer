@@ -177,6 +177,16 @@ void FxSlotParams::setDefaultsForType (FxType type)
     mix.set (1.0f);
     for (int i = 0; i < kNumParameters; ++i)
         parameter (i).resetToDefault();
+    p7.set (20.0f);     // Default Lo Cut 20 Hz
+    p8.set (18000.0f);  // Default Hi Cut 18 kHz
+    p9.set (1.0f);      // Default Bass Mult 1.0x
+    p10.set (100.0f);   // Default Spread 100%
+    p11.set (25.0f);    // Default Spin 25%
+    p12.set (30.0f);    // Default Mod Depth 30%
+    p13.set (0.0f);     // Default Echo L 0 ms
+    p14.set (0.0f);     // Default Echo R 0 ms
+    p15.set (0.0f);     // Default Echo Feedback L 0%
+    p16.set (0.0f);     // Default Echo Feedback R 0%
     for (auto& g : geqGainsL) g.set (0.0f);
     for (auto& g : geqGainsR) g.set (0.0f);
     switch (type)
@@ -291,9 +301,13 @@ void FxSlotParams::setDefaultsForType (FxType type)
 void ReverbDsp::prepare (double sampleRate)
 {
     sr = (float) sampleRate;
-    const int preDelayLen = (int) (sr * 0.3f); // 300 ms predelay max
+    const int preDelayLen = (int) (sr * 0.35f); // 350 ms predelay max
     preDelayBufL.assign ((size_t) preDelayLen, 0.0f);
     preDelayBufR.assign ((size_t) preDelayLen, 0.0f);
+
+    const int echoLen = (int) (sr * 0.6f); // 600 ms LARC Page 3 pre-echo max
+    echoBufL.assign ((size_t) echoLen, 0.0f);
+    echoBufR.assign ((size_t) echoLen, 0.0f);
 
     // Prime number delay lengths tuned for 48kHz
     const int combLengthsL[kNumCombs] = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
@@ -316,7 +330,7 @@ void ReverbDsp::prepare (double sampleRate)
         allpassBufR[i].assign ((size_t) len, 0.0f);
     }
 
-    const int revLen = (int) (sr * 2.5f);
+    const int revLen = (int) (sr * 3.0f);
     reverseBufL.assign ((size_t) revLen, 0.0f);
     reverseBufR.assign ((size_t) revLen, 0.0f);
 
@@ -328,6 +342,10 @@ void ReverbDsp::reset()
     std::fill (preDelayBufL.begin(), preDelayBufL.end(), 0.0f);
     std::fill (preDelayBufR.begin(), preDelayBufR.end(), 0.0f);
     preDelayWritePos = 0;
+
+    std::fill (echoBufL.begin(), echoBufL.end(), 0.0f);
+    std::fill (echoBufR.begin(), echoBufR.end(), 0.0f);
+    echoWritePos = 0;
 
     for (int i = 0; i < kNumCombs; ++i)
     {
@@ -349,6 +367,9 @@ void ReverbDsp::reset()
     reverseWrite = 0;
     emtLpfL.reset(); emtLpfR.reset();
     plateHpfL.reset(); plateHpfR.reset();
+    loCutFiltL.reset(); loCutFiltR.reset();
+    hiCutFiltL.reset(); hiCutFiltR.reset();
+    bassShelfL.reset(); bassShelfR.reset();
 
     lfoPhase = 0.0f;
     gateCounter = 0;
@@ -357,15 +378,20 @@ void ReverbDsp::reset()
 void ReverbDsp::process (float* chL, float* chR, int numSamples,
                          FxType type, float decaySec, float preDelayMs,
                          float dampingNorm, float roomSizeNorm, float diffusionNorm,
-                         float levelDb, float mixNorm)
+                         float levelDb, float mixNorm,
+                         float loCutHz, float hiCutHz,
+                         float bassMult, float spreadNorm,
+                         float spinNorm,
+                         float echoLMs, float echoRMs,
+                         float echoFeedLNorm, float echoFeedRNorm)
 {
-    const int preDelaySamples = clampf ((preDelayMs * 0.001f * sr), 0.0f, (float) preDelayBufL.size() - 1);
-    const float feedback = clampf (std::exp (-3.0f / (std::max (0.1f, decaySec) * (sr / 1400.0f))), 0.2f, 0.98f);
+    const int preDelaySamples = (int) clampf ((preDelayMs * 0.001f * sr), 0.0f, (float) preDelayBufL.size() - 1);
+    const float feedback = clampf (std::exp (-3.0f / (std::max (0.1f, decaySec) * (sr / 1400.0f))), 0.2f, 0.985f);
     const float dampCoeff = clampf (dampingNorm * 0.01f, 0.05f, 0.9f);
     const float diffusionCoeff = clampf (diffusionNorm * 0.0095f, 0.0f, 0.95f);
     const float roomScale = 0.35f + 0.65f * clampf (roomSizeNorm * 0.01f, 0.0f, 1.0f);
     const float wetGain = mixNorm * dbToGain (clampf (levelDb, -40.0f, 10.0f));
-    const float dryGain = 1.0f - wetGain;
+    const float dryGain = 1.0f - clampf (mixNorm, 0.0f, 1.0f);
 
     const bool isGate = (type == FxType::GatedReverb);
     const bool isReverse = (type == FxType::ReverseReverb);
@@ -373,9 +399,25 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
     const bool isPlate = (type == FxType::PlateReverb || type == FxType::RichPlateReverb);
     const int gateHoldSamples = (int) (std::max (0.04f, decaySec * 0.12f) * sr);
 
+    const bool useLoCut = (loCutHz > 22.0f);
+    const bool useHiCut = (hiCutHz < 17500.0f);
+    const float bassGainDb = clampf ((bassMult - 1.0f) * 6.0f, -6.0f, 6.0f);
+    const bool useBassShelf = (std::abs (bassGainDb) > 0.2f);
+    const float spreadWidth = clampf (spreadNorm * 0.01f, 0.0f, 1.5f);
+    const float spinHz = 0.15f + clampf (spinNorm * 0.01f, 0.0f, 1.0f) * 1.35f;
+
+    const int echoMax = (int) echoBufL.size();
+    const int echoSamplesL = (echoMax > 2 && echoLMs > 1.0f) ? (int) clampf (echoLMs * 0.001f * sr, 1.0f, (float) (echoMax - 1)) : 0;
+    const int echoSamplesR = (echoMax > 2 && echoRMs > 1.0f) ? (int) clampf (echoRMs * 0.001f * sr, 1.0f, (float) (echoMax - 1)) : 0;
+    const float echoFbL = clampf (echoFeedLNorm * 0.0085f, 0.0f, 0.85f);
+    const float echoFbR = clampf (echoFeedRNorm * 0.0085f, 0.0f, 0.85f);
+
     // Precalculate authentic hardware filter curves
     const auto emtCoeffs = calcLPF (4500.0f, 0.707f, sr);  // EMT 250 4.5kHz brickwall
     const auto plateCoeffs = calcHPF (100.0f, 0.707f, sr); // Plate 100Hz rumble cut
+    const auto loCutCoeffs = calcHPF (clampf (loCutHz, 20.0f, 1000.0f), 0.707f, sr);
+    const auto hiCutCoeffs = calcLPF (clampf (hiCutHz, 800.0f, 20000.0f), 0.707f, sr);
+    const auto bassCoeffs  = calcLowShelf (220.0f, bassGainDb, 0.707f, sr);
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -396,8 +438,11 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
             int revRead = reverseWrite - (revWin - revPos);
             if (revRead < 0) revRead += (int) reverseBufL.size();
 
-            const float revL = reverseBufL[(size_t) revRead] * revEnv;
-            const float revR = reverseBufR[(size_t) revRead] * revEnv;
+            float revL = reverseBufL[(size_t) revRead] * revEnv;
+            float revR = reverseBufR[(size_t) revRead] * revEnv;
+
+            if (useLoCut) { revL = loCutFiltL.process (revL, loCutCoeffs); revR = loCutFiltR.process (revR, loCutCoeffs); }
+            if (useHiCut) { revL = hiCutFiltL.process (revL, hiCutCoeffs); revR = hiCutFiltR.process (revR, hiCutCoeffs); }
 
             if (++reverseWrite >= (int) reverseBufL.size()) reverseWrite = 0;
 
@@ -413,31 +458,51 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
         int readIdx = preDelayWritePos - preDelaySamples;
         if (readIdx < 0) readIdx += (int) preDelayBufL.size();
 
-        const float pdInL = preDelayBufL[(size_t) readIdx];
-        const float pdInR = preDelayBufR[(size_t) readIdx];
+        float pdInL = preDelayBufL[(size_t) readIdx];
+        float pdInR = preDelayBufR[(size_t) readIdx];
 
         if (++preDelayWritePos >= (int) preDelayBufL.size())
             preDelayWritePos = 0;
 
-        // Vintage EMT 250 low-rate delay modulation to prevent flutter
-        if (isVintage)
+        // 1b. Optional LARC Page 3 pre-echo reflections
+        if ((echoSamplesL > 0 || echoSamplesR > 0) && echoMax > 0)
         {
-            lfoPhase += (0.6f * 2.0f * kPi) / sr;
+            int erL = echoWritePos - echoSamplesL;
+            if (erL < 0) erL += echoMax;
+            int erR = echoWritePos - echoSamplesR;
+            if (erR < 0) erR += echoMax;
+
+            const float eOutL = (echoSamplesL > 0) ? echoBufL[(size_t) erL] : 0.0f;
+            const float eOutR = (echoSamplesR > 0) ? echoBufR[(size_t) erR] : 0.0f;
+
+            echoBufL[(size_t) echoWritePos] = pdInL + eOutL * echoFbL;
+            echoBufR[(size_t) echoWritePos] = pdInR + eOutR * echoFbR;
+            if (++echoWritePos >= echoMax) echoWritePos = 0;
+
+            pdInL += eOutL * 0.35f;
+            pdInR += eOutR * 0.35f;
+        }
+
+        // Vintage EMT 250 / LARC Spin delay modulation to prevent metallic flutter
+        if (isVintage || spinNorm > 1.0f)
+        {
+            lfoPhase += (spinHz * 2.0f * kPi) / sr;
             if (lfoPhase >= 2.0f * kPi) lfoPhase -= 2.0f * kPi;
         }
 
         // 2. Parallel Comb Filters
         float sumCombL = 0.0f;
         float sumCombR = 0.0f;
+        const float modExcursion = isVintage ? 3.0f : (spinNorm * 0.025f);
 
         for (int c = 0; c < kNumCombs; ++c)
         {
             // Left Comb
             auto& bufL = combBufL[c];
             int readL = (combPosL[c] - std::max (1, (int) (bufL.size() * roomScale)) + (int) bufL.size()) % (int) bufL.size();
-            if (isVintage && (c % 2 == 0))
+            if (modExcursion > 0.1f && (c % 2 == 0))
             {
-                readL = (readL + (int)(std::sin (lfoPhase + (float) c) * 3.0f) + (int) bufL.size()) % (int) bufL.size();
+                readL = (readL + (int) (std::sin (lfoPhase + (float) c) * modExcursion) + (int) bufL.size()) % (int) bufL.size();
             }
             const float outCombL = bufL[(size_t) readL];
             combFilterStateL[c] = outCombL * (1.0f - dampCoeff) + combFilterStateL[c] * dampCoeff;
@@ -448,9 +513,9 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
             // Right Comb
             auto& bufR = combBufR[c];
             int readR = (combPosR[c] - std::max (1, (int) (bufR.size() * roomScale)) + (int) bufR.size()) % (int) bufR.size();
-            if (isVintage && (c % 2 != 0))
+            if (modExcursion > 0.1f && (c % 2 != 0))
             {
-                readR = (readR + (int)(std::cos (lfoPhase + (float) c) * 3.0f) + (int) bufR.size()) % (int) bufR.size();
+                readR = (readR + (int) (std::cos (lfoPhase + (float) c) * modExcursion) + (int) bufR.size()) % (int) bufR.size();
             }
             const float outCombR = bufR[(size_t) readR];
             combFilterStateR[c] = outCombR * (1.0f - dampCoeff) + combFilterStateR[c] * dampCoeff;
@@ -483,21 +548,44 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
             if (++allpassPosR[a] >= (int) bufR.size()) allpassPosR[a] = 0;
         }
 
-        // Apply hardware brand filters
+        // Apply hardware brand & tone filters
         if (isVintage)
         {
-            // EMT 250 vintage converter brickwall filtering
             apL = emtLpfL.process (apL, emtCoeffs);
             apR = emtLpfR.process (apR, emtCoeffs);
         }
         else if (isPlate)
         {
-            // Steel plate rumble highpass cut
             apL = plateHpfL.process (apL, plateCoeffs);
             apR = plateHpfR.process (apR, plateCoeffs);
         }
 
-        // 4. Gate / Envelope check (Phil Collins gated snare)
+        if (useBassShelf)
+        {
+            apL = bassShelfL.process (apL, bassCoeffs);
+            apR = bassShelfR.process (apR, bassCoeffs);
+        }
+        if (useLoCut)
+        {
+            apL = loCutFiltL.process (apL, loCutCoeffs);
+            apR = loCutFiltR.process (apR, loCutCoeffs);
+        }
+        if (useHiCut)
+        {
+            apL = hiCutFiltL.process (apL, hiCutCoeffs);
+            apR = hiCutFiltR.process (apR, hiCutCoeffs);
+        }
+
+        // Stereo Spread adjustment
+        if (std::abs (spreadWidth - 1.0f) > 0.02f)
+        {
+            const float mid = 0.5f * (apL + apR);
+            const float side = 0.5f * (apL - apR) * spreadWidth;
+            apL = mid + side;
+            apR = mid - side;
+        }
+
+        // 4. Gate / Envelope check (AMS RMX16 / Phil Collins gated snare)
         if (isGate)
         {
             const float level = std::max (std::abs (inL), std::abs (inR));
@@ -505,7 +593,7 @@ void ReverbDsp::process (float* chL, float* chR, int numSamples,
             if (gateCounter > 0)
             {
                 --gateCounter;
-                const int releaseSamples = (int) (0.012f * sr); // 12ms quick release
+                const int releaseSamples = (int) (0.015f * sr); // 15ms quick release
                 if (gateCounter < releaseSamples)
                 {
                     const float fade = (float) gateCounter / (float) releaseSamples;
@@ -539,19 +627,27 @@ void DelayDsp::reset()
     std::fill (delayBufR.begin(), delayBufR.end(), 0.0f);
     writePos = 0;
     lpStateL = lpStateR = 0.0f;
+    loCutL.reset(); loCutR.reset();
+    hiCutL.reset(); hiCutR.reset();
 }
 
 void DelayDsp::process (float* chL, float* chR, int numSamples,
                         FxType type, float timeLMs, float timeRMs,
-                        float feedbackNorm, float crossMix, float highDamp, float mixNorm)
+                        float feedbackNorm, float crossMix, float highDamp, float mixNorm,
+                        float loCutHz, float hiCutHz)
 {
     const int maxLen = (int) delayBufL.size();
-    const int dSamplesL = clampf (timeLMs * 0.001f * sr, 1.0f, (float) (maxLen - 1));
-    const int dSamplesR = clampf (timeRMs * 0.001f * sr, 1.0f, (float) (maxLen - 1));
+    const int dSamplesL = (int) clampf (timeLMs * 0.001f * sr, 1.0f, (float) (maxLen - 1));
+    const int dSamplesR = (int) clampf (timeRMs * 0.001f * sr, 1.0f, (float) (maxLen - 1));
     const float fdbk = clampf (feedbackNorm * 0.01f, 0.0f, 0.95f);
     const float damp = clampf (highDamp * 0.01f, 0.0f, 0.8f);
-    const float wet = mixNorm;
+    const float wet = clampf (mixNorm, 0.0f, 1.0f);
     const float dry = 1.0f - wet;
+
+    const bool useLoCut = (loCutHz > 22.0f);
+    const bool useHiCut = (hiCutHz < 17500.0f);
+    const auto cLo = calcHPF (clampf (loCutHz, 20.0f, 2000.0f), 0.707f, sr);
+    const auto cHi = calcLPF (clampf (hiCutHz, 800.0f, 20000.0f), 0.707f, sr);
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -563,20 +659,31 @@ void DelayDsp::process (float* chL, float* chR, int numSamples,
         int rIdxR = writePos - dSamplesR;
         if (rIdxR < 0) rIdxR += maxLen;
 
-        const float delayedL = delayBufL[(size_t) rIdxL];
-        const float delayedR = delayBufR[(size_t) rIdxR];
+        float delayedL = delayBufL[(size_t) rIdxL];
+        float delayedR = delayBufR[(size_t) rIdxR];
+
+        if (useLoCut)
+        {
+            delayedL = loCutL.process (delayedL, cLo);
+            delayedR = loCutR.process (delayedR, cLo);
+        }
+        if (useHiCut)
+        {
+            delayedL = hiCutL.process (delayedL, cHi);
+            delayedR = hiCutR.process (delayedR, cHi);
+        }
 
         // Damp filter
         lpStateL = delayedL * (1.0f - damp) + lpStateL * damp;
         lpStateR = delayedR * (1.0f - damp) + lpStateR * damp;
 
         // Feedback into buffer
-        if (type == FxType::Tap3Delay)
+        if (type == FxType::TapDelay)
         {
             // 3-Tap delay: Tap 1 left, Tap 2 center, Tap 3 right
             int tap2Idx = writePos - (dSamplesL + dSamplesR) / 2;
             if (tap2Idx < 0) tap2Idx += maxLen;
-            const float tap2 = delayBufL[(size_t) tap2Idx] * 0.5f;
+            const float tap2 = 0.5f * (delayBufL[(size_t) tap2Idx] + delayBufR[(size_t) tap2Idx]) * 0.5f;
 
             delayBufL[(size_t) writePos] = inL + lpStateL * fdbk;
             delayBufR[(size_t) writePos] = inR + lpStateR * fdbk;
@@ -584,11 +691,29 @@ void DelayDsp::process (float* chL, float* chR, int numSamples,
             chL[i] = inL * dry + (delayedL + tap2) * wet;
             chR[i] = inR * dry + (delayedR + tap2) * wet;
         }
+        else if (type == FxType::RhythmDelay)
+        {
+            // 4-Tap rhythmic pattern delay (1/4, 2/4, 3/4, 4/4 taps)
+            int tapAIdx = writePos - std::max (1, dSamplesL / 2);
+            if (tapAIdx < 0) tapAIdx += maxLen;
+            int tapBIdx = writePos - std::max (1, (dSamplesL * 3) / 4);
+            if (tapBIdx < 0) tapBIdx += maxLen;
+
+            const float tapA = delayBufL[(size_t) tapAIdx] * 0.55f;
+            const float tapB = delayBufR[(size_t) tapBIdx] * 0.45f;
+
+            delayBufL[(size_t) writePos] = inL + lpStateL * fdbk;
+            delayBufR[(size_t) writePos] = inR + lpStateR * fdbk;
+
+            chL[i] = inL * dry + (delayedL + tapA) * wet;
+            chR[i] = inR * dry + (delayedR + tapB) * wet;
+        }
         else
         {
-            // Ping-pong or standard stereo
-            const float fbL = crossMix > 0.5f ? lpStateR : lpStateL;
-            const float fbR = crossMix > 0.5f ? lpStateL : lpStateR;
+            // Ping-pong or cross-feedback stereo delay
+            const float xMix = clampf (crossMix > 1.0f ? crossMix * 0.01f : crossMix, 0.0f, 1.0f);
+            const float fbL = lpStateL * (1.0f - xMix) + lpStateR * xMix;
+            const float fbR = lpStateR * (1.0f - xMix) + lpStateL * xMix;
 
             delayBufL[(size_t) writePos] = inL + fbL * fdbk;
             delayBufR[(size_t) writePos] = inR + fbR * fdbk;
@@ -606,11 +731,11 @@ void DelayDsp::process (float* chL, float* chR, int numSamples,
 void ModulationDsp::prepare (double sampleRate)
 {
     sr = (float) sampleRate;
-    const int maxLen = (int) (sr * 0.05f); // 50 ms max modulation delay
+    const int maxLen = (int) (sr * 0.06f); // 60 ms max modulation delay
     modDelayBufL.assign ((size_t) maxLen, 0.0f);
     modDelayBufR.assign ((size_t) maxLen, 0.0f);
 
-    const int dimLen = (int) (sr * 0.05f);
+    const int dimLen = (int) (sr * 0.06f);
     dimBufL.assign ((size_t) dimLen, 0.0f);
     dimBufR.assign ((size_t) dimLen, 0.0f);
 
@@ -631,13 +756,31 @@ void ModulationDsp::reset()
     dimPostL.reset(); dimPostR.reset();
 
     rotorPhaseHorn = rotorPhaseDrum = 0.0f;
+    hornHpfL.reset(); hornHpfR.reset();
+    drumLpfL.reset(); drumLpfR.reset();
+
     for (int i = 0; i < 4; ++i) moogStageL[i] = moogStageR[i] = 0.0f;
     moodEnv = 0.0f;
 
     std::fill (std::begin (phaserZ1L), std::end (phaserZ1L), 0.0f);
     std::fill (std::begin (phaserZ1R), std::end (phaserZ1R), 0.0f);
+    phaserFbL = phaserFbR = 0.0f;
     moodBiquadL.reset();
     moodBiquadR.reset();
+}
+
+static inline float readFractionalRing (const std::vector<float>& buf, int writePos, float delaySamples) noexcept
+{
+    const int maxLen = (int) buf.size();
+    if (maxLen <= 1) return 0.0f;
+    const float clamped = clampf (delaySamples, 1.0f, (float) (maxLen - 2));
+    const int intDelay = (int) clamped;
+    const float frac = clamped - (float) intDelay;
+    int idx0 = writePos - intDelay;
+    if (idx0 < 0) idx0 += maxLen;
+    int idx1 = idx0 - 1;
+    if (idx1 < 0) idx1 += maxLen;
+    return buf[(size_t) idx0] + frac * (buf[(size_t) idx1] - buf[(size_t) idx0]);
 }
 
 void ModulationDsp::process (float* chL, float* chR, int numSamples,
@@ -645,17 +788,16 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
                              float feedbackNorm, float paramCustom, float mixNorm)
 {
     const int maxLen = (int) modDelayBufL.size();
-    const float wet = mixNorm;
+    const float wet = clampf (mixNorm, 0.0f, 1.0f);
     const float dry = 1.0f - wet;
 
     // 1. Roland SDD-320 Dimension D Modeling
     if (type == FxType::DimensionC)
     {
-        // Dimension D has authentic fixed 0.25 Hz dual LFO with antiphase BBD modulation
         const float dimLfoInc = (0.25f * 2.0f * kPi) / sr;
         const auto cPre = calcHighShelf (2500.0f, 3.5f, 0.707f, sr);
         const auto cPost = calcHighShelf (2500.0f, -3.5f, 0.707f, sr);
-        const float depthMs = 0.4f + clampf (depthNorm * 0.01f, 0.0f, 1.0f) * 1.2f; // Mode 1..4 depth
+        const float depthMs = 0.4f + clampf (depthNorm * 0.01f, 0.0f, 1.5f) * 1.2f; // Mode 1..4 depth
         const int dimMax = (int) dimBufL.size();
 
         for (int i = 0; i < numSamples; ++i)
@@ -673,16 +815,11 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
             // BBD delay with inverted LFO modulation (+sin on Left, -sin on Right)
             const float modL = std::sin (lfoPhase);
             const float modR = -std::sin (lfoPhase);
-            const float dSamplesL = clampf ((2.5f + depthMs * modL) * 0.001f * sr, 1.0f, (float) dimMax - 1);
-            const float dSamplesR = clampf ((2.5f + depthMs * modR) * 0.001f * sr, 1.0f, (float) dimMax - 1);
+            const float dSamplesL = (2.5f + depthMs * modL) * 0.001f * sr;
+            const float dSamplesR = (2.5f + depthMs * modR) * 0.001f * sr;
 
-            int rIdxL = dimWrite - (int) dSamplesL;
-            if (rIdxL < 0) rIdxL += dimMax;
-            int rIdxR = dimWrite - (int) dSamplesR;
-            if (rIdxR < 0) rIdxR += dimMax;
-
-            const float bbdL = dimBufL[(size_t) rIdxL];
-            const float bbdR = dimBufR[(size_t) rIdxR];
+            const float bbdL = readFractionalRing (dimBufL, dimWrite, dSamplesL);
+            const float bbdR = readFractionalRing (dimBufR, dimWrite, dSamplesR);
 
             if (++dimWrite >= dimMax) dimWrite = 0;
 
@@ -703,13 +840,15 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
     // 2. Leslie 122/147 Rotary Speaker Modeling
     if (type == FxType::RotarySpeakerCabinet)
     {
+        // speedHz = horn speed (or slow/fast switch), depthNorm = balance/depth
         const bool isFast = (speedHz > 3.0f || paramCustom > 0.5f);
-        const float targetHornHz = isFast ? 7.0f : 0.8f;
-        const float targetDrumHz = isFast ? 5.8f : 0.6f;
+        const float targetHornHz = isFast ? 6.8f : std::max (0.4f, speedHz);
+        const float targetDrumHz = isFast ? 5.6f : std::max (0.3f, speedHz * 0.75f);
         const float hornInc = (targetHornHz * 2.0f * kPi) / sr;
         const float drumInc = (targetDrumHz * 2.0f * kPi) / sr;
-        const auto cHorn = calcHPF (800.0f, 0.707f, sr); // Horn gets highs
-        const auto cDrum = calcLPF (800.0f, 0.707f, sr); // Drum gets lows
+        const auto cHorn = calcHPF (800.0f, 0.707f, sr); // Horn gets highs (>800 Hz)
+        const auto cDrum = calcLPF (800.0f, 0.707f, sr); // Drum gets lows (<800 Hz)
+        const float hornBal = clampf (0.3f + (depthNorm * 0.01f) * 0.7f, 0.2f, 1.2f);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -736,24 +875,19 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
             modDelayBufL[(size_t) modWritePos] = tubeInL;
             modDelayBufR[(size_t) modWritePos] = tubeInR;
 
-            const int dHornL = (int) clampf (hornDelayMsL * 0.001f * sr, 1.0f, (float) maxLen - 1);
-            const int dHornR = (int) clampf (hornDelayMsR * 0.001f * sr, 1.0f, (float) maxLen - 1);
+            const float dHornL = hornDelayMsL * 0.001f * sr;
+            const float dHornR = hornDelayMsR * 0.001f * sr;
 
-            int rHornL = modWritePos - dHornL;
-            if (rHornL < 0) rHornL += maxLen;
-            int rHornR = modWritePos - dHornR;
-            if (rHornR < 0) rHornR += maxLen;
-
-            const float delayedHornL = modDelayBufL[(size_t) rHornL];
-            const float delayedHornR = modDelayBufR[(size_t) rHornR];
+            const float delayedHornL = readFractionalRing (modDelayBufL, modWritePos, dHornL);
+            const float delayedHornR = readFractionalRing (modDelayBufR, modWritePos, dHornR);
 
             if (++modWritePos >= maxLen) modWritePos = 0;
 
-            // Split into horn and drum bands
-            const float hL = moodBiquadL.process (delayedHornL, cHorn) * hornAmL;
-            const float hR = moodBiquadR.process (delayedHornR, cHorn) * hornAmR;
-            const float dL = (tubeInL - moodBiquadL.process (tubeInL, cHorn)) * drumAmL;
-            const float dR = (tubeInR - moodBiquadR.process (tubeInR, cHorn)) * drumAmR;
+            // Dedicated crossover filters for Horn (HPF) and Drum (LPF)
+            const float hL = hornHpfL.process (delayedHornL, cHorn) * hornAmL * hornBal;
+            const float hR = hornHpfR.process (delayedHornR, cHorn) * hornAmR * hornBal;
+            const float dL = drumLpfL.process (tubeInL, cDrum) * drumAmL;
+            const float dR = drumLpfR.process (tubeInR, cDrum) * drumAmR;
 
             const float rotL = hL + dL;
             const float rotR = hR + dR;
@@ -772,14 +906,19 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
         const float envSensitivity = clampf (depthNorm * 0.01f, 0.0f, 1.0f);
         const float envAttackCoeff = std::exp (-1.0f / (0.005f * sr));
         const float envReleaseCoeff = std::exp (-1.0f / (0.120f * sr));
+        const float lfoInc = (clampf (speedHz, 0.1f, 12.0f) * 2.0f * kPi) / sr;
 
         for (int i = 0; i < numSamples; ++i)
         {
+            lfoPhase += lfoInc;
+            if (lfoPhase >= 2.0f * kPi) lfoPhase -= 2.0f * kPi;
+
             const float inPk = std::max (std::abs (chL[i]), std::abs (chR[i]));
             if (inPk > moodEnv) moodEnv = inPk + envAttackCoeff * (moodEnv - inPk);
             else moodEnv = inPk + envReleaseCoeff * (moodEnv - inPk);
 
-            const float modCutoff = clampf (baseCutoff + moodEnv * envSensitivity * 10000.0f, 40.0f, 18000.0f);
+            const float lfoMod = 1.0f + 0.35f * envSensitivity * std::sin (lfoPhase);
+            const float modCutoff = clampf ((baseCutoff + moodEnv * envSensitivity * 10000.0f) * lfoMod, 40.0f, 18000.0f);
             const float g = clampf (1.0f - std::exp (-(2.0f * kPi * modCutoff) / sr), 0.001f, 0.99f);
 
             // Left 4-Pole Ladder
@@ -789,21 +928,35 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
             moogStageL[2] += g * (std::tanh (moogStageL[1]) - std::tanh (moogStageL[2]));
             moogStageL[3] += g * (std::tanh (moogStageL[2]) - std::tanh (moogStageL[3]));
 
-            // Right 4-Pole Ladder
+            // Right 4-Pole Ladder (Fixed stage[2] input from stage[1])
             const float feedR = chR[i] - resAmount * moogStageR[3];
             moogStageR[0] += g * (std::tanh (feedR) - std::tanh (moogStageR[0]));
             moogStageR[1] += g * (std::tanh (moogStageR[0]) - std::tanh (moogStageR[1]));
-            moogStageR[2] += g * (std::tanh (moogStageR[0]) - std::tanh (moogStageR[2]));
+            moogStageR[2] += g * (std::tanh (moogStageR[1]) - std::tanh (moogStageR[2]));
             moogStageR[3] += g * (std::tanh (moogStageR[2]) - std::tanh (moogStageR[3]));
 
-            chL[i] = chL[i] * dry + moogStageL[3] * wet;
-            chR[i] = chR[i] * dry + moogStageR[3] * wet;
+            // Mode selection via paramCustom: LP (0..0.4), BP (0.4..0.75), HP (>0.75)
+            float filtOutL = moogStageL[3];
+            float filtOutR = moogStageR[3];
+            if (paramCustom > 0.75f)
+            {
+                filtOutL = feedL - moogStageL[3];
+                filtOutR = feedR - moogStageR[3];
+            }
+            else if (paramCustom > 0.4f)
+            {
+                filtOutL = (moogStageL[1] - moogStageL[3]) * 1.8f;
+                filtOutR = (moogStageR[1] - moogStageR[3]) * 1.8f;
+            }
+
+            chL[i] = chL[i] * dry + filtOutL * wet;
+            chR[i] = chR[i] * dry + filtOutR * wet;
         }
         return;
     }
 
     // 4. Standard Chorus, Flanger, Phaser, Tremolo
-    const float lfoInc = (speedHz * 2.0f * kPi) / sr;
+    const float lfoInc = (clampf (speedHz, 0.05f, 20.0f) * 2.0f * kPi) / sr;
     for (int i = 0; i < numSamples; ++i)
     {
         const float inL = chL[i];
@@ -813,12 +966,12 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
         if (lfoPhase >= 2.0f * kPi) lfoPhase -= 2.0f * kPi;
 
         const float lfoL = std::sin (lfoPhase);
-        const float lfoR = std::sin (lfoPhase + kPi * 0.5f); // 90 degree stereo phase
+        const float lfoR = std::sin (lfoPhase + kPi * 0.5f); // 90 degree stereo quadrature phase
 
         if (type == FxType::TremoloPanner)
         {
             // Tremolo / Auto-Panner
-            const float modDepth = depthNorm * 0.01f;
+            const float modDepth = clampf (depthNorm * 0.01f, 0.0f, 1.0f);
             const float gainL = 1.0f - modDepth * (0.5f + 0.5f * lfoL);
             const float gainR = 1.0f - modDepth * (0.5f + 0.5f * (paramCustom > 0.5f ? -lfoL : lfoR));
             chL[i] = inL * (dry + gainL * wet);
@@ -826,40 +979,44 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
         }
         else if (type == FxType::StereoPhaser)
         {
-            // 4-stage allpass phaser
-            const float apCoeff = 0.5f + 0.4f * lfoL;
-            float sL = inL;
-            float sR = inR;
+            // 4-stage allpass phaser with resonance feedback
+            const float depth01 = clampf (depthNorm * 0.01f, 0.0f, 1.0f);
+            const float resoFb = clampf (feedbackNorm * 0.0075f, 0.0f, 0.75f);
+            const float apCoeffL = clampf (0.45f + 0.42f * depth01 * lfoL, -0.92f, 0.92f);
+            const float apCoeffR = clampf (0.45f + 0.42f * depth01 * lfoR, -0.92f, 0.92f);
+
+            float sL = inL + phaserFbL * resoFb;
+            float sR = inR + phaserFbR * resoFb;
             for (int stage = 0; stage < 4; ++stage)
             {
-                const float yL = apCoeff * sL + phaserZ1L[stage];
-                phaserZ1L[stage] = sL - apCoeff * yL;
+                const float yL = apCoeffL * sL + phaserZ1L[stage];
+                phaserZ1L[stage] = sL - apCoeffL * yL;
                 sL = yL;
 
-                const float yR = apCoeff * sR + phaserZ1R[stage];
-                phaserZ1R[stage] = sR - apCoeff * yR;
+                const float yR = apCoeffR * sR + phaserZ1R[stage];
+                phaserZ1R[stage] = sR - apCoeffR * yR;
                 sR = yR;
             }
-            chL[i] = inL * dry + (inL + sL * 0.5f) * wet;
-            chR[i] = inR * dry + (inR + sR * 0.5f) * wet;
+            phaserFbL = std::tanh (sL);
+            phaserFbR = std::tanh (sR);
+            chL[i] = inL * dry + (inL + sL * 0.7f) * 0.7f * wet;
+            chR[i] = inR * dry + (inR + sR * 0.7f) * 0.7f * wet;
         }
         else
         {
-            // Chorus / Flanger
-            const float baseDelayMs = (type == FxType::StereoFlanger) ? 1.5f : 15.0f;
-            const float modRangeMs = (type == FxType::StereoFlanger) ? 1.0f : 8.0f * (depthNorm * 0.01f);
-            const float fdbk = (type == FxType::StereoFlanger) ? clampf (feedbackNorm * 0.01f, -0.9f, 0.9f) : 0.0f;
+            // Chorus / Flanger with smooth fractional interpolation
+            const bool isFlanger = (type == FxType::StereoFlanger || type == FxType::FlangerAndChamber || type == FxType::DelayAndFlanger);
+            const float baseDelayMs = isFlanger ? 1.8f : 12.0f;
+            const float modRangeMs = isFlanger ? (1.4f * clampf (depthNorm * 0.01f, 0.05f, 1.0f))
+                                               : (6.5f * clampf (depthNorm * 0.01f, 0.05f, 1.0f));
+            const float fdbk = isFlanger ? clampf (feedbackNorm * 0.0088f, -0.88f, 0.88f)
+                                         : clampf (feedbackNorm * 0.0035f, -0.35f, 0.35f);
 
             const float dL = (baseDelayMs + modRangeMs * lfoL) * 0.001f * sr;
             const float dR = (baseDelayMs + modRangeMs * lfoR) * 0.001f * sr;
 
-            int idxL = modWritePos - (int) dL;
-            if (idxL < 0) idxL += maxLen;
-            int idxR = modWritePos - (int) dR;
-            if (idxR < 0) idxR += maxLen;
-
-            const float outModL = modDelayBufL[(size_t) idxL];
-            const float outModR = modDelayBufR[(size_t) idxR];
+            const float outModL = readFractionalRing (modDelayBufL, modWritePos, dL);
+            const float outModR = readFractionalRing (modDelayBufR, modWritePos, dR);
 
             modDelayBufL[(size_t) modWritePos] = inL + outModL * fdbk;
             modDelayBufR[(size_t) modWritePos] = inR + outModR * fdbk;
@@ -877,8 +1034,8 @@ void ModulationDsp::process (float* chL, float* chR, int numSamples,
 void PitchShifterDsp::prepare (double sampleRate)
 {
     sr = (float) sampleRate;
-    ringBufL.assign (kWindowSize * 2, 0.0f);
-    ringBufR.assign (kWindowSize * 2, 0.0f);
+    ringBufL.assign (kWindowSize * 4, 0.0f);
+    ringBufR.assign (kWindowSize * 4, 0.0f);
     reset();
 }
 
@@ -889,15 +1046,17 @@ void PitchShifterDsp::reset()
     writePos = 0;
     readPos1 = 0.0f;
     readPos2 = (float) (kWindowSize / 2);
+    readPos1B = 0.0f;
+    readPos2B = (float) (kWindowSize / 2);
 }
 
 void PitchShifterDsp::process (float* chL, float* chR, int numSamples,
                                float semitones, float mixNorm)
 {
-    const float pitchRatio = std::pow (2.0f, semitones / 12.0f);
+    const float pitchRatio = std::pow (2.0f, clampf (semitones, -24.0f, 24.0f) / 12.0f);
     const float rate = 1.0f - pitchRatio;
     const int bufSize = (int) ringBufL.size();
-    const float wet = mixNorm;
+    const float wet = clampf (mixNorm, 0.0f, 1.0f);
     const float dry = 1.0f - wet;
 
     for (int i = 0; i < numSamples; ++i)
@@ -908,7 +1067,7 @@ void PitchShifterDsp::process (float* chL, float* chR, int numSamples,
         ringBufL[(size_t) writePos] = inL;
         ringBufR[(size_t) writePos] = inR;
 
-        // Two cross-fading grain taps
+        // Two cross-fading Hann grain taps with fractional interpolation
         readPos1 += rate;
         if (readPos1 >= (float) kWindowSize) readPos1 -= (float) kWindowSize;
         if (readPos1 < 0.0f) readPos1 += (float) kWindowSize;
@@ -920,18 +1079,78 @@ void PitchShifterDsp::process (float* chL, float* chR, int numSamples,
         const float win1 = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos1 / (float) kWindowSize));
         const float win2 = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos2 / (float) kWindowSize));
 
-        int tap1 = writePos - (int) readPos1;
-        if (tap1 < 0) tap1 += bufSize;
-        int tap2 = writePos - (int) readPos2;
-        if (tap2 < 0) tap2 += bufSize;
-
-        const float outShiftL = ringBufL[(size_t) tap1] * win1 + ringBufL[(size_t) tap2] * win2;
-        const float outShiftR = ringBufR[(size_t) tap1] * win1 + ringBufR[(size_t) tap2] * win2;
+        const float outShiftL = readFractionalRing (ringBufL, writePos, readPos1 + 1.0f) * win1
+                              + readFractionalRing (ringBufL, writePos, readPos2 + 1.0f) * win2;
+        const float outShiftR = readFractionalRing (ringBufR, writePos, readPos1 + 1.0f) * win1
+                              + readFractionalRing (ringBufR, writePos, readPos2 + 1.0f) * win2;
 
         if (++writePos >= bufSize) writePos = 0;
 
         chL[i] = inL * dry + outShiftL * wet;
         chR[i] = inR * dry + outShiftR * wet;
+    }
+}
+
+void PitchShifterDsp::processDual (float* chL, float* chR, int numSamples,
+                                   float semi1, float cent1, float delay1Ms, float gain1Norm, float pan1Norm,
+                                   float semi2, float cent2, float delay2Ms, float gain2Norm, float pan2Norm,
+                                   float mixNorm)
+{
+    const float ratio1 = std::pow (2.0f, clampf (semi1 + cent1 * 0.01f, -24.0f, 24.0f) / 12.0f);
+    const float ratio2 = std::pow (2.0f, clampf (semi2 + cent2 * 0.01f, -24.0f, 24.0f) / 12.0f);
+    const float rate1 = 1.0f - ratio1;
+    const float rate2 = 1.0f - ratio2;
+
+    const int bufSize = (int) ringBufL.size();
+    const float baseDelay1 = clampf (delay1Ms * 0.001f * sr, 1.0f, (float) (bufSize - kWindowSize - 4));
+    const float baseDelay2 = clampf (delay2Ms * 0.001f * sr, 1.0f, (float) (bufSize - kWindowSize - 4));
+
+    const float g1 = clampf (gain1Norm * 0.01f, 0.0f, 1.2f);
+    const float g2 = clampf (gain2Norm * 0.01f, 0.0f, 1.2f);
+    const auto pan1 = panMonoConstantPower (clampf ((pan1Norm - 50.0f) / 50.0f, -1.0f, 1.0f));
+    const auto pan2 = panMonoConstantPower (clampf ((pan2Norm - 50.0f) / 50.0f, -1.0f, 1.0f));
+
+    const float wet = clampf (mixNorm, 0.0f, 1.0f);
+    const float dry = 1.0f - wet * 0.5f;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        const float inL = chL[i];
+        const float inR = chR[i];
+
+        ringBufL[(size_t) writePos] = inL;
+        ringBufR[(size_t) writePos] = inR;
+
+        readPos1 += rate1;
+        if (readPos1 >= (float) kWindowSize) readPos1 -= (float) kWindowSize;
+        if (readPos1 < 0.0f) readPos1 += (float) kWindowSize;
+
+        readPos2 += rate1;
+        if (readPos2 >= (float) kWindowSize) readPos2 -= (float) kWindowSize;
+        if (readPos2 < 0.0f) readPos2 += (float) kWindowSize;
+
+        readPos1B += rate2;
+        if (readPos1B >= (float) kWindowSize) readPos1B -= (float) kWindowSize;
+        if (readPos1B < 0.0f) readPos1B += (float) kWindowSize;
+
+        readPos2B += rate2;
+        if (readPos2B >= (float) kWindowSize) readPos2B -= (float) kWindowSize;
+        if (readPos2B < 0.0f) readPos2B += (float) kWindowSize;
+
+        const float win1 = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos1 / (float) kWindowSize));
+        const float win2 = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos2 / (float) kWindowSize));
+        const float win1B = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos1B / (float) kWindowSize));
+        const float win2B = 0.5f * (1.0f - std::cos (2.0f * kPi * readPos2B / (float) kWindowSize));
+
+        const float v1 = (readFractionalRing (ringBufL, writePos, baseDelay1 + readPos1) * win1
+                        + readFractionalRing (ringBufL, writePos, baseDelay1 + readPos2) * win2) * g1;
+        const float v2 = (readFractionalRing (ringBufR, writePos, baseDelay2 + readPos1B) * win1B
+                        + readFractionalRing (ringBufR, writePos, baseDelay2 + readPos2B) * win2B) * g2;
+
+        if (++writePos >= bufSize) writePos = 0;
+
+        chL[i] = inL * dry + (v1 * pan1.left + v2 * pan2.left) * wet;
+        chR[i] = inR * dry + (v1 * pan1.right + v2 * pan2.right) * wet;
     }
 }
 
@@ -954,23 +1173,39 @@ void GraphicEqDsp::reset()
 void GraphicEqDsp::process (float* chL, float* chR, int numSamples,
                             const std::array<Param, 31>& gainsL,
                             const std::array<Param, 31>& gainsR,
-                            bool linkedStereo)
+                            bool linkedStereo,
+                            bool isTrueEq)
 {
+    const float qFactor = isTrueEq ? 5.2f : 4.318f; // TruEQ uses narrower constant-Q decoupling
+
     // Update any changed band filter coefficients
     for (size_t b = 0; b < 31; ++b)
     {
-        const float gL = gainsL[b].get();
+        float gL = gainsL[b].get();
+        if (isTrueEq && b > 0 && b < 30)
+        {
+            // Constant-Q adjacent-band skirt compensation
+            const float neighborSumL = gainsL[b - 1].get() + gainsL[b + 1].get();
+            gL = clampf (gL - 0.14f * neighborSumL, -18.0f, 18.0f);
+        }
+
         if (std::abs (gL - lastGainsL[b]) > 0.05f)
         {
             lastGainsL[b] = gL;
-            coeffsL[b] = calcBell (kGeqFrequencies[b], gL, 4.3f, sr); // Q=4.3 for 1/3-octave
+            coeffsL[b] = calcBell (kGeqFrequencies[b], gL, qFactor, sr);
         }
 
-        const float gR = linkedStereo ? gL : gainsR[b].get();
+        float gR = linkedStereo ? gL : gainsR[b].get();
+        if (! linkedStereo && isTrueEq && b > 0 && b < 30)
+        {
+            const float neighborSumR = gainsR[b - 1].get() + gainsR[b + 1].get();
+            gR = clampf (gR - 0.14f * neighborSumR, -18.0f, 18.0f);
+        }
+
         if (std::abs (gR - lastGainsR[b]) > 0.05f)
         {
             lastGainsR[b] = gR;
-            coeffsR[b] = calcBell (kGeqFrequencies[b], gR, 4.3f, sr);
+            coeffsR[b] = calcBell (kGeqFrequencies[b], gR, qFactor, sr);
         }
     }
 
@@ -1004,6 +1239,7 @@ void PremiumDynamicsDsp::prepare (double sampleRate)
 void PremiumDynamicsDsp::reset()
 {
     la2aEnv = la2aTail = fetEnv = fairEnvL = fairEnvR = 0.0f;
+    la2aEnvR = la2aTailR = fetEnvR = 0.0f;
     limiterGain = 1.0f;
     fastEnvL = slowEnvL = fastEnvR = slowEnvR = 0.0f;
     lookaheadWrite = 0;
@@ -1016,10 +1252,12 @@ void PremiumDynamicsDsp::reset()
     optoHpfL.reset(); optoHpfR.reset();
     sibilanceFiltL.reset(); sibilanceFiltR.reset();
     deEssEnv = 0.0f;
+    deEssEnvR = 0.0f;
 }
 
 void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
-                                  FxType type, float p1, float p2, float p3, float p4, float mixNorm)
+                                  FxType type, float p1, float p2, float p3, float p4, float mixNorm,
+                                  float p5, float p6)
 {
     const float wet = mixNorm;
     const float dry = 1.0f - wet;
@@ -1028,73 +1266,118 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
     if (type == FxType::StereoLeisureCompressor || type == FxType::DualLeisureCompressor
         || type == FxType::LeisureCompressor)
     {
-        // p1 = Peak Reduction (0..100), p2 = Output Gain (0..100)
-        const float threshold = -42.0f + (100.0f - p1) * 0.42f;
-        const float makeup = dbToGain ((p2 - 40.0f) * 0.4f);
+        // p1 = Peak Reduction (0..100), p2 = Output Gain (0..100), p3 = Limit/Comp mode (0 = Comp, >0.5 = Limit)
+        const float thresholdL = -42.0f + (100.0f - clampf (p1, 0.0f, 100.0f)) * 0.42f;
+        const float makeupL = dbToGain ((clampf (p2, 0.0f, 100.0f) - 40.0f) * 0.4f);
+        const bool isDual = (type == FxType::DualLeisureCompressor);
+        const float p1R = (isDual && p4 > 0.0f) ? p4 : p1;
+        const float p2R = (isDual && p5 > 0.0f) ? p5 : p2;
+        const float thresholdR = -42.0f + (100.0f - clampf (p1R, 0.0f, 100.0f)) * 0.42f;
+        const float makeupR = dbToGain ((clampf (p2R, 0.0f, 100.0f) - 40.0f) * 0.4f);
+        const float compSlope = (p3 > 0.5f) ? 0.92f : 0.72f; // Limit (10:1) vs Compress (3.5:1)
         const auto cOptoHf = calcHighShelf (1000.0f, 4.0f, 0.707f, sr); // R37 HF emphasis
+
+        const float attCoeff = std::exp (-1.0f / (0.010f * sr));
+        const float relCoeff1 = std::exp (-1.0f / (0.060f * sr));
+        const float relCoeff2 = std::exp (-1.0f / (1.800f * sr));
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Detector with high-frequency pre-emphasis
             const float detL = optoHpfL.process (chL[i], cOptoHf);
             const float detR = optoHpfR.process (chR[i], cOptoHf);
-            const float inPeak = std::max (std::abs (detL), std::abs (detR));
-            const float inDb = gainToDb (inPeak);
-            const float over = std::max (0.0f, inDb - threshold);
 
-            // T4 Optical cell: 10ms attack, dual-stage release (60ms fast 50%, 1.5s-5s memory tail)
-            const float attCoeff = std::exp (-1.0f / (0.010f * sr));
-            const float relCoeff1 = std::exp (-1.0f / (0.060f * sr));
-            const float relCoeff2 = std::exp (-1.0f / (1.800f * sr));
+            if (isDual)
+            {
+                const float overL = std::max (0.0f, gainToDb (std::abs (detL)) - thresholdL);
+                const float overR = std::max (0.0f, gainToDb (std::abs (detR)) - thresholdR);
 
-            if (over > la2aEnv) la2aEnv = over + attCoeff * (la2aEnv - over);
-            else la2aEnv = over + relCoeff1 * (la2aEnv - over);
+                if (overL > la2aEnv) la2aEnv = overL + attCoeff * (la2aEnv - overL);
+                else la2aEnv = overL + relCoeff1 * (la2aEnv - overL);
+                la2aTail = la2aEnv + relCoeff2 * (la2aTail - la2aEnv);
 
-            la2aTail = la2aEnv + relCoeff2 * (la2aTail - la2aEnv);
-            const float compDb = -(la2aEnv * 0.55f + la2aTail * 0.45f);
-            const float gain = dbToGain (compDb) * makeup;
+                if (overR > la2aEnvR) la2aEnvR = overR + attCoeff * (la2aEnvR - overR);
+                else la2aEnvR = overR + relCoeff1 * (la2aEnvR - overR);
+                la2aTailR = la2aEnvR + relCoeff2 * (la2aTailR - la2aEnvR);
 
-            // 12AX7 tube 2nd-order harmonic saturation
-            const float linL = chL[i] * gain;
-            const float linR = chR[i] * gain;
-            const float outL = linL + 0.08f * linL * std::abs (linL);
-            const float outR = linR + 0.08f * linR * std::abs (linR);
+                const float gainL = dbToGain (-(la2aEnv * 0.55f + la2aTail * 0.45f) * compSlope) * makeupL;
+                const float gainR = dbToGain (-(la2aEnvR * 0.55f + la2aTailR * 0.45f) * compSlope) * makeupR;
 
-            chL[i] = chL[i] * dry + outL * wet;
-            chR[i] = chR[i] * dry + outR * wet;
+                const float linL = chL[i] * gainL;
+                const float linR = chR[i] * gainR;
+                const float outL = linL + 0.08f * linL * std::abs (linL);
+                const float outR = linR + 0.08f * linR * std::abs (linR);
+
+                chL[i] = chL[i] * dry + outL * wet;
+                chR[i] = chR[i] * dry + outR * wet;
+            }
+            else
+            {
+                const float inPeak = std::max (std::abs (detL), std::abs (detR));
+                const float inDb = gainToDb (inPeak);
+                const float over = std::max (0.0f, inDb - thresholdL);
+
+                if (over > la2aEnv) la2aEnv = over + attCoeff * (la2aEnv - over);
+                else la2aEnv = over + relCoeff1 * (la2aEnv - over);
+
+                la2aTail = la2aEnv + relCoeff2 * (la2aTail - la2aEnv);
+                const float compDb = -(la2aEnv * 0.55f + la2aTail * 0.45f) * compSlope;
+                const float gain = dbToGain (compDb) * makeupL;
+
+                const float linL = chL[i] * gain;
+                const float linR = chR[i] * gain;
+                const float outL = linL + 0.08f * linL * std::abs (linL);
+                const float outR = linR + 0.08f * linR * std::abs (linR);
+
+                chL[i] = chL[i] * dry + outL * wet;
+                chR[i] = chR[i] * dry + outR * wet;
+            }
         }
     }
     // 2. Urei 1176LN Fast FET Limiting Amplifier with "All-Buttons-In" Mode
     else if (type == FxType::UltimoCompressor || type == FxType::DualUltimoCompressor)
     {
-        // p1 = Input, p2 = Output, p3 = Ratio (4, 8, 12, 20, All-In), p4 = Attack (us)
-        const float drive = dbToGain ((p1 - 30.0f) * 0.5f);
-        const float makeup = dbToGain ((p2 - 20.0f) * 0.5f);
+        // p1 = Input (0..100), p2 = Output (0..100), p3 = Ratio (4, 8, 12, 20, All-In), p4 = Attack (0..100), p5 = Release (0..100)
+        const float drive = dbToGain ((clampf (p1, 0.0f, 100.0f) - 30.0f) * 0.5f);
+        const float makeup = dbToGain ((clampf (p2, 0.0f, 100.0f) - 20.0f) * 0.5f);
         const bool isAllButtons = (p3 >= 20.0f);
         const float ratio = isAllButtons ? 12.0f : std::max (2.0f, p3);
+        const bool isDual = (type == FxType::DualUltimoCompressor);
 
-        const float attSec = 0.000020f + (p4 * 0.01f) * 0.000800f; // 20us to 800us ultra-fast FET
+        const float attSec = 0.000020f + (clampf (p4, 0.0f, 100.0f) * 0.01f) * 0.000800f; // 20us to 800us ultra-fast FET
+        const float relSec = isAllButtons ? 0.050f : (0.050f + (1.0f - clampf (p5, 0.0f, 100.0f) * 0.01f) * 1.050f);
         const float attCoeff = std::exp (-1.0f / (attSec * sr));
-        const float relCoeff = std::exp (-1.0f / (isAllButtons ? 0.050f : 0.100f * sr));
+        const float relCoeff = std::exp (-1.0f / (relSec * sr));
+        const float thresh = isAllButtons ? -26.0f : -20.0f;
 
         for (int i = 0; i < numSamples; ++i)
         {
             const float drivenL = chL[i] * drive;
             const float drivenR = chR[i] * drive;
-            const float inPeak = std::max (std::abs (drivenL), std::abs (drivenR));
-            const float inDb = gainToDb (inPeak);
-            const float thresh = isAllButtons ? -26.0f : -20.0f;
-            const float over = std::max (0.0f, inDb - thresh);
 
-            if (over > fetEnv) fetEnv = over + attCoeff * (fetEnv - over);
-            else fetEnv = over + relCoeff * (fetEnv - over);
+            float gL = 1.0f, gR = 1.0f;
+            if (isDual)
+            {
+                const float overL = std::max (0.0f, gainToDb (std::abs (drivenL)) - thresh);
+                const float overR = std::max (0.0f, gainToDb (std::abs (drivenR)) - thresh);
+                if (overL > fetEnv) fetEnv = overL + attCoeff * (fetEnv - overL);
+                else fetEnv = overL + relCoeff * (fetEnv - overL);
+                if (overR > fetEnvR) fetEnvR = overR + attCoeff * (fetEnvR - overR);
+                else fetEnvR = overR + relCoeff * (fetEnvR - overR);
 
-            const float grDb = fetEnv * (1.0f - 1.0f / ratio);
-            const float g = dbToGain (-grDb) * makeup;
+                gL = dbToGain (-fetEnv * (1.0f - 1.0f / ratio)) * makeup;
+                gR = dbToGain (-fetEnvR * (1.0f - 1.0f / ratio)) * makeup;
+            }
+            else
+            {
+                const float inPeak = std::max (std::abs (drivenL), std::abs (drivenR));
+                const float over = std::max (0.0f, gainToDb (inPeak) - thresh);
+                if (over > fetEnv) fetEnv = over + attCoeff * (fetEnv - over);
+                else fetEnv = over + relCoeff * (fetEnv - over);
+                gL = gR = dbToGain (-fetEnv * (1.0f - 1.0f / ratio)) * makeup;
+            }
 
-            // In All-Buttons-In mode: aggressive 3rd harmonic saturation and punchy overdrive
-            float outL = drivenL * g;
-            float outR = drivenR * g;
+            float outL = drivenL * gL;
+            float outR = drivenR * gR;
             if (isAllButtons)
             {
                 outL = std::tanh (outL * 1.2f) - 0.15f * outL * outL * outL;
@@ -1114,10 +1397,11 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
     else if (type == FxType::FairCompressor || type == FxType::DualFairCompressor
              || type == FxType::MsFairCompressor)
     {
-        const float threshold = -50.0f + clampf (p1, 0.0f, 100.0f) * 0.5f;
-        const float makeup = dbToGain ((p2 - 50.0f) * 0.12f);
+        const float thresholdL = -50.0f + (100.0f - clampf (p1, 0.0f, 100.0f)) * 0.45f;
+        const float makeupL = dbToGain ((clampf (p2, 0.0f, 100.0f) - 50.0f) * 0.24f);
+        const float dcBias = clampf (p3, 0.0f, 100.0f) * 0.01f; // DC Threshold knee control
         // 6 switchable time constants (p4 selects position 1..6)
-        const int timeConstPos = clampf (p4, 1.0f, 6.0f);
+        const int timeConstPos = (int) std::round (clampf (p4, 1.0f, 6.0f));
         float relSec = 0.5f;
         switch (timeConstPos)
         {
@@ -1132,13 +1416,13 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
         const float attCoeff = std::exp (-1.0f / (0.002f * sr)); // 2ms fast Vari-Mu
         const float relCoeff = std::exp (-1.0f / (relSec * sr));
         const bool isMidSide = (type == FxType::MsFairCompressor);
+        const auto balPair = balanceStereo (clampf ((p5 - 50.0f) / 50.0f, -1.0f, 1.0f));
 
         for (int i = 0; i < numSamples; ++i)
         {
             float sL = chL[i];
             float sR = chR[i];
 
-            // Mid/Side matrix encode
             if (isMidSide)
             {
                 const float mid = 0.5f * (sL + sR);
@@ -1149,25 +1433,29 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
 
             const float inDbL = gainToDb (std::abs (sL));
             const float inDbR = gainToDb (std::abs (sR));
-            // Progressive soft knee: starts compressing 6dB below threshold
-            const float overL = std::max (0.0f, inDbL - threshold);
-            const float overR = std::max (0.0f, inDbR - threshold);
+            const float overL = std::max (0.0f, inDbL - thresholdL);
+            const float overR = std::max (0.0f, inDbR - thresholdL);
 
             if (overL > fairEnvL) fairEnvL = overL + attCoeff * (fairEnvL - overL);
             else fairEnvL = overL + relCoeff * (fairEnvL - overL);
             if (overR > fairEnvR) fairEnvR = overR + attCoeff * (fairEnvR - overR);
             else fairEnvR = overR + relCoeff * (fairEnvR - overR);
 
-            // Vari-Mu continuous ratio curve (2:1 up to 10:1 based on depth)
-            const float ratioL = 2.0f + fairEnvL * 0.4f;
-            const float ratioR = 2.0f + fairEnvR * 0.4f;
-            const float gL = dbToGain (-fairEnvL * (1.0f - 1.0f / ratioL)) * makeup;
-            const float gR = dbToGain (-fairEnvR * (1.0f - 1.0f / ratioR)) * makeup;
+            if (type == FxType::FairCompressor)
+            {
+                const float linkedEnv = std::max (fairEnvL, fairEnvR);
+                fairEnvL = fairEnvR = linkedEnv;
+            }
+
+            // Vari-Mu continuous ratio curve (2:1 up to 12:1 based on depth & DC bias)
+            const float ratioL = 2.0f + fairEnvL * (0.3f + 0.3f * dcBias);
+            const float ratioR = 2.0f + fairEnvR * (0.3f + 0.3f * dcBias);
+            const float gL = dbToGain (-fairEnvL * (1.0f - 1.0f / ratioL)) * makeupL * balPair.left;
+            const float gR = dbToGain (-fairEnvR * (1.0f - 1.0f / ratioR)) * makeupL * balPair.right;
 
             float compL = sL * gL;
             float compR = sR * gR;
 
-            // Mid/Side matrix decode
             if (isMidSide)
             {
                 const float l = compL + compR;
@@ -1176,7 +1464,6 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
                 compR = r;
             }
 
-            // Tube saturation warmth
             compL = std::tanh (compL * 1.1f);
             compR = std::tanh (compR * 1.1f);
 
@@ -1187,20 +1474,22 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
     // 4. TC Finalizer 5-Band Broadcast Combinator Modeling
     else if (type == FxType::Combinator || type == FxType::DualCombinator)
     {
-        // 5-band crossover at 80 Hz, 320 Hz, 1280 Hz, 5120 Hz
-        const auto cX1 = calcLPF (80.0f, 0.707f, sr);
-        const auto cX2 = calcLPF (320.0f, 0.707f, sr);
-        const auto cX3 = calcLPF (1280.0f, 0.707f, sr);
-        const auto cX4 = calcLPF (5120.0f, 0.707f, sr);
+        const float xoverScale = std::pow (2.0f, clampf ((p6 - 50.0f) / 50.0f, -1.0f, 1.0f) * 0.5f);
+        const auto cX1 = calcLPF (80.0f * xoverScale, 0.707f, sr);
+        const auto cX2 = calcLPF (320.0f * xoverScale, 0.707f, sr);
+        const auto cX3 = calcLPF (1280.0f * xoverScale, 0.707f, sr);
+        const auto cX4 = calcLPF (5120.0f * xoverScale, 0.707f, sr);
 
-        const float threshold = -40.0f + clampf (p1, 0.0f, 100.0f) * 0.4f;
-        const float makeup = dbToGain ((p2 - 50.0f) * 0.12f);
-        const float attCoeff = std::exp (-1.0f / (0.008f * sr));
-        const float relCoeff = std::exp (-1.0f / (0.150f * sr));
+        const float threshold = -42.0f + (100.0f - clampf (p1, 0.0f, 100.0f)) * 0.4f;
+        const float makeup = dbToGain ((clampf (p2, 0.0f, 100.0f) - 40.0f) * 0.2f);
+        const float ratioSlope = 1.0f - 1.0f / std::max (1.5f, p3);
+        const float attSec = 0.002f + clampf (p4, 0.0f, 100.0f) * 0.0005f;
+        const float relSec = 0.040f + clampf (p5, 0.0f, 100.0f) * 0.004f;
+        const float attCoeff = std::exp (-1.0f / (attSec * sr));
+        const float relCoeff = std::exp (-1.0f / (relSec * sr));
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Split into 5 frequency bands
             const float b1L = crossFiltL[0].process (chL[i], cX1);
             const float b2L = crossFiltL[1].process (chL[i], cX2) - b1L;
             const float b3L = crossFiltL[2].process (chL[i], cX3) - (b1L + b2L);
@@ -1229,8 +1518,8 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
                 if (overR > bandEnvR[b]) bandEnvR[b] = overR + attCoeff * (bandEnvR[b] - overR);
                 else bandEnvR[b] = overR + relCoeff * (bandEnvR[b] - overR);
 
-                const float gL = dbToGain (-bandEnvL[b] * 0.65f);
-                const float gR = dbToGain (-bandEnvR[b] * 0.65f);
+                const float gL = dbToGain (-bandEnvL[b] * ratioSlope);
+                const float gR = dbToGain (-bandEnvR[b] * ratioSlope);
                 sumL += bandsL[b] * gL;
                 sumR += bandsR[b] * gR;
             }
@@ -1242,9 +1531,16 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
     // 5. SPL Transient Designer / Wave Designer
     else if (type == FxType::WaveDesigner)
     {
-        // p1 = Attack (-100% to +100%), p2 = Sustain (-100% to +100%)
-        const float attMult = dbToGain (p1 * 0.12f);
-        const float susMult = dbToGain (p2 * 0.12f);
+        // p1 = Attack L (-100%..+100%), p2 = Sustain L (-100%..+100%), p3 = Gain L (-24..+24 dB)
+        // p4 = Attack R, p5 = Sustain R, p6 = Gain R
+        const float attMultL = dbToGain (p1 * 0.15f);
+        const float susMultL = dbToGain (p2 * 0.15f);
+        const float outGainL = dbToGain (p3);
+
+        const float attMultR = dbToGain (p4 * 0.15f);
+        const float susMultR = dbToGain (p5 * 0.15f);
+        const float outGainR = dbToGain (p6);
+
         const float fastCoeff = std::exp (-1.0f / (0.005f * sr));
         const float slowCoeff = std::exp (-1.0f / (0.080f * sr));
 
@@ -1255,14 +1551,14 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
             slowEnvL = aL + slowCoeff * (slowEnvL - aL);
             const float transL = std::max (0.0f, fastEnvL - slowEnvL);
             const float susL = slowEnvL;
-            const float modL = (transL * attMult + susL * susMult) / std::max (0.001f, transL + susL);
+            const float modL = ((transL * attMultL + susL * susMultL) / std::max (0.0005f, transL + susL)) * outGainL;
 
             const float aR = std::abs (chR[i]);
             fastEnvR = aR + fastCoeff * (fastEnvR - aR);
             slowEnvR = aR + slowCoeff * (slowEnvR - aR);
             const float transR = std::max (0.0f, fastEnvR - slowEnvR);
             const float susR = slowEnvR;
-            const float modR = (transR * attMult + susR * susMult) / std::max (0.001f, transR + susR);
+            const float modR = ((transR * attMultR + susR * susMultR) / std::max (0.0005f, transR + susR)) * outGainR;
 
             chL[i] = chL[i] * dry + (chL[i] * modL) * wet;
             chR[i] = chR[i] * dry + (chR[i] * modR) * wet;
@@ -1271,52 +1567,90 @@ void PremiumDynamicsDsp::process (float* chL, float* chR, int numSamples,
     // 6. SPL Vocal De-Esser (Dual / Stereo)
     else if (type == FxType::StereoDeEsser || type == FxType::DualDeEsser)
     {
-        const auto cSib = calcBell (6500.0f, 6.0f, 2.5f, sr); // 6.5 kHz sibilance detector
-        const float thresh = -45.0f + clampf (p1, 0.0f, 100.0f) * 0.45f;
-        const float attCoeff = std::exp (-1.0f / (0.001f * sr)); // 1ms instant attack
-        const float relCoeff = std::exp (-1.0f / (0.050f * sr)); // 50ms release
+        // p1 = Low Ess reduction (0..100), p2 = High Ess reduction (0..100), p3 = Range/Voice (0=Female, 1=Male)
+        const bool isMaleL = (p3 > 0.5f);
+        const float centerFreqL = isMaleL ? 4800.0f : 6800.0f;
+        const auto cSibL = calcBell (centerFreqL, 6.0f, 2.2f, sr);
+        const float threshL = -46.0f + (100.0f - clampf (0.5f * (p1 + p2), 0.0f, 100.0f)) * 0.42f;
+
+        const bool isDual = (type == FxType::DualDeEsser);
+        const bool isMaleR = isDual ? (p6 > 0.5f) : isMaleL;
+        const float centerFreqR = isMaleR ? 4800.0f : 6800.0f;
+        const auto cSibR = calcBell (centerFreqR, 6.0f, 2.2f, sr);
+        const float threshR = isDual
+            ? (-46.0f + (100.0f - clampf (0.5f * (p4 + p5), 0.0f, 100.0f)) * 0.42f)
+            : threshL;
+
+        const float attCoeff = std::exp (-1.0f / (0.001f * sr));
+        const float relCoeff = std::exp (-1.0f / (0.050f * sr));
 
         for (int i = 0; i < numSamples; ++i)
         {
-            const float sibL = sibilanceFiltL.process (chL[i], cSib);
-            const float sibR = sibilanceFiltR.process (chR[i], cSib);
-            const float sibPeak = std::max (std::abs (sibL), std::abs (sibR));
-            const float sibDb = gainToDb (sibPeak);
-            const float over = std::max (0.0f, sibDb - thresh);
+            const float sibL = sibilanceFiltL.process (chL[i], cSibL);
+            const float sibR = sibilanceFiltR.process (chR[i], cSibR);
 
-            if (over > deEssEnv) deEssEnv = over + attCoeff * (deEssEnv - over);
-            else deEssEnv = over + relCoeff * (deEssEnv - over);
+            if (isDual)
+            {
+                const float overL = std::max (0.0f, gainToDb (std::abs (sibL)) - threshL);
+                const float overR = std::max (0.0f, gainToDb (std::abs (sibR)) - threshR);
 
-            // Phase cancellation attenuation on sibilance band
-            const float atten = dbToGain (-deEssEnv * 0.8f);
-            const float cleanL = chL[i] - sibL * (1.0f - atten);
-            const float cleanR = chR[i] - sibR * (1.0f - atten);
+                if (overL > deEssEnv) deEssEnv = overL + attCoeff * (deEssEnv - overL);
+                else deEssEnv = overL + relCoeff * (deEssEnv - overL);
+                if (overR > deEssEnvR) deEssEnvR = overR + attCoeff * (deEssEnvR - overR);
+                else deEssEnvR = overR + relCoeff * (deEssEnvR - overR);
 
-            chL[i] = chL[i] * dry + cleanL * wet;
-            chR[i] = chR[i] * dry + cleanR * wet;
+                const float attenL = dbToGain (-deEssEnv * 0.85f);
+                const float attenR = dbToGain (-deEssEnvR * 0.85f);
+                chL[i] = chL[i] * dry + (chL[i] - sibL * (1.0f - attenL)) * wet;
+                chR[i] = chR[i] * dry + (chR[i] - sibR * (1.0f - attenR)) * wet;
+            }
+            else
+            {
+                const float sibPeak = std::max (std::abs (sibL), std::abs (sibR));
+                const float over = std::max (0.0f, gainToDb (sibPeak) - threshL);
+
+                if (over > deEssEnv) deEssEnv = over + attCoeff * (deEssEnv - over);
+                else deEssEnv = over + relCoeff * (deEssEnv - over);
+
+                const float atten = dbToGain (-deEssEnv * 0.85f);
+                const float cleanL = chL[i] - sibL * (1.0f - atten);
+                const float cleanR = chR[i] - sibR * (1.0f - atten);
+
+                chL[i] = chL[i] * dry + cleanL * wet;
+                chR[i] = chR[i] * dry + cleanR * wet;
+            }
         }
     }
     // 7. Lookahead Precision Mastering Limiter
     else
     {
-        const float threshLinear = dbToGain (-std::max (0.1f, p1 * 0.1f));
+        // p1 = Input Gain (0..18 dB), p2 = Out Ceiling (-18..0 dB), p3 = Squeeze (0..100%), p4 = Knee (0..10 dB), p5 = Attack ms, p6 = Release ms
+        const float inGain = dbToGain (clampf (p1, 0.0f, 18.0f));
+        const float ceilingLinear = dbToGain (clampf (p2, -24.0f, 0.0f));
+        const float squeezeDrive = 1.0f + clampf (p3, 0.0f, 100.0f) * 0.01f;
+        const float relSamples = std::max (16.0f, clampf (p6, 20.0f, 2000.0f) * 0.001f * sr);
+        const float relStep = 1.0f / relSamples;
+
         const int lookaheadLen = (int) lookaheadBufL.size();
         for (int i = 0; i < numSamples; ++i)
         {
-            lookaheadBufL[(size_t) lookaheadWrite] = chL[i];
-            lookaheadBufR[(size_t) lookaheadWrite] = chR[i];
+            const float sL = chL[i] * inGain;
+            const float sR = chR[i] * inGain;
 
-            const float pk = std::max (std::abs (chL[i]), std::abs (chR[i]));
-            if (pk > threshLinear)
-                limiterGain = threshLinear / pk;
+            lookaheadBufL[(size_t) lookaheadWrite] = sL;
+            lookaheadBufR[(size_t) lookaheadWrite] = sR;
+
+            const float pk = std::max (std::abs (sL), std::abs (sR)) * squeezeDrive;
+            if (pk > ceilingLinear && pk > 0.0001f)
+                limiterGain = std::min (limiterGain, ceilingLinear / pk);
             else
-                limiterGain += (1.0f - limiterGain) * 0.005f;
+                limiterGain = std::min (1.0f, limiterGain + (1.0f - limiterGain) * relStep);
 
             int readIdx = lookaheadWrite - (lookaheadLen / 2);
             if (readIdx < 0) readIdx += lookaheadLen;
 
-            const float outL = lookaheadBufL[(size_t) readIdx] * limiterGain;
-            const float outR = lookaheadBufR[(size_t) readIdx] * limiterGain;
+            const float outL = std::tanh (lookaheadBufL[(size_t) readIdx] * limiterGain * squeezeDrive) / squeezeDrive;
+            const float outR = std::tanh (lookaheadBufR[(size_t) readIdx] * limiterGain * squeezeDrive) / squeezeDrive;
 
             if (++lookaheadWrite >= lookaheadLen) lookaheadWrite = 0;
 
@@ -1366,17 +1700,15 @@ void PremiumTubeEqDsp::process (float* chL, float* chR, int numSamples,
     // 1. Pultec EQP-1A Passive Tube Program Equalizer (with authentic Low-End Trick)
     if (type == FxType::StereoXtecEQ1 || type == FxType::DualXtecEQ1 || type == FxType::XtecEq1)
     {
-        // p1 = Low Boost (dB), p2 = Low Freq (Hz), p3 = Low Atten (dB),
-        // p4 = High Atten (dB), p5 = High Boost (dB), p6 = High Freq (Hz)
+        // p1 = Low Boost (0..10), p2 = Low Freq (Hz), p3 = Low Atten (0..10),
+        // p4 = High Atten (0..10), p5 = High Boost (0..10), p6 = High Freq (Hz)
         const float lowFreq = clampf (p2 > 0.0f ? p2 : 60.0f, 20.0f, 150.0f);
         const float highFreq = clampf (p6 > 0.0f ? p6 : 8000.0f, 2000.0f, 16000.0f);
 
-        // Pultec Low-End Trick: Boost is a broad shelf, Atten is a steeper shelf offset by ~1.35x freq.
-        // When both are dialed in, it boosts the deep sub while scooping the muddy 300-400 Hz octave!
-        const auto cBoost = calcLowShelf (lowFreq, p1 * 1.2f, 0.707f, sr);
-        const auto cAtten = calcLowShelf (lowFreq * 1.35f, -p3 * 1.2f, 0.90f, sr);
-        const auto cHighBoost = calcBell (highFreq, p5 * 1.4f, 1.2f, sr);
-        const auto cHighAtten = calcHighShelf (10000.0f, -p4 * 1.2f, 0.707f, sr);
+        const auto cBoost = calcLowShelf (lowFreq, p1 * 1.4f, 0.707f, sr);
+        const auto cAtten = calcLowShelf (lowFreq * 1.35f, -p3 * 1.35f, 0.90f, sr);
+        const auto cHighBoost = calcBell (highFreq, p5 * 1.5f, 1.1f, sr);
+        const auto cHighAtten = calcHighShelf (10000.0f, -p4 * 1.35f, 0.707f, sr);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -1401,16 +1733,13 @@ void PremiumTubeEqDsp::process (float* chL, float* chR, int numSamples,
     // 2. Pultec MEQ-5 Passive Midrange Equalizer
     else if (type == FxType::StereoXtecEQ5 || type == FxType::DualXtecEQ5 || type == FxType::XtecEq5)
     {
-        // Band 1: Low-Mid Peak (200, 300, 500, 700, 1000 Hz)
-        // Band 2: Mid Dip (200 to 7000 Hz)
-        // Band 3: High-Mid Peak (1.5k, 2k, 3k, 4k, 5k Hz)
         const float lowMidF = clampf (p2 > 0.0f ? p2 : 500.0f, 200.0f, 1000.0f);
         const float midDipF = clampf (p4 > 0.0f ? p4 : 1500.0f, 200.0f, 7000.0f);
         const float hiMidF = clampf (p6 > 0.0f ? p6 : 3000.0f, 1500.0f, 5000.0f);
 
-        const auto cLowMid = calcBell (lowMidF, p1 * 1.2f, 1.4f, sr);
-        const auto cMidDip = calcBell (midDipF, -p3 * 1.2f, 1.4f, sr);
-        const auto cHiMid = calcBell (hiMidF, p5 * 1.2f, 1.4f, sr);
+        const auto cLowMid = calcBell (lowMidF, p1 * 1.25f, 1.4f, sr);
+        const auto cMidDip = calcBell (midDipF, -p3 * 1.25f, 1.4f, sr);
+        const auto cHiMid = calcBell (hiMidF, p5 * 1.25f, 1.4f, sr);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -1429,51 +1758,51 @@ void PremiumTubeEqDsp::process (float* chL, float* chR, int numSamples,
     // 3. Aphex Aural Exciter Type C Harmonic Generator
     else if (type == FxType::StereoExciter || type == FxType::DualExciter)
     {
-        // High-pass sidechain at 4 kHz with 2nd and 3rd harmonic generator
-        const auto cHpf = calcHPF (4000.0f, 0.707f, sr);
-        const float drive = dbToGain (clampf (p1, 0.0f, 100.0f) * 0.15f);
+        // p1 = Tune (1kHz..10kHz), p2 = Peak (0..100%), p3 = Zero Fill (0..100%),
+        // p4 = Timbre (-50..+50 odd/even), p5 = Harmonics (0..100%), p6 = Mix (0..100%)
+        const float tuneFreq = clampf (p1 > 150.0f ? p1 : (1000.0f + clampf (p1, 0.0f, 100.0f) * 90.0f), 800.0f, 10000.0f);
+        const float qPeak = 0.707f + clampf (p2, 0.0f, 100.0f) * 0.025f;
+        const auto cHpf = calcHPF (tuneFreq, qPeak, sr);
+        const float drive = dbToGain (clampf (p5 > 0.0f ? p5 : p1, 0.0f, 100.0f) * 0.16f);
+        const float evenWeight = clampf (0.8f - p4 * 0.008f, 0.2f, 1.4f);
+        const float oddWeight = clampf (0.5f + p4 * 0.008f, 0.2f, 1.4f);
+        const float harmMix = wet * clampf ((p6 > 0.0f ? p6 * 0.01f : 0.5f), 0.05f, 1.0f);
 
         for (int i = 0; i < numSamples; ++i)
         {
             const float hL = exciterHpfL.process (chL[i], cHpf);
             const float hR = exciterHpfR.process (chR[i], cHpf);
 
-            // Asymmetric even and odd harmonic saturation for airy sheen
-            const float harmL = (hL * hL * 0.8f + std::sin (hL * 1.6f) * 0.5f) * drive;
-            const float harmR = (hR * hR * 0.8f + std::sin (hR * 1.6f) * 0.5f) * drive;
+            const float harmL = (hL * std::abs (hL) * evenWeight + std::sin (hL * 1.8f) * oddWeight) * drive;
+            const float harmR = (hR * std::abs (hR) * evenWeight + std::sin (hR * 1.8f) * oddWeight) * drive;
 
-            chL[i] = chL[i] + harmL * (wet * 0.45f);
-            chR[i] = chR[i] + harmR * (wet * 0.45f);
+            chL[i] = chL[i] + harmL * harmMix;
+            chR[i] = chR[i] + harmR * harmMix;
         }
     }
-    // 4. BBE Sonic Maximizer 882i (3-Band Group Delay Phase Alignment & Contour)
+    // 4. BBE Sonic Maximizer 882i / SPL Vitalizer Stereo Enhancer
     else if (type == FxType::SoundMaxer || type == FxType::StereoEnhancer || type == FxType::DualEnhancer)
     {
-        // Split into:
-        // - Low band (< 150 Hz): Delayed by ~2.5 ms (120 samples) to align speaker group delay
-        // - Mid band (150 Hz - 2.5 kHz): Passed through
-        // - High band (> 2.5 kHz): Dynamic harmonic contour
-        const auto cLowX = calcLPF (150.0f, 0.707f, sr);
-        const auto cHighX = calcHPF (2500.0f, 0.707f, sr);
+        const float bassFreq = (type == FxType::SoundMaxer) ? 150.0f : clampf (p3 > 10.0f ? p3 : 120.0f, 40.0f, 400.0f);
+        const float highFreq = (type == FxType::SoundMaxer) ? 2500.0f : clampf (p5 > 100.0f ? p5 : 2500.0f, 1000.0f, 8000.0f);
+        const auto cLowX = calcLPF (bassFreq, 0.707f, sr);
+        const auto cHighX = calcHPF (highFreq, 0.707f, sr);
 
         const int bbeDelaySamples = (int) clampf (0.0025f * sr, 16.0f, (float) bbeLowBufL.size() - 1);
-        const float lowDrive = dbToGain (clampf (p1, -50.0f, 50.0f) * 0.12f);
-        const float highDrive = dbToGain (clampf (p2, -50.0f, 50.0f) * 0.12f);
+        const float lowDrive = dbToGain (clampf (p1, -50.0f, 100.0f) * 0.12f);
+        const float highDrive = dbToGain (clampf (p2, -50.0f, 100.0f) * 0.12f);
+        const float outGain = (type == FxType::SoundMaxer) ? dbToGain (clampf (p3, -12.0f, 12.0f)) : 1.0f;
         const int bbeMax = (int) bbeLowBufL.size();
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Low band
             const float lowL = bbeLpfL.process (chL[i], cLowX);
             const float lowR = bbeLpfR.process (chR[i], cLowX);
-            // High band
             const float highL = bbeHpfL.process (chL[i], cHighX);
             const float highR = bbeHpfR.process (chR[i], cHighX);
-            // Mid band
             const float midL = chL[i] - (lowL + highL);
             const float midR = chR[i] - (lowR + highR);
 
-            // Circular delay buffer for low frequencies
             bbeLowBufL[(size_t) bbeWrite] = lowL;
             bbeLowBufR[(size_t) bbeWrite] = lowR;
 
@@ -1485,12 +1814,11 @@ void PremiumTubeEqDsp::process (float* chL, float* chR, int numSamples,
 
             if (++bbeWrite >= bbeMax) bbeWrite = 0;
 
-            // High frequency harmonic expansion
             const float contourHighL = (highL + 0.15f * highL * std::abs (highL)) * highDrive;
             const float contourHighR = (highR + 0.15f * highR * std::abs (highR)) * highDrive;
 
-            const float outBbeL = delayedLowL + midL + contourHighL;
-            const float outBbeR = delayedLowR + midR + contourHighR;
+            const float outBbeL = (delayedLowL + midL + contourHighL) * outGain;
+            const float outBbeR = (delayedLowR + midR + contourHighR) * outGain;
 
             chL[i] = chL[i] * dry + outBbeL * wet;
             chR[i] = chR[i] * dry + outBbeR * wet;
@@ -1511,6 +1839,7 @@ void PremiumUtilityAmpDsp::reset()
     toneBassL.reset(); toneBassR.reset();
     toneMidL.reset(); toneMidR.reset();
     toneTrebleL.reset(); toneTrebleR.reset();
+    tonePresenceL.reset(); tonePresenceR.reset();
 
     cabResoL.reset(); cabResoR.reset();
     cabScoopL.reset(); cabScoopR.reset();
@@ -1519,11 +1848,22 @@ void PremiumUtilityAmpDsp::reset()
     lastInSignL = 1.0f;
     subCycleCountL = 0;
     subSquareL = 1.0f;
+    subCycleCount2L = 0;
+    subSquare2L = 1.0f;
+
+    lastInSignR = 1.0f;
+    subCycleCountR = 0;
+    subSquareR = 1.0f;
+    subCycleCount2R = 0;
+    subSquare2R = 1.0f;
+
     subLpfL.reset(); subLpfR.reset();
+    subLpf2L.reset(); subLpf2R.reset();
 }
 
 void PremiumUtilityAmpDsp::process (float* chL, float* chR, int numSamples,
-                                    FxType type, float p1, float p2, float p3, float p4, float mixNorm)
+                                    FxType type, float p1, float p2, float p3, float p4, float mixNorm,
+                                    float p5, float p6)
 {
     const float wet = mixNorm;
     const float dry = 1.0f - wet;
@@ -1531,44 +1871,42 @@ void PremiumUtilityAmpDsp::process (float* chL, float* chR, int numSamples,
     // 1. Marshall JCM800 / Fender Twin Tube Amp & Celestion 4x12 Cabinet
     if (type == FxType::GuitarAmp || type == FxType::StereoGuitarAmp || type == FxType::DualGuitarAmp)
     {
-        // p1 = Drive, p2 = Bass, p3 = Mid, p4 = Treble
+        // p1 = Preamp Drive, p2 = Bass, p3 = Mid, p4 = Treble, p5 = Presence, p6 = Master Out
         const float drive = dbToGain (clampf (p1, 0.0f, 100.0f) * 0.35f);
-        // 3-Band Tone Stack
+        const float masterGain = dbToGain ((clampf (p6, 0.0f, 100.0f) - 50.0f) * 0.25f);
         const auto cBass = calcLowShelf (100.0f, (p2 - 50.0f) * 0.25f, 0.707f, sr);
         const auto cMid = calcBell (600.0f, (p3 - 50.0f) * 0.25f, 1.0f, sr);
-        const auto cTreble = calcHighShelf (3500.0f, (p4 - 50.0f) * 0.25f, 0.707f, sr);
+        const auto cTreble = calcHighShelf (3200.0f, (p4 - 50.0f) * 0.25f, 0.707f, sr);
+        const auto cPresence = calcBell (4500.0f, (p5 - 50.0f) * 0.22f, 1.2f, sr);
 
-        // Celestion 4x12 closed-back cabinet impulse response curve:
-        // 110 Hz low punch resonance, 400 Hz cone scoop, 2.8 kHz presence peak, 5.5 kHz 4th-order roll-off
         const auto cCabReso = calcBell (110.0f, 4.5f, 1.8f, sr);
         const auto cCabScoop = calcBell (400.0f, -3.5f, 1.2f, sr);
         const auto cCabRollOff = calcLPF (5500.0f, 0.707f, sr);
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // 12AX7 dual triode preamp asymmetric clipping with warm grid conduction
             const float xL = chL[i] * drive;
             const float distL = std::tanh (xL + 0.15f) - 0.15f + 0.08f * xL * xL;
             const float xR = chR[i] * drive;
             const float distR = std::tanh (xR + 0.15f) - 0.15f + 0.08f * xR * xR;
 
-            // Tone Stack
             float eqL = toneBassL.process (distL, cBass);
             eqL = toneMidL.process (eqL, cMid);
             eqL = toneTrebleL.process (eqL, cTreble);
+            eqL = tonePresenceL.process (eqL, cPresence);
 
             float eqR = toneBassR.process (distR, cBass);
             eqR = toneMidR.process (eqR, cMid);
             eqR = toneTrebleR.process (eqR, cTreble);
+            eqR = tonePresenceR.process (eqR, cPresence);
 
-            // Celestion 4x12 Cabinet resonance
             float cabL = cabResoL.process (eqL, cCabReso);
             cabL = cabScoopL.process (cabL, cCabScoop);
-            cabL = cabRollOffL.process (cabL, cCabRollOff);
+            cabL = cabRollOffL.process (cabL, cCabRollOff) * masterGain;
 
             float cabR = cabResoR.process (eqR, cCabReso);
             cabR = cabScoopR.process (cabR, cCabScoop);
-            cabR = cabRollOffR.process (cabR, cCabRollOff);
+            cabR = cabRollOffR.process (cabR, cCabRollOff) * masterGain;
 
             chL[i] = chL[i] * dry + cabL * wet;
             chR[i] = chR[i] * dry + cabR * wet;
@@ -1577,72 +1915,110 @@ void PremiumUtilityAmpDsp::process (float* chL, float* chR, int numSamples,
     // 2. Telefunken VF14 Analog Triode Tube Valve Saturation
     else if (type == FxType::TubeStage || type == FxType::StereoTubeStage || type == FxType::DualTubeStage)
     {
-        const float drive = dbToGain (clampf (p1, 0.0f, 100.0f) * 0.22f);
-        const float outTrim = dbToGain (p2 * 0.1f);
+        // p1 = Drive (0..100), p2 = Even Harm (0..100), p3 = Odd Harm (0..100), p4 = Bias (-50..50), p5 = Bass (-12..12), p6 = Treble (-12..12)
+        const float drive = dbToGain (clampf (p1, 0.0f, 100.0f) * 0.24f);
+        const float evenAmt = clampf (p2, 0.0f, 100.0f) * 0.003f;
+        const float oddAmt = clampf (p3, 0.0f, 100.0f) * 0.003f;
+        const float biasOffset = clampf (p4, -50.0f, 50.0f) * 0.003f;
+        const auto cBass = calcLowShelf (120.0f, clampf (p5, -12.0f, 12.0f), 0.707f, sr);
+        const auto cTreble = calcHighShelf (4500.0f, clampf (p6, -12.0f, 12.0f), 0.707f, sr);
+
         for (int i = 0; i < numSamples; ++i)
         {
-            const float xL = chL[i] * drive;
-            const float satL = ((xL + 0.18f * xL * xL) / (1.0f + std::abs (xL))) * outTrim;
-            const float xR = chR[i] * drive;
-            const float satR = ((xR + 0.18f * xR * xR) / (1.0f + std::abs (xR))) * outTrim;
+            const float xL = chL[i] * drive + biasOffset;
+            const float satL = std::tanh (xL * (1.0f + oddAmt)) - biasOffset + evenAmt * xL * std::abs (xL);
+            const float xR = chR[i] * drive + biasOffset;
+            const float satR = std::tanh (xR * (1.0f + oddAmt)) - biasOffset + evenAmt * xR * std::abs (xR);
 
-            chL[i] = chL[i] * dry + satL * wet;
-            chR[i] = chR[i] * dry + satR * wet;
+            const float outL = toneTrebleL.process (toneBassL.process (satL, cBass), cTreble);
+            const float outR = toneTrebleR.process (toneBassR.process (satR, cBass), cTreble);
+
+            chL[i] = chL[i] * dry + outL * wet;
+            chR[i] = chR[i] * dry + outR * wet;
         }
     }
     // 3. Boss OC-2 Analog Dual Flip-Flop Sub-Octaver Synthesizer
     else if (type == FxType::Suboctaver)
     {
-        // 24dB Butterworth LPF smoothing at 80 Hz
-        const auto cSubLpf = calcLPF (80.0f, 0.707f, sr);
+        // p1 = Direct (0..100%), p2 = Oct -1 (0..100%), p3 = Oct -2 (0..100%), p4 = Range (0=Low,1=Mid,2=Hi)
+        const float directGain = clampf (p1 * 0.01f, 0.0f, 1.0f);
+        const float oct1Gain = clampf (p2 * 0.01f, 0.0f, 1.2f);
+        const float oct2Gain = clampf (p3 * 0.01f, 0.0f, 1.2f);
+        const float cutoffHz = (p4 >= 1.5f) ? 180.0f : ((p4 >= 0.5f) ? 120.0f : 75.0f);
+        const auto cSubLpf = calcLPF (cutoffHz, 0.707f, sr);
+
         for (int i = 0; i < numSamples; ++i)
         {
-            const float sign = chL[i] >= 0.0f ? 1.0f : -1.0f;
-            if (sign != lastInSignL && sign > 0.0f)
+            const float inL = chL[i];
+            const float inR = chR[i];
+
+            const float signL = inL >= 0.0f ? 1.0f : -1.0f;
+            if (signL != lastInSignL && signL > 0.0f)
             {
                 if (++subCycleCountL >= 2)
                 {
                     subCycleCountL = 0;
                     subSquareL = -subSquareL;
+                    if (++subCycleCount2L >= 2)
+                    {
+                        subCycleCount2L = 0;
+                        subSquare2L = -subSquare2L;
+                    }
                 }
             }
-            lastInSignL = sign;
+            lastInSignL = signL;
 
-            const float subSignal = subLpfL.process (subSquareL * std::abs (chL[i]), cSubLpf);
-            chL[i] = chL[i] + subSignal * (wet * 0.75f);
-            chR[i] = chR[i] + subSignal * (wet * 0.75f);
+            const float signR = inR >= 0.0f ? 1.0f : -1.0f;
+            if (signR != lastInSignR && signR > 0.0f)
+            {
+                if (++subCycleCountR >= 2)
+                {
+                    subCycleCountR = 0;
+                    subSquareR = -subSquareR;
+                    if (++subCycleCount2R >= 2)
+                    {
+                        subCycleCount2R = 0;
+                        subSquare2R = -subSquare2R;
+                    }
+                }
+            }
+            lastInSignR = signR;
+
+            const float envL = std::abs (inL);
+            const float envR = std::abs (inR);
+            const float sub1L = subLpfL.process (subSquareL * envL, cSubLpf) * oct1Gain;
+            const float sub2L = subLpf2L.process (subSquare2L * envL, cSubLpf) * oct2Gain;
+            const float sub1R = subLpfR.process (subSquareR * envR, cSubLpf) * oct1Gain;
+            const float sub2R = subLpf2R.process (subSquare2R * envR, cSubLpf) * oct2Gain;
+
+            const float wetL = inL * directGain + sub1L + sub2L;
+            const float wetR = inR * directGain + sub1R + sub2R;
+
+            chL[i] = inL * dry + wetL * wet;
+            chR[i] = inR * dry + wetR * wet;
         }
     }
     // 4. Edison EX1 / Stereo Imager (Mid/Side width & Mono-Bass Centering)
     else if (type == FxType::EdisonEX1 || type == FxType::StereoImager)
     {
-        const float width = clampf (p1 * 0.02f, 0.0f, 2.5f); // 0 = Mono, 1 = Normal, 2 = Ultra-wide
+        // p1 = Width / Spread, p2 = Balance / Low Spread, p3 = Center / X-Over, p4 = Output Gain
+        const float width = clampf (p1 * 0.02f, 0.0f, 2.5f);
+        const float centerGain = dbToGain ((clampf (p3, 0.0f, 100.0f) - 50.0f) * 0.15f);
+        const float outGain = dbToGain (clampf (p4, -12.0f, 12.0f));
         const auto cMonoBass = calcLPF (120.0f, 0.707f, sr);
 
         for (int i = 0; i < numSamples; ++i)
         {
-            const float mid = 0.5f * (chL[i] + chR[i]);
+            const float mid = 0.5f * (chL[i] + chR[i]) * centerGain;
             float side = 0.5f * (chL[i] - chR[i]) * width;
 
-            // Mono bass centering: eliminate out-of-phase rumble below 120 Hz
             const float lowSide = subLpfL.process (side, cMonoBass);
-            side -= lowSide;
+            side -= lowSide * 0.85f;
 
-            chL[i] = mid + side;
-            chR[i] = mid - side;
-        }
-    }
-    else
-    {
-        // Sound Maxer
-        const float drive = dbToGain (clampf (p1, 0.0f, 100.0f) * 0.05f);
-        const float ceiling = dbToGain (-clampf (p2, 0.0f, 100.0f) * 0.08f);
-        for (int i = 0; i < numSamples; ++i)
-        {
-            const float maxL = std::tanh (chL[i] * drive) * ceiling;
-            const float maxR = std::tanh (chR[i] * drive) * ceiling;
-            chL[i] = chL[i] * dry + maxL * wet;
-            chR[i] = chR[i] * dry + maxR * wet;
+            const float outL = (mid + side) * outGain;
+            const float outR = (mid - side) * outGain;
+            chL[i] = chL[i] * dry + outL * wet;
+            chR[i] = chR[i] * dry + outR * wet;
         }
     }
 }
@@ -1674,6 +2050,24 @@ void FxSlotProcessor::reset()
     tubeEq.reset();
     utilityAmp.reset();
 }
+
+namespace
+{
+// Helper: detect if a parameter is stored as UI-normalized [0..1] vs physical units
+inline float mapNormOrRaw (float val, float minPhys, float maxPhys, bool isNormalized)
+{
+    if (isNormalized)
+        return minPhys + clampf (val, 0.0f, 1.0f) * (maxPhys - minPhys);
+    return clampf (val, minPhys, maxPhys);
+}
+
+inline float mapExpNormOrRaw (float val, float minPhys, float maxPhys, bool isNormalized)
+{
+    if (isNormalized)
+        return minPhys * std::pow (maxPhys / minPhys, clampf (val, 0.0f, 1.0f));
+    return clampf (val, minPhys, maxPhys);
+}
+} // namespace
 
 void FxSlotProcessor::process (const float* inL, const float* inR,
                               float* outL, float* outR,
@@ -1721,59 +2115,412 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
         case FxType::DualEnhancer: dspType = FxType::StereoEnhancer; break;
         case FxType::DualGuitarAmp: dspType = FxType::StereoGuitarAmp; break;
         case FxType::DualTubeStage: dspType = FxType::StereoTubeStage; break;
-        case FxType::DualPitch: dspType = FxType::StereoPitch; break;
-        case FxType::DualUltimoCompressor: dspType = FxType::UltimoCompressor; break;
-        case FxType::DualLeisureCompressor: dspType = FxType::StereoLeisureCompressor; break;
-        case FxType::DualFairCompressor: dspType = FxType::FairCompressor; break;
         case FxType::DualCombinator: dspType = FxType::Combinator; break;
         default: break;
     }
     const auto meta = getFxMetadata (type);
     const float mixVal = params.mix.get();
 
-    // Route to specialized DSP processor
-    switch (meta.category)
+    const float rawP1 = params.p1.get();
+    const float rawP2 = params.p2.get();
+    const float rawP3 = params.p3.get();
+    const float rawP4 = params.p4.get();
+    const float rawP5 = params.p5.get();
+    const float rawP6 = params.p6.get();
+    const float rawP7 = params.p7.get();
+    const float rawP8 = params.p8.get();
+    const float rawP9 = params.p9.get();
+    const float rawP10 = params.p10.get();
+    const float rawP11 = params.p11.get();
+    const float rawP12 = params.p12.get();
+
+    // Detect if UI wrote normalized [0.0..1.0] values vs legacy raw test values (> 1.0f)
+    const bool norm16 = (std::abs (rawP1) <= 1.0f && std::abs (rawP2) <= 1.0f
+                      && std::abs (rawP3) <= 1.0f && std::abs (rawP4) <= 1.0f
+                      && std::abs (rawP5) <= 1.0f && std::abs (rawP6) <= 1.0f);
+
+    // 1. Handle Combination Effects (Multi-Engine Chained Processing)
+    if (type == FxType::DelayAndChamber || type == FxType::ChorusAndChamber || type == FxType::FlangerAndChamber)
+    {
+        // p1=Delay/Speed, p2=Fback/Depth, p3=LoCut/ChorusMix, p4=PreDel, p5=Decay, p6=RevMix
+        const float revPreDel = mapNormOrRaw (rawP4, 0.0f, 100.0f, norm16);
+        const float revDecay = mapNormOrRaw (rawP5, 0.2f, 5.0f, norm16);
+        const float revMix = clampf ((norm16 ? rawP6 : rawP6 * 0.01f) * mixVal, 0.0f, 1.0f);
+
+        if (type == FxType::DelayAndChamber)
+        {
+            const float dlyTime = mapNormOrRaw (rawP1, 10.0f, 1500.0f, norm16);
+            const float dlyFb = mapNormOrRaw (rawP2, 0.0f, 90.0f, norm16);
+            const float dlyLoCut = mapExpNormOrRaw (rawP3, 20.0f, 500.0f, norm16);
+            delay.process (workL.data(), workR.data(), numSamples, FxType::StereoDelay,
+                           dlyTime, dlyFb, 0.5f, 12000.0f, 50.0f, mixVal * 0.5f, dlyLoCut);
+        }
+        else if (type == FxType::ChorusAndChamber)
+        {
+            const float chSpeed = mapExpNormOrRaw (rawP1, 0.05f, 5.0f, norm16);
+            const float chDepth = mapNormOrRaw (rawP2, 0.0f, 100.0f, norm16);
+            const float chMix = clampf ((norm16 ? rawP3 : rawP3 * 0.01f) * mixVal, 0.0f, 1.0f);
+            modulation.process (workL.data(), workR.data(), numSamples, FxType::StereoChorus,
+                                chSpeed, chDepth, 5.0f, 90.0f, chMix);
+        }
+        else // FlangerAndChamber
+        {
+            const float flSpeed = mapExpNormOrRaw (rawP1, 0.05f, 5.0f, norm16);
+            const float flDepth = mapNormOrRaw (rawP2, 0.0f, 100.0f, norm16);
+            const float flFb = mapNormOrRaw (rawP3, -90.0f, 90.0f, norm16);
+            modulation.process (workL.data(), workR.data(), numSamples, FxType::StereoFlanger,
+                                flSpeed, flDepth, flFb, 90.0f, mixVal * 0.5f);
+        }
+
+        reverb.process (workL.data(), workR.data(), numSamples, FxType::ChamberReverb,
+                        revDecay, revPreDel, 0.45f, 0.65f, 0.80f, 0.0f, revMix);
+    }
+    else if (type == FxType::DelayAndChorus || type == FxType::DelayAndFlanger || type == FxType::ModulationDelay)
+    {
+        const float dlyTime = mapNormOrRaw (rawP1, 10.0f, 2000.0f, norm16);
+        const float dlyFb = mapNormOrRaw (rawP2, 0.0f, 95.0f, norm16);
+
+        if (type == FxType::ModulationDelay)
+        {
+            const float hiCut = mapExpNormOrRaw (rawP5, 1000.0f, 20000.0f, norm16);
+            const float modDepth = mapNormOrRaw (rawP3, 0.0f, 100.0f, norm16);
+            const float modSpeed = mapExpNormOrRaw (rawP4, 0.1f, 8.0f, norm16);
+            delay.process (workL.data(), workR.data(), numSamples, FxType::ModulationDelay,
+                           dlyTime, dlyFb, 0.5f, hiCut, 50.0f, mixVal);
+            modulation.process (workL.data(), workR.data(), numSamples, FxType::StereoChorus,
+                                modSpeed, modDepth, 3.0f, 90.0f, mixVal * 0.4f);
+        }
+        else if (type == FxType::DelayAndChorus)
+        {
+            const float chSpeed = mapExpNormOrRaw (rawP3, 0.05f, 5.0f, norm16);
+            const float chDepth = mapNormOrRaw (rawP4, 0.0f, 100.0f, norm16);
+            const float modMix = clampf ((norm16 ? rawP5 : rawP5 * 0.01f) * mixVal, 0.0f, 1.0f);
+            delay.process (workL.data(), workR.data(), numSamples, FxType::StereoDelay,
+                           dlyTime, dlyFb, 0.5f, 12000.0f, 50.0f, mixVal * 0.6f);
+            modulation.process (workL.data(), workR.data(), numSamples, FxType::StereoChorus,
+                                chSpeed, chDepth, 4.0f, 90.0f, modMix);
+        }
+        else // DelayAndFlanger
+        {
+            const float flSpeed = mapExpNormOrRaw (rawP3, 0.05f, 5.0f, norm16);
+            const float flDepth = mapNormOrRaw (rawP4, 0.0f, 100.0f, norm16);
+            const float flFb = mapNormOrRaw (rawP5, -90.0f, 90.0f, norm16);
+            const float modMix = clampf ((norm16 ? rawP6 : rawP6 * 0.01f) * mixVal, 0.0f, 1.0f);
+            delay.process (workL.data(), workR.data(), numSamples, FxType::StereoDelay,
+                           dlyTime, dlyFb, 0.5f, 12000.0f, 50.0f, mixVal * 0.6f);
+            modulation.process (workL.data(), workR.data(), numSamples, FxType::StereoFlanger,
+                                flSpeed, flDepth, flFb, 90.0f, modMix);
+        }
+    }
+    // 2. Standard Category Routing with Normalized + Physical Parameter Mapping
+    else switch (meta.category)
     {
         case FxCategory::Reverb:
+        {
+            // UI LARC Reverb order: p1=PRE DEL, p2=DECAY, p3=SIZE, p4=DAMP/F.BACK, p5=DIFFUSE/LO CUT, p6=LEVEL
+            // Legacy raw order: p1=decaySec (1.8), p2=preDelayMs (24), p3=damping (0.4), p4=size (0.7), p5=diff (0.8), p6=levelDb (0)
+            const bool isUiLarcOrder = (rawP1 <= 1.0f && rawP2 <= 1.0f && rawP3 <= 1.0f && rawP4 <= 1.0f && rawP5 <= 1.0f && rawP6 <= 1.0f)
+                                    && !(std::abs (rawP1 - 1.8f) < 0.01f && std::abs (rawP2 - 24.0f) < 0.1f);
+
+            float decaySec = 1.8f, preDelayMs = 24.0f, dampingNorm = 0.4f, sizeNorm = 0.7f, diffNorm = 0.8f, levelDb = 0.0f;
+            if (isUiLarcOrder)
+            {
+                preDelayMs = rawP1 * 200.0f;
+                decaySec = 0.2f + rawP2 * 9.8f;
+                sizeNorm = rawP3 * 100.0f;
+                dampingNorm = rawP4 * 100.0f;
+                diffNorm = rawP5 * 100.0f;
+                levelDb = (rawP6 - 0.5f) * 24.0f;
+            }
+            else
+            {
+                decaySec = rawP1;
+                preDelayMs = rawP2;
+                dampingNorm = rawP3;
+                sizeNorm = rawP4;
+                diffNorm = rawP5;
+                levelDb = rawP6;
+            }
+
+            const float loCutHz = mapExpNormOrRaw (rawP7, 20.0f, 500.0f, rawP7 <= 1.0f);
+            const float hiCutHz = mapExpNormOrRaw (rawP8, 1500.0f, 20000.0f, rawP8 <= 1.0f);
+            const float bassMult = mapNormOrRaw (rawP9, 0.5f, 2.0f, rawP9 <= 1.0f);
+            const float spread = mapNormOrRaw (rawP10, 0.0f, 100.0f, rawP10 <= 1.0f);
+            const float spinNorm = mapNormOrRaw (rawP11, 0.0f, 100.0f, rawP11 <= 1.0f);
+            const float echoLMs = mapNormOrRaw (params.p13.get(), 0.0f, 500.0f, params.p13.get() <= 1.0f);
+            const float echoRMs = mapNormOrRaw (params.p14.get(), 0.0f, 500.0f, params.p14.get() <= 1.0f);
+            const float echoFbL = mapNormOrRaw (params.p15.get(), 0.0f, 90.0f, params.p15.get() <= 1.0f);
+            const float echoFbR = mapNormOrRaw (params.p16.get(), 0.0f, 90.0f, params.p16.get() <= 1.0f);
+
             reverb.process (workL.data(), workR.data(), numSamples, dspType,
-                            params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(),
-                            params.p5.get(), params.p6.get(), mixVal);
+                            decaySec, preDelayMs, dampingNorm, sizeNorm, diffNorm, levelDb, mixVal,
+                            loCutHz, hiCutHz, bassMult, spread, spinNorm,
+                            echoLMs, echoRMs, echoFbL, echoFbR);
             break;
+        }
 
         case FxCategory::Delay:
+        {
+            const float timeMs = mapNormOrRaw (rawP1, 5.0f, 2500.0f, norm16);
+            const float fbPct = mapNormOrRaw (rawP2, 0.0f, 95.0f, norm16);
+            const float ratio = norm16 ? (0.25f + rawP3 * 0.75f) : rawP3;
+            const float hiCutHz = norm16 ? mapExpNormOrRaw (rawP5, 1000.0f, 20000.0f, true) : rawP4;
+            const float loCutHz = norm16 ? mapExpNormOrRaw (rawP4, 20.0f, 800.0f, true) : 20.0f;
+            const float crossPct = norm16 ? (rawP6 * 100.0f) : rawP5;
+
             delay.process (workL.data(), workR.data(), numSamples, dspType,
-                           params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(), params.p5.get(), mixVal);
+                           timeMs, fbPct, ratio, hiCutHz, crossPct, mixVal, loCutHz);
             break;
+        }
 
         case FxCategory::Modulation:
+        {
+            const float speedHz = mapExpNormOrRaw (rawP1, 0.05f, 8.0f, norm16);
+            const float depthPct = mapNormOrRaw (rawP2, 0.0f, 100.0f, norm16);
+            float p3Phys = rawP3;
+            float p4Phys = rawP4;
+
+            if (norm16)
+            {
+                if (type == FxType::StereoPhaser)
+                {
+                    p3Phys = 200.0f + rawP3 * 2000.0f; // Base resonance Hz
+                    p4Phys = (rawP4 - 0.5f) * 180.0f;  // Feedback %
+                }
+                else if (type == FxType::MoodFilter)
+                {
+                    p3Phys = 80.0f * std::pow (40.0f, rawP3); // Cutoff 80..3200 Hz
+                    p4Phys = rawP4 * 100.0f;                  // Env Sens %
+                }
+                else if (type == FxType::RotarySpeakerCabinet)
+                {
+                    p3Phys = rawP3 * 100.0f; // Distance / Tone
+                    p4Phys = rawP4 * 100.0f; // Fast brake toggle
+                }
+                else if (type == FxType::TremoloPanner)
+                {
+                    p3Phys = rawP3 * 180.0f; // Stereo phase
+                    p4Phys = rawP4 * 100.0f; // Wave shape
+                }
+                else
+                {
+                    p3Phys = 0.5f + rawP3 * 25.0f; // Delay ms / Feedback
+                    p4Phys = rawP4 * 180.0f;       // Phase deg
+                }
+            }
+
             modulation.process (workL.data(), workR.data(), numSamples, dspType,
-                                params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(), mixVal);
+                                speedHz, depthPct, p3Phys, p4Phys, mixVal);
             break;
+        }
 
         case FxCategory::Pitch:
-            pitchShifter.process (workL.data(), workR.data(), numSamples, params.p1.get(), mixVal);
+        {
+            if (type == FxType::DualPitch)
+            {
+                const float semi1 = norm16 ? std::round ((rawP1 - 0.5f) * 24.0f) : rawP1;
+                const float cent1 = norm16 ? ((rawP2 - 0.5f) * 100.0f) : rawP2;
+                const float dly1 = norm16 ? (rawP3 * 100.0f) : rawP3;
+                const float semi2 = norm16 ? std::round ((rawP4 - 0.5f) * 24.0f) : rawP4;
+                const float cent2 = norm16 ? ((rawP5 - 0.5f) * 100.0f) : rawP5;
+                const float dly2 = norm16 ? (rawP6 * 100.0f) : rawP6;
+                pitchShifter.processDual (workL.data(), workR.data(), numSamples,
+                                          semi1, cent1, dly1, 85.0f, 25.0f,
+                                          semi2, cent2, dly2, 85.0f, 75.0f, mixVal);
+            }
+            else
+            {
+                const float semi = norm16 ? (std::round ((rawP1 - 0.5f) * 24.0f) + (rawP2 - 0.5f)) : rawP1;
+                pitchShifter.process (workL.data(), workR.data(), numSamples, semi, mixVal);
+            }
             break;
+        }
 
         case FxCategory::GraphicEQ:
             graphicEq.process (workL.data(), workR.data(), numSamples,
-                               params.geqGainsL, params.geqGainsR, (type == FxType::StereoGEQ || type == FxType::StereoTruEQ));
+                               params.geqGainsL, params.geqGainsR,
+                               (type == FxType::StereoGEQ || type == FxType::StereoTruEQ),
+                               (type == FxType::StereoTruEQ || type == FxType::DualTruEQ));
             break;
 
         case FxCategory::PremiumDynamics:
+        {
+            float p1 = rawP1, p2 = rawP2, p3 = rawP3, p4 = rawP4, p5 = rawP5, p6 = rawP6;
+            if (norm16)
+            {
+                if (type == FxType::WaveDesigner)
+                {
+                    p1 = (rawP1 - 0.5f) * 200.0f; // -100..+100%
+                    p2 = (rawP2 - 0.5f) * 200.0f;
+                    p3 = (rawP3 - 0.5f) * 24.0f;  // -12..+12 dB
+                    p4 = (rawP4 - 0.5f) * 200.0f;
+                    p5 = (rawP5 - 0.5f) * 200.0f;
+                    p6 = (rawP6 - 0.5f) * 24.0f;
+                }
+                else if (type == FxType::PrecisionLimiter)
+                {
+                    p1 = rawP1 * 18.0f;           // Input Gain 0..18 dB
+                    p2 = -18.0f + rawP2 * 18.0f;  // Out Ceiling -18..0 dB
+                    p3 = rawP3 * 100.0f;          // Squeeze %
+                    p4 = rawP4 * 10.0f;           // Knee dB
+                    p5 = 0.05f + rawP5 * 10.0f;   // Attack ms
+                    p6 = 20.0f + rawP6 * 980.0f;  // Release ms
+                }
+                else if (type == FxType::UltimoCompressor || type == FxType::DualUltimoCompressor)
+                {
+                    p1 = rawP1 * 100.0f;
+                    p2 = rawP2 * 100.0f;
+                    // Ratio step: 4, 8, 12, 20, All-Buttons(24)
+                    p3 = (rawP6 > 0.5f) ? 24.0f : (4.0f + rawP5 * 16.0f);
+                    p4 = rawP3 * 100.0f; // Attack
+                    p5 = rawP4 * 100.0f; // Release
+                }
+                else if (type == FxType::FairCompressor || type == FxType::DualFairCompressor || type == FxType::MsFairCompressor)
+                {
+                    p1 = rawP1 * 100.0f;
+                    p2 = rawP3 * 100.0f;          // Gain
+                    p3 = rawP4 * 100.0f;          // DC Bias
+                    p4 = 1.0f + rawP2 * 5.0f;     // Time Const 1..6
+                    p5 = rawP5 * 100.0f;          // Balance
+                }
+                else if (type == FxType::Combinator || type == FxType::DualCombinator)
+                {
+                    p1 = rawP1 * 100.0f;
+                    p2 = rawP2 * 100.0f;
+                    p3 = 1.5f + rawP3 * 8.5f;     // Ratio
+                    p4 = rawP4 * 100.0f;          // Attack
+                    p5 = rawP5 * 100.0f;          // Release
+                    p6 = rawP6 * 100.0f;          // X-Over
+                }
+                else // LA-2A & De-Esser
+                {
+                    p1 = rawP1 * 100.0f;
+                    p2 = rawP2 * 100.0f;
+                    p3 = rawP3;
+                    p4 = rawP4 * 100.0f;
+                    p5 = rawP5 * 100.0f;
+                    p6 = rawP6;
+                }
+            }
             dynamics.process (workL.data(), workR.data(), numSamples, dspType,
-                              params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(), mixVal);
+                              p1, p2, p3, p4, mixVal, p5, p6);
             break;
+        }
 
         case FxCategory::PremiumTubeEq:
+        {
+            float p1 = rawP1, p2 = rawP2, p3 = rawP3, p4 = rawP4, p5 = rawP5, p6 = rawP6;
+            if (norm16)
+            {
+                if (type == FxType::StereoXtecEQ1 || type == FxType::DualXtecEQ1 || type == FxType::XtecEq1)
+                {
+                    // UI order: p1=LO FREQ, p2=LO BOOST, p3=LO ATTEN, p4=HI Q, p5=HI FREQ, p6=HI BOOST
+                    const float loFreqs[4] = { 20.0f, 30.0f, 60.0f, 100.0f };
+                    const float hiFreqs[7] = { 3000.0f, 4000.0f, 5000.0f, 8000.0f, 10000.0f, 12000.0f, 16000.0f };
+                    p2 = loFreqs[std::clamp ((int) std::round (rawP1 * 3.0f), 0, 3)];
+                    p1 = rawP2 * 10.0f;
+                    p3 = rawP3 * 10.0f;
+                    p4 = rawP4 * 10.0f;
+                    p6 = hiFreqs[std::clamp ((int) std::round (rawP5 * 6.0f), 0, 6)];
+                    p5 = rawP6 * 10.0f;
+                }
+                else if (type == FxType::StereoXtecEQ5 || type == FxType::DualXtecEQ5 || type == FxType::XtecEq5)
+                {
+                    // UI order: p1=LM FREQ, p2=LM PEAK, p3=MID FREQ, p4=MID DIP, p5=HM FREQ, p6=HM PEAK
+                    p2 = 200.0f + rawP1 * 800.0f;
+                    p1 = rawP2 * 10.0f;
+                    p4 = 200.0f + rawP3 * 6800.0f;
+                    p3 = rawP4 * 10.0f;
+                    p6 = 1500.0f + rawP5 * 3500.0f;
+                    p5 = rawP6 * 10.0f;
+                }
+                else if (type == FxType::StereoExciter || type == FxType::DualExciter)
+                {
+                    p1 = 1000.0f + rawP1 * 9000.0f;
+                    p2 = rawP2 * 100.0f;
+                    p3 = rawP3 * 100.0f;
+                    p4 = (rawP4 - 0.5f) * 100.0f;
+                    p5 = rawP5 * 100.0f;
+                    p6 = rawP6 * 100.0f;
+                }
+                else // SoundMaxer / StereoEnhancer / DualEnhancer
+                {
+                    p1 = (rawP1 - 0.2f) * 80.0f;
+                    p2 = (rawP2 - 0.2f) * 80.0f;
+                    p3 = (type == FxType::SoundMaxer) ? ((rawP3 - 0.5f) * 24.0f) : (50.0f + rawP3 * 250.0f);
+                    p4 = rawP4 * 100.0f;
+                    p5 = 1500.0f + rawP5 * 6500.0f;
+                    p6 = rawP6 * 100.0f;
+                }
+            }
             tubeEq.process (workL.data(), workR.data(), numSamples, dspType,
-                            params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(),
-                            params.p5.get(), params.p6.get(), mixVal);
+                            p1, p2, p3, p4, p5, p6, mixVal);
             break;
+        }
 
         case FxCategory::PremiumUtilityAmp:
-            utilityAmp.process (workL.data(), workR.data(), numSamples, dspType,
-                                params.p1.get(), params.p2.get(), params.p3.get(), params.p4.get(), mixVal);
+        {
+            if (type == FxType::MoodFilter)
+            {
+                const float speedHz = mapExpNormOrRaw (rawP1, 0.05f, 8.0f, norm16);
+                const float depthPct = mapNormOrRaw (rawP2, 0.0f, 100.0f, norm16);
+                const float cutoffHz = norm16 ? (80.0f * std::pow (40.0f, rawP3)) : rawP3;
+                const float envSens = mapNormOrRaw (rawP4, 0.0f, 100.0f, norm16);
+                modulation.process (workL.data(), workR.data(), numSamples, FxType::MoodFilter,
+                                    speedHz, depthPct, cutoffHz, envSens, mixVal);
+            }
+            else if (type == FxType::TremoloPanner)
+            {
+                const float speedHz = mapExpNormOrRaw (rawP1, 0.05f, 10.0f, norm16);
+                const float depthPct = mapNormOrRaw (rawP2, 0.0f, 100.0f, norm16);
+                const float phaseDeg = norm16 ? (rawP3 * 180.0f) : rawP3;
+                const float wavePct = mapNormOrRaw (rawP4, 0.0f, 100.0f, norm16);
+                modulation.process (workL.data(), workR.data(), numSamples, FxType::TremoloPanner,
+                                    speedHz, depthPct, phaseDeg, wavePct, mixVal);
+            }
+            else
+            {
+                float p1 = rawP1, p2 = rawP2, p3 = rawP3, p4 = rawP4, p5 = rawP5, p6 = rawP6;
+                if (norm16)
+                {
+                    if (type == FxType::TubeStage || type == FxType::StereoTubeStage || type == FxType::DualTubeStage)
+                    {
+                        p1 = rawP1 * 100.0f;
+                        p2 = rawP2 * 100.0f;
+                        p3 = rawP3 * 100.0f;
+                        p4 = (rawP4 - 0.5f) * 100.0f;
+                        p5 = (rawP5 - 0.5f) * 24.0f;
+                        p6 = (rawP6 - 0.5f) * 24.0f;
+                    }
+                    else if (type == FxType::Suboctaver)
+                    {
+                        p1 = rawP1 * 100.0f;
+                        p2 = rawP2 * 100.0f;
+                        p3 = rawP3 * 100.0f;
+                        p4 = std::round (rawP4 * 2.0f);
+                    }
+                    else if (type == FxType::EdisonEX1 || type == FxType::StereoImager)
+                    {
+                        p1 = rawP1 * 100.0f;
+                        p2 = rawP2 * 100.0f;
+                        p3 = rawP3 * 100.0f;
+                        p4 = (rawP6 - 0.5f) * 24.0f;
+                    }
+                    else // GuitarAmp
+                    {
+                        p1 = rawP1 * 100.0f;
+                        p2 = rawP2 * 100.0f;
+                        p3 = rawP3 * 100.0f;
+                        p4 = rawP4 * 100.0f;
+                        p5 = rawP5 * 100.0f;
+                        p6 = rawP6 * 100.0f;
+                    }
+                }
+                utilityAmp.process (workL.data(), workR.data(), numSamples, dspType,
+                                    p1, p2, p3, p4, mixVal, p5, p6);
+            }
             break;
+        }
     }
 
     // Copy to output & update output peak meters

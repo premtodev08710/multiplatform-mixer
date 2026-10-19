@@ -67,8 +67,12 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
                 if (auto* c = unitCanvas.getControl (paramIdx))
                 {
                     const float db = (float) c->getValue();
-                    p.geqGainsL[(size_t) paramIdx].set (db);
-                    p.geqGainsR[(size_t) paramIdx].set (db);
+                    const auto curType = (FxType) (int) p.fxType.getInt();
+                    const bool isDualGeq = (curType == FxType::DualGEQ || curType == FxType::DualTruEQ);
+                    if (! isDualGeq || activeEngineLayer == 0)
+                        p.geqGainsL[(size_t) paramIdx].set (db);
+                    if (! isDualGeq || activeEngineLayer == 1)
+                        p.geqGainsR[(size_t) paramIdx].set (db);
                 }
             }
         }
@@ -208,11 +212,13 @@ void FxFaceplateComponent::refreshFromSlot()
     }
     else if (info.family == X32Fx::GuiFamily::GraphicEq)
     {
+        const auto curType = (FxType) (int) p.fxType.getInt();
+        const bool useRight = (curType == FxType::DualGEQ || curType == FxType::DualTruEQ) && (activeEngineLayer == 1);
         for (int i = 0; i < 31; ++i)
         {
             if (auto* c = unitCanvas.getControl (i))
             {
-                const float gVal = p.geqGainsL[(size_t) i].get();
+                const float gVal = useRight ? p.geqGainsR[(size_t) i].get() : p.geqGainsL[(size_t) i].get();
                 c->setValue (gVal, juce::dontSendNotification);
             }
         }

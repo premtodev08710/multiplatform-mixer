@@ -3,6 +3,7 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "../Network/AdMobManager.h"
 #include "../Network/InstallTelemetry.h"
 #include "../Network/X32OscClient.h"
 #include "ConsoleLookAndFeel.h"
@@ -50,6 +51,7 @@ private:
     ProjectModel project { engine };
     X32OscClient oscClient { engine, project };
     InstallTelemetry telemetry;
+    AdMobManager adMob;
 
     // Top Navigation Tabs
     enum NavTab
