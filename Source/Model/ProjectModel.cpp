@@ -672,6 +672,36 @@ juce::Result ProjectModel::loadProject (const juce::File& file, juce::StringArra
     return juce::Result::ok();
 }
 
+juce::File ProjectModel::getDefaultProjectFile()
+{
+    auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                          .getChildFile ("MixPracticeStudio");
+    if (! appDataDir.exists())
+        appDataDir.createDirectory();
+
+    return appDataDir.getChildFile ("last_session.mpsproj");
+}
+
+bool ProjectModel::hasSavedSession()
+{
+    return getDefaultProjectFile().existsAsFile();
+}
+
+juce::Result ProjectModel::autoSaveSession()
+{
+    auto file = getDefaultProjectFile();
+    return saveProject (file, false);
+}
+
+juce::Result ProjectModel::autoLoadSession (juce::StringArray& outMissingFiles)
+{
+    auto file = getDefaultProjectFile();
+    if (! file.existsAsFile())
+        return juce::Result::fail ("No previous session found");
+
+    return loadProject (file, outMissingFiles);
+}
+
 juce::var ProjectModel::captureSceneSnapshot (const juce::String& sceneName) const
 {
     auto obj = new juce::DynamicObject();

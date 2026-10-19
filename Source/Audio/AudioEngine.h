@@ -27,6 +27,9 @@ public:
     void initDevice();
     void closeDevice();
 
+    void saveAudioDeviceSettings();
+    void loadAudioDeviceSettings();
+
     juce::AudioDeviceManager& getDeviceManager() noexcept { return deviceManager; }
     juce::AudioFormatManager& getFormatManager() noexcept { return formatManager; }
     MixerParams& getMixerParams() noexcept { return params; }

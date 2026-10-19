@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mix Practice Studio — Install & Active Users Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0d1014;
+      --bg-card: #151921;
+      --bg-card-hover: #1b212c;
+      --border: #262e3d;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #2196f3;
+      --accent-cyan: #00bcd4;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a855f7;
+      --accent-pink: #ec4899;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2196f3, #00bcd4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 20px;
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(33, 150, 243, 0.35);
+    }
+
+    .brand-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.9); }
+    }
+
+    .btn {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-blue);
+    }
+
+    .btn-primary {
+      background: rgba(33, 150, 243, 0.15);
+      border-color: rgba(33, 150, 243, 0.4);
+      color: #60a5fa;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent-blue);
+    }
+
+    .kpi-card.green::before { background: var(--accent-green); }
+    .kpi-card.amber::before { background: var(--accent-amber); }
+    .kpi-card.purple::before { background: var(--accent-purple); }
+    .kpi-card.cyan::before { background: var(--accent-cyan); }
+
+    .kpi-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 34px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.03em;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Platform breakdown */
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .bar-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bar-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .bar-track {
+      height: 8px;
+      background: #0d1014;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+      transition: width 0.4s ease;
+    }
+
+    /* Table */
+    .table-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .search-box {
+      background: #0d1014;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      min-width: 260px;
+      font-family: inherit;
+    }
+
+    .search-box:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .filter-select {
+      background: #0d1014;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .os-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .os-Windows { background: rgba(33, 150, 243, 0.15); color: #60a5fa; }
+    .os-macOS   { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .os-Android { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .os-iOS     { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+    .os-Linux   { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .os-Unknown { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+
+    .status-banner {
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status-banner.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">M</div>
+        <div class="brand-text">
+          <h1>Mix Practice Studio — Install Analytics</h1>
+          <p>ระบบติดตามยอดติดตั้งและผู้ใช้งานจริง (Real-time Firebase Firestore: <span class="mono">pad-mix</span>)</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          <span id="connectionStatus">LIVE SYNC</span>
+        </div>
+        <button class="btn btn-primary" id="btnSimulate">+ จำลองส่งข้อมูลทดสอบ (Test Ping)</button>
+        <button class="btn" id="btnExportCsv">Export CSV</button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="status-banner"></div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">ยอดติดตั้งทั้งหมด (Total Unique Installs)</div>
+        <div class="kpi-value" id="kpiTotal">0</div>
+        <div class="kpi-sub">นับตามรหัสเครื่อง (UUID) ไม่ซ้ำกัน</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-label">ใช้งานใน 24 ชั่วโมงล่าสุด (Active 24h)</div>
+        <div class="kpi-value" id="kpiActive24h">0</div>
+        <div class="kpi-sub">เครื่องที่เปิดแอปภายในวันนี้</div>
+      </div>
+      <div class="kpi-card cyan">
+        <div class="kpi-label">ใช้งานใน 7 วันล่าสุด (Active 7d)</div>
+        <div class="kpi-value" id="kpiActive7d">0</div>
+        <div class="kpi-sub">เครื่องที่เปิดแอปในสัปดาห์นี้</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-label">จำนวนครั้งที่เปิดแอปรวม (Total Launches)</div>
+        <div class="kpi-value" id="kpiTotalLaunches">0</div>
+        <div class="kpi-sub">รวมทุกเครื่องที่เปิดใช้งาน</div>
+      </div>
+    </div>
+
+    <div class="platform-grid">
+      <div class="panel">
+        <div class="panel-title">
+          <span>สัดส่วนแยกตามระบบปฏิบัติการ (By Platform)</span>
+        </div>
+        <div class="bar-list" id="platformBars">
+          <div class="bar-item"><span style="color:var(--text-muted);font-size:13px;">กำลังโหลดข้อมูล...</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>สัดส่วนแยกตามเวอร์ชันแอป (By App Version)</span>
+        </div>
+        <div class="bar-list" id="versionBars">
+          <div class="bar-item"><span style="color:var(--text-muted);font-size:13px;">กำลังโหลดข้อมูล...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="table-controls">
+        <div class="panel-title" style="margin-bottom:0;">
+          <span>รายการเครื่องที่ติดตั้งทั้งหมด (<span id="filteredCount">0</span> เครื่อง)</span>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <select id="platformFilter" class="filter-select">
+            <option value="ALL">ทุกแพลตฟอร์ม (All Platforms)</option>
+            <option value="Windows">Windows</option>
+            <option value="macOS">macOS</option>
+            <option value="Android">Android</option>
+            <option value="iOS">iOS</option>
+            <option value="Linux">Linux</option>
+          </select>
+          <input type="text" id="searchInput" class="search-box" placeholder="ค้นหา Install ID, OS, CPU, รุ่นเครื่อง..." />
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>OS / อุปกรณ์</th>
+              <th>CPU</th>
+              <th>Version</th>
+              <th>เปิดแอป (ครั้ง)</th>
+              <th>ติดตั้งครั้งแรก (First Install)</th>
+              <th>เปิดล่าสุด (Last Seen)</th>
+              <th>Install ID</th>
+            </tr>
+          </thead>
+          <tbody id="installTableBody">
+            <tr>
+              <td colspan="8" class="empty-state">กำลังเชื่อมต่อฐานข้อมูล Firebase Firestore...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrnDzAK1WLPgdKRUq__zYpHpag6vOFUQ8",
+      authDomain: "pad-mix.firebaseapp.com",
+      projectId: "pad-mix",
+      storageBucket: "pad-mix.firebasestorage.app",
+      messagingSenderId: "804078476904",
+      appId: "1:804078476904:web:f737995ae30b266585a5dd",
+      measurementId: "G-TVQKWH0FVN"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allRecords = [];
+
+    const kpiTotal = document.getElementById('kpiTotal');
+    const kpiActive24h = document.getElementById('kpiActive24h');
+    const kpiActive7d = document.getElementById('kpiActive7d');
+    const kpiTotalLaunches = document.getElementById('kpiTotalLaunches');
+    const platformBars = document.getElementById('platformBars');
+    const versionBars = document.getElementById('versionBars');
+    const installTableBody = document.getElementById('installTableBody');
+    const filteredCount = document.getElementById('filteredCount');
+    const searchInput = document.getElementById('searchInput');
+    const platformFilter = document.getElementById('platformFilter');
+    const errorBanner = document.getElementById('errorBanner');
+    const connectionStatus = document.getElementById('connectionStatus');
+
+    function formatDateTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return isoStr;
+      return d.toLocaleString('th-TH', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function timeAgo(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diffSec < 60) return 'เมื่อสักครู่';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} นาทีที่แล้ว`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} ชั่วโมงที่แล้ว`;
+      return `${Math.floor(diffSec / 86400)} วันที่แล้ว`;
+    }
+
+    function renderBars(container, countsMap, total) {
+      const entries = Object.entries(countsMap).sort((a, b) => b[1] - a[1]);
+      if (entries.length === 0) {
+        container.innerHTML = `<div style="color:var(--text-muted);font-size:13px;">ยังไม่มีข้อมูล</div>`;
+        return;
+      }
+      container.innerHTML = entries.map(([label, count]) => {
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        return `
+          <div class="bar-item">
+            <div class="bar-header">
+              <span><strong>${label}</strong></span>
+              <span class="mono">${count.toLocaleString()} เครื่อง (${pct}%)</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateDashboard() {
+      const now = Date.now();
+      const ms24h = 24 * 60 * 60 * 1000;
+      const ms7d  = 7 * 24 * 60 * 60 * 1000;
+
+      let active24h = 0;
+      let active7d = 0;
+      let totalLaunches = 0;
+      const platformCounts = {};
+      const versionCounts = {};
+
+      allRecords.forEach(r => {
+        const lastSeenMs = new Date(r.lastSeenTime || r.firstInstallTime || 0).getTime();
+        if (!isNaN(lastSeenMs)) {
+          if (now - lastSeenMs <= ms24h) active24h++;
+          if (now - lastSeenMs <= ms7d) active7d++;
+        }
+        const launches = Number(r.launchCount) || 1;
+        totalLaunches += launches;
+
+        const plat = r.platform || 'Unknown';
+        platformCounts[plat] = (platformCounts[plat] || 0) + 1;
+
+        const ver = r.appVersion || '1.0.0';
+        versionCounts[ver] = (versionCounts[ver] || 0) + 1;
+      });
+
+      kpiTotal.textContent = allRecords.length.toLocaleString();
+      kpiActive24h.textContent = active24h.toLocaleString();
+      kpiActive7d.textContent = active7d.toLocaleString();
+      kpiTotalLaunches.textContent = totalLaunches.toLocaleString();
+
+      renderBars(platformBars, platformCounts, allRecords.length);
+      renderBars(versionBars, versionCounts, allRecords.length);
+
+      renderTable();
+    }
+
+    function renderTable() {
+      const query = searchInput.value.trim().toLowerCase();
+      const platFilter = platformFilter.value;
+
+      const filtered = allRecords.filter(r => {
+        if (platFilter !== 'ALL' && (r.platform || 'Unknown') !== platFilter) return false;
+        if (!query) return true;
+        const haystack = [
+          r.installId, r.platform, r.osName, r.deviceModel, r.cpuModel, r.appVersion
+        ].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+
+      filtered.sort((a, b) => {
+        const tA = new Date(a.lastSeenTime || a.firstInstallTime || 0).getTime() || 0;
+        const tB = new Date(b.lastSeenTime || b.firstInstallTime || 0).getTime() || 0;
+        return tB - tA;
+      });
+
+      filteredCount.textContent = filtered.length.toLocaleString();
+
+      if (filtered.length === 0) {
+        installTableBody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">
+              ยังไม่มีรายการข้อมูลการติดตั้ง หรือไม่พบข้อมูลที่ค้นหา<br/>
+              <small style="color:var(--text-muted)">เมื่อเปิดแอป Mix Practice Studio ข้อมูลจะเด้งขึ้นมาในหน้านี้แบบ Real-time ทันที</small>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      installTableBody.innerHTML = filtered.map(r => {
+        const plat = r.platform || 'Unknown';
+        const badgeClass = ['Windows', 'macOS', 'Android', 'iOS', 'Linux'].includes(plat) ? `os-${plat}` : 'os-Unknown';
+        const launches = Number(r.launchCount) || 1;
+        return `
+          <tr>
+            <td><span class="os-badge ${badgeClass}">${plat}</span></td>
+            <td>
+              <div><strong>${r.osName || '-'}</strong></div>
+              <div style="font-size:11px; color:var(--text-muted)">${r.deviceModel || ''}</div>
+            </td>
+            <td style="font-size:12px; color:var(--text-secondary)">${r.cpuModel || '-'}</td>
+            <td><span class="mono">${r.appVersion || '1.0.0'}</span></td>
+            <td><strong class="mono">${launches.toLocaleString()}</strong></td>
+            <td>
+              <div>${formatDateTime(r.firstInstallTime)}</div>
+            </td>
+            <td>
+              <div>${formatDateTime(r.lastSeenTime)}</div>
+              <div style="font-size:11px; color:#34d399">${timeAgo(r.lastSeenTime)}</div>
+            </td>
+            <td class="mono" style="color:var(--text-muted)">${r.installId || r.id}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    searchInput.addEventListener('input', renderTable);
+    platformFilter.addEventListener('change', renderTable);
+
+    // Subscribe to real-time updates from Firestore 'installs' collection
+    const installsRef = collection(db, 'installs');
+    onSnapshot(installsRef, (snapshot) => {
+      errorBanner.className = 'status-banner';
+      connectionStatus.textContent = 'LIVE SYNC';
+      allRecords = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      updateDashboard();
+    }, (err) => {
+      console.error('Firestore Error:', err);
+      connectionStatus.textContent = 'SYNC ERROR';
+      errorBanner.className = 'status-banner error';
+      errorBanner.innerHTML = `
+        <strong>ไม่สามารถอ่านข้อมูลจาก Firestore ได้ (${err.code}):</strong>
+        กรุณาตรวจสอบว่าได้สร้าง Firestore Database ในโปรเจกต์ <code>pad-mix</code> และตั้งค่า Firestore Rules ให้อนุญาต <code>allow read, create, update: if true;</code> สำหรับ <code>/installs/{installId}</code> แล้ว
+      `;
+    });
+
+    // Simulate Test Install button
+    document.getElementById('btnSimulate').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSimulate');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งข้อมูล...';
+      try {
+        const testId = 'test-web-dashboard-device';
+        const nowIso = new Date().toISOString();
+        await setDoc(doc(db, 'installs', testId), {
+          installId: testId,
+          platform: 'macOS',
+          osName: 'Mac OSX (Dashboard Test)',
+          appVersion: '1.0.0',
+          deviceModel: 'MacBook Pro',
+          cpuModel: 'Apple Silicon',
+          firstInstallTime: nowIso,
+          lastSeenTime: nowIso,
+          launchCount: 1
+        }, { merge: true });
+      } catch (e) {
+        alert('ส่งข้อมูลไม่สำเร็จ: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '+ จำลองส่งข้อมูลทดสอบ (Test Ping)';
+      }
+    });
+
+    // Export CSV
+    document.getElementById('btnExportCsv').addEventListener('click', () => {
+      if (allRecords.length === 0) {
+        alert('ยังไม่มีข้อมูลสำหรับ Export');
+        return;
+      }
+      const headers = ['installId', 'platform', 'osName', 'deviceModel', 'cpuModel', 'appVersion', 'launchCount', 'firstInstallTime', 'lastSeenTime'];
+      const rows = allRecords.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mix-practice-studio-installs-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    });
+  </script>
+</body>
+</html>

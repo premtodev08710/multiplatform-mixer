@@ -146,6 +146,7 @@ FxSlotParams::FxSlotParams()
     bypass.init     ({ 0.0f, 1.0f, 0.0f }); // 0 = active
     insertMode.init ({ 0.0f, 1.0f, 0.0f }); // 0 = Send/Return, 1 = Insert
     mix.init        ({ 0.0f, 1.0f, 1.0f }); // 1.0 (100% wet for send/return)
+    for (auto& t : insertTargets) t.init ({ 0.0f, 400.0f, 0.0f });
 
     p1.init ({ -24000.0f, 24000.0f, 50.0f });
     p2.init ({ -24000.0f, 24000.0f, 50.0f });

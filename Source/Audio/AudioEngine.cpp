@@ -26,15 +26,49 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::initDevice()
 {
-    // Initialize audio device with stereo output, no inputs needed
-    deviceManager.initialiseWithDefaultDevices (0, 2);
+    loadAudioDeviceSettings();
     deviceManager.addAudioCallback (this);
 }
 
 void AudioEngine::closeDevice()
 {
+    saveAudioDeviceSettings();
     deviceManager.removeAudioCallback (this);
     deviceManager.closeAudioDevice();
+}
+
+static juce::File getAudioSettingsFile()
+{
+    auto dir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                   .getChildFile ("MixPracticeStudio");
+    if (! dir.exists())
+        dir.createDirectory();
+
+    return dir.getChildFile ("audio_settings.xml");
+}
+
+void AudioEngine::saveAudioDeviceSettings()
+{
+    auto xml = deviceManager.createStateXml();
+    if (xml != nullptr)
+    {
+        auto file = getAudioSettingsFile();
+        xml->writeTo (file);
+    }
+}
+
+void AudioEngine::loadAudioDeviceSettings()
+{
+    auto file = getAudioSettingsFile();
+    std::unique_ptr<juce::XmlElement> xml;
+    if (file.existsAsFile())
+        xml = juce::XmlDocument::parse (file);
+
+    juce::String err;
+    if (xml != nullptr)
+        err = deviceManager.initialise (0, 2, xml.get(), true);
+    else
+        err = deviceManager.initialiseWithDefaultDevices (0, 2);
 }
 
 void AudioEngine::setTrackSlot (int slot, std::shared_ptr<TrackReader> reader)

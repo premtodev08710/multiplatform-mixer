@@ -44,11 +44,17 @@ private:
     juce::TextButton allRangeButton { "ALL" };
     juce::TextButton sectionMenuButton { juce::CharPointer_UTF8 ("SECTION \xe2\x96\xbc") };
 
+    // Quick Save Session button
+    juce::TextButton saveButton { "SAVE" };
+
     // Time & Range Labels
     juce::Label timeLabel;
     juce::Label rangeLabel;
     juce::Label statusLabel;
     juce::Label cpuLabel;
+
+public:
+    std::function<void()> onQuickSave;
 };
 
 } // namespace mps

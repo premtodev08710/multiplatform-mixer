@@ -400,6 +400,9 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
         }
     }
 
+    project.setModified (true);
+    project.autoSaveSession();
+
     if (project.onTracksChanged)
         project.onTracksChanged();
     else

@@ -3,6 +3,7 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "../Network/InstallTelemetry.h"
 #include "../Network/X32OscClient.h"
 #include "ConsoleLookAndFeel.h"
 #include "DetailScreen.h"
@@ -18,7 +19,9 @@
 namespace mps
 {
 
-class MainComponent : public juce::Component, public juce::Button::Listener
+class MainComponent : public juce::Component,
+                      public juce::Button::Listener,
+                      private juce::Timer
 {
 public:
     MainComponent();
@@ -32,12 +35,21 @@ public:
 
     void showScreen (int screenIndex);
 
+    void saveCurrentSession (bool showNotification = false);
+    void restorePreviousSession();
+    void checkAndShowTermsOfService();
+
+    EffectsScreen& getEffectsScreen() noexcept { return effectsScreen; }
+    AudioEngine& getAudioEngine() noexcept { return engine; }
+
 private:
+    void timerCallback() override;
     ConsoleLookAndFeel lookAndFeel;
 
     AudioEngine engine;
     ProjectModel project { engine };
     X32OscClient oscClient { engine, project };
+    InstallTelemetry telemetry;
 
     // Top Navigation Tabs
     enum NavTab

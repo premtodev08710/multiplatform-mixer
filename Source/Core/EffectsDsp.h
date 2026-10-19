@@ -145,6 +145,10 @@ struct FxSlotParams
     Param insertMode;   // 0 = send/return (or normal), 1 = insert
     Param mix;          // 0.0 .. 1.0 (dry/wet)
 
+    // Dual Independent FX Inserts: [0] = Insert 1 (Left / In A), [1] = Insert 2 (Right / In B)
+    // 0 = None, 1..32 = Ch 1..32, 101..116 = Bus 1..16, 201..206 = Mtx 1..6, 301 = Main LR
+    std::array<Param, 2> insertTargets;
+
     // Three pages of six effect-specific parameters, matching X32-Mix.
     // e.g. Decay/Time, PreDelay/Feedback, Damping/Tone, Size/Depth, Speed/Ratio, etc.
     Param p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18;

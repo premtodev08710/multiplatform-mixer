@@ -260,6 +260,17 @@ struct MixerParams
         for (int i = 4; i < 8; ++i)
             fxSlots[(size_t) i].insertMode.setBool (true); // FX 5-8 are insert-only
 
+        // Defaults: FX 1-4 insert on Bus 13-16; FX 5-8 insert on Ch 1-2, Bus 1-2, Mtx 1-2, Main LR
+        fxSlots[0].insertTargets[0].set (113.0f); fxSlots[0].insertTargets[1].set (113.0f);
+        fxSlots[1].insertTargets[0].set (114.0f); fxSlots[1].insertTargets[1].set (114.0f);
+        fxSlots[2].insertTargets[0].set (115.0f); fxSlots[2].insertTargets[1].set (115.0f);
+        fxSlots[3].insertTargets[0].set (116.0f); fxSlots[3].insertTargets[1].set (116.0f);
+
+        fxSlots[4].insertTargets[0].set (1.0f);   fxSlots[4].insertTargets[1].set (2.0f);
+        fxSlots[5].insertTargets[0].set (101.0f); fxSlots[5].insertTargets[1].set (102.0f);
+        fxSlots[6].insertTargets[0].set (201.0f); fxSlots[6].insertTargets[1].set (202.0f);
+        fxSlots[7].insertTargets[0].set (301.0f); fxSlots[7].insertTargets[1].set (301.0f);
+
         // Returns 1L, 2L, 3L, 4L default pan hard-left (-1.0)
         // Returns 1R, 2R, 3R, 4R default pan hard-right (+1.0)
         for (int s = 0; s < 4; ++s)

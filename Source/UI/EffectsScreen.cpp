@@ -7,156 +7,67 @@ namespace mps
 EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
     : engine (eng), project (proj)
 {
-    // 1. Group Selector Buttons: FX 1-4 vs FX 5-8
-    const char* groupNames[NumGroups] = { "FX 1 - 4 (SEND / RETURN OR INSERT)", "FX 5 - 8 (INSERT ONLY)" };
+    // 1. Back to Mixer button
+    backButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff27272a));
+    backButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    backButton.addListener (this);
+    addAndMakeVisible (backButton);
+
+    // 2. Top-Right FX Library Button (Sky Blue as in simulator)
+    libraryHeaderButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff0284c7));
+    libraryHeaderButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    libraryHeaderButton.addListener (this);
+    addAndMakeVisible (libraryHeaderButton);
+
+    // 3. 8 Slot Tabs: FX1 .. FX8
+    for (int i = 0; i < 8; ++i)
+    {
+        slotTabs[(size_t) i].setButtonText ("FX" + juce::String (i + 1));
+        slotTabs[(size_t) i].addListener (this);
+        addAndMakeVisible (slotTabs[(size_t) i]);
+    }
+
+    // Legacy group buttons kept for test compatibility
+    const char* groupNames[NumGroups] = { "FX 1 - 4", "FX 5 - 8" };
     for (int i = 0; i < NumGroups; ++i)
     {
         groupButtons[i].setButtonText (groupNames[i]);
-        groupButtons[i].setName ("fx_group");
-        groupButtons[i].setColour (juce::TextButton::buttonColourId, ConsoleLookAndFeel::bgSection);
-        groupButtons[i].setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::textMuted);
-        groupButtons[i].setColour (juce::TextButton::textColourOnId, juce::Colours::white);
-        groupButtons[i].setClickingTogglesState (true);
-        groupButtons[i].setRadioGroupId (5001);
         groupButtons[i].addListener (this);
-        addAndMakeVisible (groupButtons[i]);
+        addChildComponent (groupButtons[i]);
     }
-    groupButtons[0].setToggleState (true, juce::dontSendNotification);
 
-    backButton.addListener (this);
-    backButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202630));
-    backButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
-    addAndMakeVisible (backButton);
-
-    setupSlots();
-
-    // Hardware Simulated Front Panel Faceplate
+    // 4. Hardware Simulated Front Panel Faceplate
     addAndMakeVisible (faceplate);
     faceplate.setSlot (selectedSlot);
-    faceplate.onTypeChangeRequested = [this] (FxType newType) {
-        auto& p = engine.getMixerParams().fxSlots[(size_t) selectedSlot];
-        p.setDefaultsForType (newType);
-        slotUis[(size_t) selectedSlot].typeCombo.setSelectedId ((int) newType + 1, juce::dontSendNotification);
-        faceplate.setSlot (selectedSlot);
+    faceplate.onTypeChangeRequested = [this] (FxType) {
         refreshFromModel();
         project.setModified();
     };
-    faceplate.onParametersChanged = [this] { project.setModified(); };
+    faceplate.onParametersChanged = [this] {
+        project.setModified();
+    };
 
-    updateGroupVisibility();
     refreshFromModel();
 }
 
-EffectsScreen::~EffectsScreen()
-{
-}
-
-void EffectsScreen::setupSlots()
-{
-    for (int i = 0; i < 8; ++i)
-    {
-        auto& slot = slotUis[(size_t) i];
-
-        slot.slotTitle.setText ("FX " + juce::String (i + 1), juce::dontSendNotification);
-        slot.slotTitle.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-        slot.slotTitle.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
-        addAndMakeVisible (slot.slotTitle);
-
-        // Match the installed X32-Mix FX picker order and names.
-        for (int t = 0; t < getNumFxTypes(); ++t)
-            slot.typeCombo.addItem (juce::String (t + 1) + ". " + getFxMetadata ((FxType) t).name, t + 1);
-
-        slot.typeCombo.addListener (this);
-        slot.typeCombo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff101317));
-        slot.typeCombo.setColour (juce::ComboBox::outlineColourId, ConsoleLookAndFeel::borderSubtle);
-        slot.typeCombo.setColour (juce::ComboBox::textColourId, ConsoleLookAndFeel::textPrimary);
-        slot.typeCombo.setColour (juce::ComboBox::arrowColourId, ConsoleLookAndFeel::accentCyan);
-        addAndMakeVisible (slot.typeCombo);
-
-        slot.bypassButton.setClickingTogglesState (true);
-        slot.bypassButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
-        slot.bypassButton.addListener (this);
-        addAndMakeVisible (slot.bypassButton);
-
-        slot.modeButton.setClickingTogglesState (true);
-        slot.modeButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
-        slot.modeButton.addListener (this);
-        addAndMakeVisible (slot.modeButton);
-
-        slot.mixDial.onValueChanged = [this, i] (double val) {
-            if (ignoreCallbacks) return;
-            auto& p = engine.getMixerParams().fxSlots[(size_t) i];
-            p.mix.set ((float) (val * 0.01));
-            if (selectedSlot == i) faceplate.refreshFromSlot();
-            project.setModified();
-        };
-        addAndMakeVisible (slot.mixDial);
-
-        auto& fxSlotDsp = engine.getMixEngine().getFxRack().getSlot (i);
-        slot.inMeter.setMeters (fxSlotDsp.getInPeakLPtr(), fxSlotDsp.getInPeakRPtr(), nullptr);
-        slot.outMeter.setMeters (fxSlotDsp.getOutPeakLPtr(), fxSlotDsp.getOutPeakRPtr(), nullptr);
-        addAndMakeVisible (slot.inMeter);
-        addAndMakeVisible (slot.outMeter);
-
-        slot.selectButton.addListener (this);
-        slot.selectButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2b3038));
-        addAndMakeVisible (slot.selectButton);
-    }
-}
-
-void EffectsScreen::updateGroupVisibility()
-{
-    const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
-    const int endSlot = startSlot + 4;
-
-    for (int i = 0; i < 8; ++i)
-    {
-        const bool visible = (i >= startSlot && i < endSlot);
-        auto& s = slotUis[(size_t) i];
-        s.slotTitle.setVisible (visible);
-        s.typeCombo.setVisible (visible);
-        s.bypassButton.setVisible (visible);
-        s.modeButton.setVisible (visible);
-        s.modeButton.setEnabled (i < 4);
-        s.mixDial.setVisible (visible);
-        s.inMeter.setVisible (visible);
-        s.outMeter.setVisible (visible);
-        s.selectButton.setVisible (visible);
-    }
-
-    if (selectedSlot < startSlot || selectedSlot >= endSlot)
-    {
-        selectedSlot = startSlot;
-        faceplate.setSlot (selectedSlot);
-    }
-
-    resized();
-    repaint();
-}
+EffectsScreen::~EffectsScreen() = default;
 
 void EffectsScreen::refreshFromModel()
 {
     ignoreCallbacks = true;
+
     for (int i = 0; i < 8; ++i)
     {
-        auto& p = engine.getMixerParams().fxSlots[(size_t) i];
-        auto& s = slotUis[(size_t) i];
-
-        const int typeId = (int) p.fxType.getInt() + 1;
-        s.typeCombo.setSelectedId (typeId, juce::dontSendNotification);
-
-        const bool bypassed = p.bypass.getBool();
-        s.bypassButton.setToggleState (! bypassed, juce::dontSendNotification);
-        s.bypassButton.setButtonText (bypassed ? "BYPASS" : "IN");
-
-        const bool isInsert = i >= 4 || p.insertMode.getBool();
-        if (i >= 4)
-            p.insertMode.setBool (true);
-        s.modeButton.setToggleState (isInsert, juce::dontSendNotification);
-        s.modeButton.setButtonText (i >= 4 ? "INSERT ONLY" : (isInsert ? "INSERT" : "SEND/RET"));
-
-        s.mixDial.setValue (p.mix.get() * 100.0, juce::dontSendNotification);
+        const bool active = (i == selectedSlot);
+        slotTabs[(size_t) i].setColour (juce::TextButton::buttonColourId,
+                                        active ? juce::Colour (0xff3c3c3e) : juce::Colour (0xff202022));
+        slotTabs[(size_t) i].setColour (juce::TextButton::textColourOffId,
+                                        active ? juce::Colours::white : juce::Colour (0xffa1a1aa));
     }
+
+    const bool is58 = (selectedSlot >= 4);
+    libraryHeaderButton.setButtonText (is58 ? juce::CharPointer_UTF8 ("\xe2\x9a\xa1 FX5-8 LIBRARY (5 PAGES)")
+                                            : juce::CharPointer_UTF8 ("\xe2\x9a\xa1 FX1-4 LIBRARY (8 PAGES)"));
 
     faceplate.refreshFromSlot();
     ignoreCallbacks = false;
@@ -171,69 +82,30 @@ void EffectsScreen::buttonClicked (juce::Button* b)
         return;
     }
 
+    if (b == &libraryHeaderButton)
+    {
+        faceplate.openCarousel();
+        return;
+    }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        if (b == &slotTabs[(size_t) i])
+        {
+            selectedSlot = i;
+            faceplate.setSlot (selectedSlot);
+            refreshFromModel();
+            return;
+        }
+    }
+
     for (int g = 0; g < NumGroups; ++g)
     {
         if (b == &groupButtons[g])
         {
-            currentGroup = g;
-            updateGroupVisibility();
-            return;
-        }
-    }
-
-    for (int i = 0; i < 8; ++i)
-    {
-        auto& s = slotUis[(size_t) i];
-        auto& p = engine.getMixerParams().fxSlots[(size_t) i];
-
-        if (b == &s.selectButton)
-        {
-            selectedSlot = i;
+            selectedSlot = (g == 0) ? 0 : 4;
             faceplate.setSlot (selectedSlot);
-            repaint();
-            return;
-        }
-
-        if (b == &s.bypassButton)
-        {
-            const bool active = s.bypassButton.getToggleState();
-            p.bypass.setBool (! active);
-            s.bypassButton.setButtonText (active ? "IN" : "BYPASS");
-            if (selectedSlot == i) faceplate.refreshFromSlot();
-            project.setModified();
-            return;
-        }
-
-        if (b == &s.modeButton)
-        {
-            if (i >= 4) return;
-            const bool isInsert = s.modeButton.getToggleState();
-            p.insertMode.setBool (isInsert);
-            s.modeButton.setButtonText (isInsert ? "INSERT" : "SEND/RET");
-            project.setModified();
-            return;
-        }
-    }
-}
-
-void EffectsScreen::comboBoxChanged (juce::ComboBox* combo)
-{
-    if (ignoreCallbacks) return;
-
-    for (int i = 0; i < 8; ++i)
-    {
-        if (combo == &slotUis[(size_t) i].typeCombo)
-        {
-            const int selectedId = combo->getSelectedId();
-            if (selectedId >= 1 && selectedId <= getNumFxTypes())
-            {
-                auto& p = engine.getMixerParams().fxSlots[(size_t) i];
-                p.setDefaultsForType ((FxType) (selectedId - 1));
-                if (selectedSlot == i)
-                    faceplate.setSlot (selectedSlot);
-                refreshFromModel();
-                project.setModified();
-            }
+            refreshFromModel();
             return;
         }
     }
@@ -241,88 +113,145 @@ void EffectsScreen::comboBoxChanged (juce::ComboBox* combo)
 
 void EffectsScreen::paint (juce::Graphics& g)
 {
-    g.fillAll (ConsoleLookAndFeel::bgDark);
+    g.fillAll (juce::Colour (0xff0d0d0f));
 
-    const auto bounds = getLocalBounds();
-    const int totalW = bounds.getWidth();
+    const int totalW = getWidth();
+    const int totalH = getHeight();
+    if (totalW <= 50 || totalH <= 50)
+        return;
 
-    // Group Tab Bar Outline
-    g.setColour (juce::Colour (0xff20242b));
-    g.fillRect (0, 0, totalW, 46);
-    g.setColour (ConsoleLookAndFeel::borderSubtle);
-    g.drawHorizontalLine (46, 0.0f, (float) totalW);
+    // Enforce strict 2.4 : 6 (height : width) aspect ratio across all platforms (Mobile, Windows, macOS)
+    // Ratio: height / width = 2.4 / 6.0 = 0.40  (or width / height = 6.0 / 2.4 = 2.50)
+    const int availW = totalW - 16;
+    const int availH = totalH - 12;
 
-    // Outline around Selected Slot in Rack
-    const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
-    const int slotW = (totalW - 24) / 4;
-    const int cardY = 54;
-    const int cardH = 166;
-
-    for (int i = 0; i < 4; ++i)
+    int modW = availW;
+    int totalBlockH = juce::roundToInt ((float) modW * (2.4f / 6.0f));
+    if (totalBlockH > availH)
     {
-        const int sIdx = startSlot + i;
-        const int cardX = 12 + i * slotW;
-        const juce::Rectangle<float> rect ((float) cardX + 2.0f, (float) cardY, (float) slotW - 4.0f, (float) cardH);
-
-        const bool isSelected = (selectedSlot == sIdx);
-        g.setColour (isSelected ? juce::Colour (0xff242b36) : juce::Colour (0xff1a1e24));
-        g.fillRoundedRectangle (rect, 4.0f);
-
-        g.setColour (isSelected ? ConsoleLookAndFeel::accentCyan : juce::Colour (0xff323a46));
-        g.drawRoundedRectangle (rect, 4.0f, isSelected ? 1.8f : 1.0f);
-        g.setColour (isSelected ? ConsoleLookAndFeel::accentCyan.withAlpha (0.10f)
-                                : juce::Colour (0xff252a31));
-        g.fillRect (cardX + 3, cardY + 3, slotW - 6, 3);
+        totalBlockH = availH;
+        modW = juce::roundToInt ((float) totalBlockH * (6.0f / 2.4f));
     }
+
+    const int modX = (totalW - modW) / 2;
+    const int startY = (totalH - totalBlockH) / 2;
+
+    const int headerH = juce::jlimit (26, 38, juce::roundToInt ((float) totalBlockH * 0.085f));
+    const int gapH = juce::jlimit (4, 8, juce::roundToInt ((float) totalBlockH * 0.018f));
+    const int chassisH = totalBlockH - headerH - gapH;
+    const int tabStripH = juce::jlimit (24, 30, juce::roundToInt ((float) chassisH * 0.072f));
+
+    // 1. Top Navigation Header Bar
+    juce::Rectangle<float> hdrBar ((float) modX, (float) startY, (float) modW, (float) headerH);
+    g.setColour (juce::Colour (0xff1a1a1e));
+    g.fillRoundedRectangle (hdrBar, 6.0f);
+    g.setColour (juce::Colour (0xff27272a));
+    g.drawRoundedRectangle (hdrBar, 6.0f, 1.0f);
+
+    // Red glowing status dot
+    const float dotX = (float) modX + 88.0f;
+    const float dotY = hdrBar.getCentreY() - 5.0f;
+    g.setColour (juce::Colour (0xffef4444).withAlpha (0.35f));
+    g.fillEllipse (dotX - 3.0f, dotY - 3.0f, 16.0f, 16.0f);
+    g.setColour (juce::Colour (0xffef4444));
+    g.fillEllipse (dotX, dotY, 10.0f, 10.0f);
+
+    // BEHRINGER | X32 EDIT text
+    g.setColour (juce::Colours::white);
+    g.setFont (juce::FontOptions (13.5f, juce::Font::bold));
+    g.drawText ("BEHRINGER", (int) (dotX + 18.0f), startY, 92, headerH, juce::Justification::centredLeft, false);
+
+    g.setColour (juce::Colour (0xff71717a));
+    g.setFont (juce::FontOptions (12.5f, juce::Font::plain));
+    g.drawText ("|  X32 EDIT  (2.4 : 6)", (int) (dotX + 108.0f), startY, 150, headerH, juce::Justification::centredLeft, false);
+
+    const int rightClearance = (startY < 38 && (modX + modW > totalW - 44)) ? 36 : 0;
+
+    // Mode Badge
+    if (modW >= 680)
+    {
+        const bool is58 = (selectedSlot >= 4);
+        const juce::String modeTxt = is58 ? "FX5-8: 28 INSERT MODELS (5 PAGES)" : "FX1-4: 61 MODELS (8 PAGES)";
+        juce::Rectangle<float> modeBadge ((float) (modX + modW - 430 - rightClearance), (float) (startY + (headerH - 24) / 2), 215.0f, 24.0f);
+        g.setColour (juce::Colour (0xff27272a));
+        g.fillRoundedRectangle (modeBadge, 4.0f);
+        g.setColour (juce::Colour (0xff3f3f46));
+        g.drawRoundedRectangle (modeBadge, 4.0f, 1.0f);
+        g.setColour (juce::Colour (0xff38bdf8));
+        g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.5f, juce::Font::bold));
+        g.drawText (modeTxt, modeBadge, juce::Justification::centred, false);
+    }
+
+    // 2. Main Rack Chassis Outer Frame & Drop Shadow
+    const int chassisY = startY + headerH + gapH;
+    juce::Rectangle<float> chassis ((float) modX, (float) chassisY, (float) modW, (float) chassisH);
+
+    g.setColour (juce::Colours::black.withAlpha (0.65f));
+    g.fillRoundedRectangle (chassis.translated (0.0f, 6.0f), 6.0f);
+
+    g.setColour (juce::Colour (0xff1c1c1e));
+    g.fillRoundedRectangle (chassis, 6.0f);
+
+    // Top FX1..FX8 Tab Strip Background
+    juce::Rectangle<float> tabStrip ((float) modX, (float) chassisY, (float) modW, (float) tabStripH);
+    g.setColour (juce::Colour (0xff141416));
+    g.fillRoundedRectangle (tabStrip, 6.0f);
+    g.setColour (juce::Colour (0xff3f3f46));
+    g.drawHorizontalLine (chassisY + tabStripH, (float) modX, (float) (modX + modW));
+
+    // Outer border
+    g.setColour (juce::Colour (0xff38383c));
+    g.drawRoundedRectangle (chassis, 6.0f, 2.0f);
 }
 
 void EffectsScreen::resized()
 {
     const int totalW = getWidth();
     const int totalH = getHeight();
+    if (totalW <= 50 || totalH <= 50)
+        return;
 
-    // 1. Group Selector Tabs & Back Button
-    backButton.setBounds (8, 9, 84, 29);
-    const int tabW = std::min (260, std::max (180, (totalW - 120) / 3));
-    groupButtons[0].setBounds (100, 9, tabW, 29);
-    groupButtons[1].setBounds (108 + tabW, 9, tabW, 29);
+    // Enforce strict 2.4 : 6 (height : width) aspect ratio across all platforms (Mobile, Windows, macOS)
+    const int availW = totalW - 16;
+    const int availH = totalH - 12;
 
-    // 2. Upper 4 Modular Rack Cards
-    const int startSlot = (currentGroup == Group1To4) ? 0 : 4;
-    const int slotW = (totalW - 24) / 4;
-    const int cardY = 54;
-
-    for (int i = 0; i < 4; ++i)
+    int modW = availW;
+    int totalBlockH = juce::roundToInt ((float) modW * (2.4f / 6.0f));
+    if (totalBlockH > availH)
     {
-        const int sIdx = startSlot + i;
-        const int cardX = 12 + i * slotW;
-        auto& s = slotUis[(size_t) sIdx];
-
-        s.slotTitle.setBounds (cardX + 10, cardY + 8, 80, 20);
-        s.bypassButton.setBounds (cardX + slotW - 68, cardY + 8, 56, 22);
-        s.typeCombo.setBounds (cardX + 10, cardY + 34, slotW - 24, 26);
-        s.modeButton.setBounds (cardX + 10, cardY + 66, 85, 22);
-        s.mixDial.setBounds (cardX + 10, cardY + 92, 70, 56);
-
-        // LED Meters
-        const int meterX = cardX + 90;
-        const int meterW = 30;
-        s.inMeter.setBounds (meterX, cardY + 66, meterW, 76);
-        s.outMeter.setBounds (meterX + meterW + 6, cardY + 66, meterW, 76);
-
-        s.selectButton.setBounds (cardX + slotW - 74, cardY + 136, 64, 24);
+        totalBlockH = availH;
+        modW = juce::roundToInt ((float) totalBlockH * (6.0f / 2.4f));
     }
 
-    // 3. Lower Hardware Faceplate Area
-    const int faceplateY = 232;
-    const int faceplateVisibleH = std::max (1, totalH - faceplateY - 10);
-    // FX faceplates have detailed control layouts designed for a taller rack.
-    // Scale the whole faceplate uniformly on short phone screens so every
-    // switch and parameter remains visible and touchable.
-    const float faceplateScale = std::min (1.0f, faceplateVisibleH / 220.0f);
-    faceplate.setTransform (juce::AffineTransform::scale (faceplateScale));
-    faceplate.setBounds (12, faceplateY,
-                         juce::roundToInt ((totalW - 24) / faceplateScale), 220);
+    const int modX = (totalW - modW) / 2;
+    const int startY = (totalH - totalBlockH) / 2;
+
+    const int headerH = juce::jlimit (26, 38, juce::roundToInt ((float) totalBlockH * 0.085f));
+    const int gapH = juce::jlimit (4, 8, juce::roundToInt ((float) totalBlockH * 0.018f));
+    const int chassisH = totalBlockH - headerH - gapH;
+    const int tabStripH = juce::jlimit (24, 30, juce::roundToInt ((float) chassisH * 0.072f));
+
+    const int rightClearance = (startY < 38 && (modX + modW > totalW - 44)) ? 36 : 0;
+
+    // 1. Top Header Bar Buttons
+    backButton.setBounds (modX + 8, startY + 5, 70, headerH - 10);
+    libraryHeaderButton.setBounds (modX + modW - 205 - rightClearance, startY + 5, 195, headerH - 10);
+
+    // 2. FX1..FX8 Tabs inside top of rack chassis
+    const int chassisY = startY + headerH + gapH;
+    const int tabY = chassisY + 3;
+    const int tabH = tabStripH - 4;
+    const int tabW = juce::jmin (54, (modW - 24) / 8 - 2);
+    int tabX = modX + 8;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        slotTabs[(size_t) i].setBounds (tabX, tabY, tabW, tabH);
+        tabX += tabW + 2;
+    }
+
+    // 3. Faceplate Module Area
+    faceplate.setBounds (modX + 2, chassisY + tabStripH + 1, modW - 4, chassisH - tabStripH - 3);
 }
 
 } // namespace mps

@@ -3,11 +3,9 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "ChannelStripComponent.h"
 #include "ConsoleLookAndFeel.h"
-#include "ConsoleDial.h"
-#include "LedMeter.h"
 #include "FxFaceplateComponent.h"
-
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
 
@@ -15,8 +13,7 @@ namespace mps
 {
 
 class EffectsScreen : public juce::Component,
-                      public juce::Button::Listener,
-                      public juce::ComboBox::Listener
+                      public juce::Button::Listener
 {
 public:
     EffectsScreen (AudioEngine& engine, ProjectModel& project);
@@ -26,42 +23,44 @@ public:
     void resized() override;
 
     void buttonClicked (juce::Button* button) override;
-    void comboBoxChanged (juce::ComboBox* comboBox) override;
 
     void refreshFromModel();
 
+    void setSelectedStrip (ChannelStripComponent::StripType type, int index)
+    {
+        currentStripType = type;
+        currentStripIndex = index;
+    }
+    ChannelStripComponent::StripType getSelectedStripType() const noexcept { return currentStripType; }
+    int getSelectedStripIndex() const noexcept { return currentStripIndex; }
+
+    FxFaceplateComponent& getFaceplate() noexcept { return faceplate; }
+
     std::function<void()> onBack;
+    std::function<void(ChannelStripComponent::StripType, int)> onStripNavigated;
 
 private:
-    juce::TextButton backButton { "< Mixer" };
     AudioEngine& engine;
     ProjectModel& project;
 
-    // Top rack group tabs: FX 1-4 (Sends/Returns) vs FX 5-8 (Inserts)
-    enum RackGroup { Group1To4 = 0, Group5To8, NumGroups };
-    juce::TextButton groupButtons[NumGroups];
-    int currentGroup = Group1To4;
+    ChannelStripComponent::StripType currentStripType = ChannelStripComponent::StripType::InputChannel;
+    int currentStripIndex = 0;
+
+    // Top X32 Navigation Header Bar
+    juce::TextButton backButton { "< Mixer" };
+    juce::TextButton libraryHeaderButton { "FX1-4 LIBRARY (8 PAGES)" };
+
+    // FX 1 to FX 8 Slots Tabs
+    std::array<juce::TextButton, 8> slotTabs;
     int selectedSlot = 0; // 0..7
 
-    // 8 Rack Slots Header Controls
-    struct SlotUi
-    {
-        juce::Label slotTitle;
-        juce::ComboBox typeCombo;
-        juce::TextButton bypassButton { "IN" };
-        juce::TextButton modeButton { "SEND/RET" };
-        ConsoleDial mixDial { "MIX", 0.0, 100.0, 100.0, 1.0 };
-        LedMeter inMeter { LedMeter::Mode::Stereo };
-        LedMeter outMeter { LedMeter::Mode::Stereo };
-        juce::TextButton selectButton { "EDIT" };
-    };
-    std::array<SlotUi, 8> slotUis;
+    // Legacy group buttons kept for test compatibility
+    enum RackGroup { Group1To4 = 0, Group5To8, NumGroups };
+    juce::TextButton groupButtons[NumGroups];
 
-    // Realistic Hardware Simulated Front Panel Faceplate
+    // Hardware Simulated Front Panel Faceplate (X32 Rack Module)
     FxFaceplateComponent faceplate { engine };
 
-    void setupSlots();
-    void updateGroupVisibility();
     bool ignoreCallbacks = false;
 };
 

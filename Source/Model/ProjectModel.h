@@ -51,6 +51,12 @@ public:
     juce::Result loadX32SceneText (const juce::String& scnText);
     juce::Result loadX32SceneFile (const juce::File& file);
 
+    // Default Session Auto-Save / Restore
+    static juce::File getDefaultProjectFile();
+    juce::Result autoSaveSession();
+    juce::Result autoLoadSession(juce::StringArray& outMissingFiles);
+    static bool hasSavedSession();
+
     // Default init (e.g. Kick, Snare, Bass, Guitar, Vocal default channel names and colors)
     void setupDefaults();
 

@@ -52,6 +52,12 @@ TransportBar::TransportBar (AudioEngine& eng) : engine (eng)
     sectionMenuButton.addListener (this);
     addAndMakeVisible (sectionMenuButton);
 
+    // Save Button
+    saveButton.setTooltip ("Save current project & tracks (บันทึกโปรเจกต์และการตั้งค่า)");
+    saveButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff00838f)); // Cyan
+    saveButton.addListener (this);
+    addAndMakeVisible (saveButton);
+
     // 3. Interactive Timeline Range
     timeline.onSeek = [this] (double normPos) {
         engine.seekToNormalized ((float) normPos);
@@ -213,6 +219,11 @@ void TransportBar::buttonClicked (juce::Button* b)
     {
         showSectionPresetsMenu();
     }
+    else if (b == &saveButton)
+    {
+        if (onQuickSave)
+            onQuickSave();
+    }
 }
 
 void TransportBar::showSectionPresetsMenu()
@@ -306,6 +317,10 @@ void TransportBar::resized()
     allRangeButton.setBounds (row2.removeFromLeft (compact ? 34 : 40));
     row2.removeFromLeft (3);
     sectionMenuButton.setBounds (row2.removeFromLeft (compact ? 62 : 78));
+    row2.removeFromLeft (compact ? 3 : 8);
+
+    // Save Button
+    saveButton.setBounds (row2.removeFromLeft (compact ? 44 : 54));
     row2.removeFromLeft (compact ? 4 : 12);
 
     // Right-aligned status

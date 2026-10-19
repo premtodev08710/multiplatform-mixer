@@ -34,10 +34,15 @@ void MixEngine::prepare (double sr, int maxBlockSize)
     mainGain.setImmediate (faderDbToGain (params.main.faderDb.get()) * (params.main.mute.getBool() ? 0.0f : 1.0f));
 
     fxRack.prepare (sampleRate, maxBlockSize);
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < 16; ++i)
     {
         busBufL[i].assign ((size_t) maxBlockSize, 0.0f);
         busBufR[i].assign ((size_t) maxBlockSize, 0.0f);
+    }
+    for (int i = 0; i < 6; ++i)
+    {
+        mtxBufL[i].assign ((size_t) maxBlockSize, 0.0f);
+        mtxBufR[i].assign ((size_t) maxBlockSize, 0.0f);
     }
     for (int i = 0; i < 4; ++i)
     {
@@ -124,10 +129,15 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
     std::memset (sumL.data(), 0, sizeof (float) * (size_t) n);
     std::memset (sumR.data(), 0, sizeof (float) * (size_t) n);
-    for (int b = 0; b < 12; ++b)
+    for (int b = 0; b < 16; ++b)
     {
         std::memset (busBufL[(size_t) b].data(), 0, sizeof (float) * (size_t) n);
         std::memset (busBufR[(size_t) b].data(), 0, sizeof (float) * (size_t) n);
+    }
+    for (int m = 0; m < 6; ++m)
+    {
+        std::memset (mtxBufL[(size_t) m].data(), 0, sizeof (float) * (size_t) n);
+        std::memset (mtxBufR[(size_t) m].data(), 0, sizeof (float) * (size_t) n);
     }
     for (int s = 0; s < 4; ++s)
     {
@@ -278,12 +288,31 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         if (chInsSlot >= 1 && chInsSlot <= 8)
         {
             auto& insSlotParams = params.fxSlots[(size_t) (chInsSlot - 1)];
-            const float* inR = (width == 2) ? chR.data() : chL.data();
-            fxRack.processSlot (chInsSlot - 1, chL.data(), inR,
-                                insBufL.data(), insBufR.data(), n, insSlotParams);
-            std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
-            if (width == 2)
-                std::memcpy (chR.data(), insBufR.data(), sizeof (float) * (size_t) n);
+            const int t0 = insSlotParams.insertTargets[0].getInt();
+            const int t1 = insSlotParams.insertTargets[1].getInt();
+            const int myCode = (int) c + 1;
+
+            if (t0 == myCode && t1 == myCode)
+            {
+                const float* inR = (width == 2) ? chR.data() : chL.data();
+                fxRack.processSlot (chInsSlot - 1, chL.data(), inR,
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
+                if (width == 2)
+                    std::memcpy (chR.data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t0 == myCode)
+            {
+                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (chL.data(), insBufL.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t1 == myCode)
+            {
+                fxRack.processSlot (chInsSlot - 1, chL.data(), chL.data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (chL.data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
         }
 
         // ---- Real-time 31-band acoustic spectrum analysis
@@ -321,8 +350,8 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
             if (! muted)
             {
-                // MixBus 1..12 accumulation (Buses 1..12 are Mix Buses, NOT FX!)
-                for (int b = 0; b < 12; ++b)
+                // MixBus 1..16 accumulation
+                for (int b = 0; b < 16; ++b)
                 {
                     if (! p.sendMutes[(size_t) b].getBool())
                     {
@@ -336,7 +365,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                     }
                 }
 
-                // FX Sends 1..4 accumulation (Buses 13..16 are dedicated FX 1..4!)
+                // FX Sends 1..4 accumulation (Buses 13..16 are dedicated FX 1..4 when in Send/Return mode!)
                 for (int s = 0; s < 4; ++s)
                 {
                     const int fxBusIdx = 12 + s;
@@ -357,8 +386,8 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         m.postR.update (pkR);
     }
 
-    // ---- Process MixBuses 1..12 (Master fader, mute, Main LR routing & metering)
-    for (int b = 0; b < 12; ++b)
+    // ---- Process MixBuses 1..16 (Master fader, mute, insert FX, Main LR routing & metering)
+    for (int b = 0; b < 16; ++b)
     {
         auto& busParam = params.buses[(size_t) b];
 
@@ -400,11 +429,34 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         if (busInsSlot >= 1 && busInsSlot <= 8)
         {
             auto& insSlotParams = params.fxSlots[(size_t) (busInsSlot - 1)];
-            fxRack.processSlot (busInsSlot - 1,
-                                busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
-                                insBufL.data(), insBufR.data(), n, insSlotParams);
-            std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
-            std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            const int t0 = insSlotParams.insertTargets[0].getInt();
+            const int t1 = insSlotParams.insertTargets[1].getInt();
+            const int myCode = 100 + (b + 1);
+
+            if (t0 == myCode && t1 == myCode)
+            {
+                fxRack.processSlot (busInsSlot - 1,
+                                    busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
+                std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t0 == myCode)
+            {
+                fxRack.processSlot (busInsSlot - 1,
+                                    busBufL[(size_t) b].data(), busBufL[(size_t) b].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (busBufL[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
+                std::memcpy (busBufR[(size_t) b].data(), insBufL.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t1 == myCode)
+            {
+                fxRack.processSlot (busInsSlot - 1,
+                                    busBufR[(size_t) b].data(), busBufR[(size_t) b].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (busBufL[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+                std::memcpy (busBufR[(size_t) b].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
         }
 
         const bool busMuted = busParam.mute.getBool() || busMgMuted || busDcaMuted;
@@ -428,7 +480,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         meters.buses[(size_t) b].update (busPk);
     }
 
-    // ---- Process FX 1..4 (Send/Return Busses)
+    // ---- Process FX 1..4 (Send/Return Busses when in Send/Return mode)
     for (int s = 0; s < 4; ++s)
     {
         auto& slotParams = params.fxSlots[(size_t) s];
@@ -506,6 +558,60 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                             insBufL.data(), insBufR.data(), n, insSlotParams);
         std::memcpy (sumL.data(), insBufL.data(), sizeof (float) * (size_t) n);
         std::memcpy (sumR.data(), insBufR.data(), sizeof (float) * (size_t) n);
+    }
+
+    // ---- Process Matrices 1..6 (Fed from Main LR and Buses, with Insert FX and metering)
+    for (int m = 0; m < 6; ++m)
+    {
+        auto& mtxParam = params.matrices[(size_t) m];
+        // Feed from Main LR by default
+        std::memcpy (mtxBufL[(size_t) m].data(), sumL.data(), sizeof (float) * (size_t) n);
+        std::memcpy (mtxBufR[(size_t) m].data(), sumR.data(), sizeof (float) * (size_t) n);
+
+        const int mtxInsSlot = mtxParam.insertFxSlot.getInt();
+        if (mtxInsSlot >= 1 && mtxInsSlot <= 8)
+        {
+            auto& insSlotParams = params.fxSlots[(size_t) (mtxInsSlot - 1)];
+            const int t0 = insSlotParams.insertTargets[0].getInt();
+            const int t1 = insSlotParams.insertTargets[1].getInt();
+            const int myCode = 200 + (m + 1);
+
+            if (t0 == myCode && t1 == myCode)
+            {
+                fxRack.processSlot (mtxInsSlot - 1,
+                                    mtxBufL[(size_t) m].data(), mtxBufR[(size_t) m].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (mtxBufL[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
+                std::memcpy (mtxBufR[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t0 == myCode)
+            {
+                fxRack.processSlot (mtxInsSlot - 1,
+                                    mtxBufL[(size_t) m].data(), mtxBufL[(size_t) m].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (mtxBufL[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
+                std::memcpy (mtxBufR[(size_t) m].data(), insBufL.data(), sizeof (float) * (size_t) n);
+            }
+            else if (t1 == myCode)
+            {
+                fxRack.processSlot (mtxInsSlot - 1,
+                                    mtxBufR[(size_t) m].data(), mtxBufR[(size_t) m].data(),
+                                    insBufL.data(), insBufR.data(), n, insSlotParams);
+                std::memcpy (mtxBufL[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
+                std::memcpy (mtxBufR[(size_t) m].data(), insBufR.data(), sizeof (float) * (size_t) n);
+            }
+        }
+
+        const bool mtxMuted = mtxParam.mute.getBool();
+        const float mtxGain = mtxMuted ? 0.0f : faderDbToGain (mtxParam.faderDb.get());
+        float mtxPk = 0.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            const float mL = mtxBufL[(size_t) m][(size_t) i] * mtxGain;
+            const float mR = mtxBufR[(size_t) m][(size_t) i] * mtxGain;
+            mtxPk = std::max (mtxPk, std::max (std::abs (mL), std::abs (mR)));
+        }
+        meters.matrices[(size_t) m].update (mtxPk);
     }
 
     // ---- main LR

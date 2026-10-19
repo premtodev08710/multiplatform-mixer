@@ -266,6 +266,9 @@ void TracksScreen::buttonClicked (juce::Button* b)
         for (int s = 0; s < kMaxTracks; ++s)
             project.setTrackFile (s, juce::File());
 
+        project.setModified (true);
+        project.autoSaveSession();
+
         if (project.onTracksChanged)
             project.onTracksChanged();
 
@@ -787,6 +790,9 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
 
         if (project.onTracksChanged)
             project.onTracksChanged();
+
+        project.setModified (true);
+        project.autoSaveSession();
 
         trackTable.updateContent();
         trackTable.repaint();

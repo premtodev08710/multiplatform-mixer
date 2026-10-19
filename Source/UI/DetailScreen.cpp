@@ -1062,6 +1062,7 @@ int DetailScreen::getInsertSlotForCurrentStrip() const noexcept
         case ChannelStripComponent::StripType::InputChannel: return mp.channels[(size_t) currentStripIndex].insertFxSlot.getInt();
         case ChannelStripComponent::StripType::Bus:          return mp.buses[(size_t) currentStripIndex].insertFxSlot.getInt();
         case ChannelStripComponent::StripType::Matrix:       return mp.matrices[(size_t) currentStripIndex].insertFxSlot.getInt();
+        case ChannelStripComponent::StripType::Master:       return mp.main.insertFxSlot.getInt();
         default: return 0;
     }
 }
@@ -1074,6 +1075,7 @@ void DetailScreen::setInsertSlotForCurrentStrip (int slot)
         case ChannelStripComponent::StripType::InputChannel: mp.channels[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
         case ChannelStripComponent::StripType::Bus:          mp.buses[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
         case ChannelStripComponent::StripType::Matrix:       mp.matrices[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
+        case ChannelStripComponent::StripType::Master:       mp.main.insertFxSlot.set ((float) slot); break;
         default: break;
     }
 }

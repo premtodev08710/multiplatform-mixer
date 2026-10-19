@@ -40,6 +40,10 @@ target_compile_definitions(MixPracticeStudio PRIVATE
     JUCE_USE_FLAC=1
     JUCE_USE_OGGVORBIS=1)
 
+if(MSVC)
+    target_compile_options(MixPracticeStudio PRIVATE /utf-8)
+endif()
+
 target_sources(MixPracticeStudio PRIVATE
     # Core DSP & Transport (Pure C++ / cross-platform)
     Source/Core/DspMath.h
@@ -64,9 +68,11 @@ target_sources(MixPracticeStudio PRIVATE
     Source/Model/ProjectModel.h
     Source/Model/ProjectModel.cpp
 
-    # Network Remote Control (Behringer X32 OSC Protocol)
+    # Network Remote Control (Behringer X32 OSC Protocol) & Telemetry
     Source/Network/X32OscClient.h
     Source/Network/X32OscClient.cpp
+    Source/Network/InstallTelemetry.h
+    Source/Network/InstallTelemetry.cpp
 
     # UI Components
     Source/UI/ConsoleLookAndFeel.h

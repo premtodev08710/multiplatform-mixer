@@ -66,7 +66,8 @@ private:
     LinearSmoother mainGain;
 
     FxRackManager fxRack;
-    std::array<std::vector<float>, 12> busBufL, busBufR;
+    std::array<std::vector<float>, 16> busBufL, busBufR;
+    std::array<std::vector<float>, 6> mtxBufL, mtxBufR;
     std::array<std::vector<float>, 4> fxSendBufL, fxSendBufR;
     std::array<std::vector<float>, 4> fxRetBufL, fxRetBufR;
     std::vector<float> insBufL, insBufR;
