@@ -120,26 +120,25 @@ void EffectsScreen::paint (juce::Graphics& g)
     if (totalW <= 50 || totalH <= 50)
         return;
 
-    // Enforce strict 2.4 : 6 (height : width) aspect ratio across all platforms (Mobile, Windows, macOS)
-    // Ratio: height / width = 2.4 / 6.0 = 0.40  (or width / height = 6.0 / 2.4 = 2.50)
-    const int availW = totalW - 16;
-    const int availH = totalH - 12;
+    // Responsive layout: preserve 2.4:6 on tall desktop screens, but use full height on mobile landscape
+    const int availW = totalW - 12;
+    const int availH = totalH - 6;
 
     int modW = availW;
     int totalBlockH = juce::roundToInt ((float) modW * (2.4f / 6.0f));
-    if (totalBlockH > availH)
+    if (totalBlockH > availH || availH < 360)
     {
         totalBlockH = availH;
-        modW = juce::roundToInt ((float) totalBlockH * (6.0f / 2.4f));
+        modW = juce::jmin (availW, juce::roundToInt ((float) totalBlockH * 2.95f));
     }
 
     const int modX = (totalW - modW) / 2;
     const int startY = (totalH - totalBlockH) / 2;
 
-    const int headerH = juce::jlimit (26, 38, juce::roundToInt ((float) totalBlockH * 0.085f));
-    const int gapH = juce::jlimit (4, 8, juce::roundToInt ((float) totalBlockH * 0.018f));
+    const int headerH = juce::jlimit (24, 34, juce::roundToInt ((float) totalBlockH * 0.082f));
+    const int gapH = juce::jlimit (3, 6, juce::roundToInt ((float) totalBlockH * 0.014f));
     const int chassisH = totalBlockH - headerH - gapH;
-    const int tabStripH = juce::jlimit (24, 30, juce::roundToInt ((float) chassisH * 0.072f));
+    const int tabStripH = juce::jlimit (22, 28, juce::roundToInt ((float) chassisH * 0.082f));
 
     // 1. Top Navigation Header Bar
     juce::Rectangle<float> hdrBar ((float) modX, (float) startY, (float) modW, (float) headerH);
@@ -149,7 +148,7 @@ void EffectsScreen::paint (juce::Graphics& g)
     g.drawRoundedRectangle (hdrBar, 6.0f, 1.0f);
 
     // Red glowing status dot
-    const float dotX = (float) modX + 88.0f;
+    const float dotX = (float) modX + 86.0f;
     const float dotY = hdrBar.getCentreY() - 5.0f;
     g.setColour (juce::Colour (0xffef4444).withAlpha (0.35f));
     g.fillEllipse (dotX - 3.0f, dotY - 3.0f, 16.0f, 16.0f);
@@ -158,27 +157,32 @@ void EffectsScreen::paint (juce::Graphics& g)
 
     // BEHRINGER | X32 EDIT text
     g.setColour (juce::Colours::white);
-    g.setFont (juce::FontOptions (13.5f, juce::Font::bold));
-    g.drawText ("BEHRINGER", (int) (dotX + 18.0f), startY, 92, headerH, juce::Justification::centredLeft, false);
-
-    g.setColour (juce::Colour (0xff71717a));
-    g.setFont (juce::FontOptions (12.5f, juce::Font::plain));
-    g.drawText ("|  X32 EDIT  (2.4 : 6)", (int) (dotX + 108.0f), startY, 150, headerH, juce::Justification::centredLeft, false);
+    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    g.drawText ("BEHRINGER", (int) (dotX + 16.0f), startY, 88, headerH, juce::Justification::centredLeft, false);
 
     const int rightClearance = (startY < 38 && (modX + modW > totalW - 44)) ? 36 : 0;
+    const int libBtnLeft = modX + modW - 196 - rightClearance;
+    const int subtitleLeft = (int) (dotX + 104.0f);
 
-    // Mode Badge
-    if (modW >= 680)
+    if (libBtnLeft - subtitleLeft >= 110)
+    {
+        g.setColour (juce::Colour (0xff71717a));
+        g.setFont (juce::FontOptions (11.5f, juce::Font::plain));
+        g.drawText ("|  X32 VIRTUAL FX RACK", subtitleLeft, startY, 145, headerH, juce::Justification::centredLeft, false);
+    }
+
+    // Mode Badge (only show when there is clear room without overlapping subtitle)
+    if (libBtnLeft - (subtitleLeft + 150) >= 215)
     {
         const bool is58 = (selectedSlot >= 4);
         const juce::String modeTxt = is58 ? "FX5-8: 28 INSERT MODELS (5 PAGES)" : "FX1-4: 61 MODELS (8 PAGES)";
-        juce::Rectangle<float> modeBadge ((float) (modX + modW - 430 - rightClearance), (float) (startY + (headerH - 24) / 2), 215.0f, 24.0f);
+        juce::Rectangle<float> modeBadge ((float) (libBtnLeft - 216), (float) (startY + (headerH - 22) / 2), 208.0f, 22.0f);
         g.setColour (juce::Colour (0xff27272a));
         g.fillRoundedRectangle (modeBadge, 4.0f);
         g.setColour (juce::Colour (0xff3f3f46));
         g.drawRoundedRectangle (modeBadge, 4.0f, 1.0f);
         g.setColour (juce::Colour (0xff38bdf8));
-        g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.5f, juce::Font::bold));
+        g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::bold));
         g.drawText (modeTxt, modeBadge, juce::Justification::centred, false);
     }
 
@@ -187,7 +191,7 @@ void EffectsScreen::paint (juce::Graphics& g)
     juce::Rectangle<float> chassis ((float) modX, (float) chassisY, (float) modW, (float) chassisH);
 
     g.setColour (juce::Colours::black.withAlpha (0.65f));
-    g.fillRoundedRectangle (chassis.translated (0.0f, 6.0f), 6.0f);
+    g.fillRoundedRectangle (chassis.translated (0.0f, 5.0f), 6.0f);
 
     g.setColour (juce::Colour (0xff1c1c1e));
     g.fillRoundedRectangle (chassis, 6.0f);
@@ -211,43 +215,42 @@ void EffectsScreen::resized()
     if (totalW <= 50 || totalH <= 50)
         return;
 
-    // Enforce strict 2.4 : 6 (height : width) aspect ratio across all platforms (Mobile, Windows, macOS)
-    const int availW = totalW - 16;
-    const int availH = totalH - 12;
+    const int availW = totalW - 12;
+    const int availH = totalH - 6;
 
     int modW = availW;
     int totalBlockH = juce::roundToInt ((float) modW * (2.4f / 6.0f));
-    if (totalBlockH > availH)
+    if (totalBlockH > availH || availH < 360)
     {
         totalBlockH = availH;
-        modW = juce::roundToInt ((float) totalBlockH * (6.0f / 2.4f));
+        modW = juce::jmin (availW, juce::roundToInt ((float) totalBlockH * 2.95f));
     }
 
     const int modX = (totalW - modW) / 2;
     const int startY = (totalH - totalBlockH) / 2;
 
-    const int headerH = juce::jlimit (26, 38, juce::roundToInt ((float) totalBlockH * 0.085f));
-    const int gapH = juce::jlimit (4, 8, juce::roundToInt ((float) totalBlockH * 0.018f));
+    const int headerH = juce::jlimit (24, 34, juce::roundToInt ((float) totalBlockH * 0.082f));
+    const int gapH = juce::jlimit (3, 6, juce::roundToInt ((float) totalBlockH * 0.014f));
     const int chassisH = totalBlockH - headerH - gapH;
-    const int tabStripH = juce::jlimit (24, 30, juce::roundToInt ((float) chassisH * 0.072f));
+    const int tabStripH = juce::jlimit (22, 28, juce::roundToInt ((float) chassisH * 0.082f));
 
     const int rightClearance = (startY < 38 && (modX + modW > totalW - 44)) ? 36 : 0;
 
     // 1. Top Header Bar Buttons
-    backButton.setBounds (modX + 8, startY + 5, 70, headerH - 10);
-    libraryHeaderButton.setBounds (modX + modW - 205 - rightClearance, startY + 5, 195, headerH - 10);
+    backButton.setBounds (modX + 8, startY + 3, 68, headerH - 6);
+    libraryHeaderButton.setBounds (modX + modW - 196 - rightClearance, startY + 3, 188, headerH - 6);
 
     // 2. FX1..FX8 Tabs inside top of rack chassis
     const int chassisY = startY + headerH + gapH;
-    const int tabY = chassisY + 3;
+    const int tabY = chassisY + 2;
     const int tabH = tabStripH - 4;
-    const int tabW = juce::jmin (54, (modW - 24) / 8 - 2);
+    const int tabW = juce::jlimit (48, 66, (modW - 24) / 8 - 3);
     int tabX = modX + 8;
 
     for (int i = 0; i < 8; ++i)
     {
         slotTabs[(size_t) i].setBounds (tabX, tabY, tabW, tabH);
-        tabX += tabW + 2;
+        tabX += tabW + 3;
     }
 
     // 3. Faceplate Module Area

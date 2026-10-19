@@ -606,17 +606,17 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
     const int w = getWidth();
     const int h = getHeight();
 
-    // 1. Top Control Strip Background (scales proportionally with 2.4:6 container height)
-    const int topStripH = juce::jlimit (50, 72, juce::roundToInt ((float) h * 0.188f));
+    // 1. Top Control Strip Background (compact on mobile so center faceplate gets maximum height)
+    const int topStripH = juce::jlimit (44, 62, juce::roundToInt ((float) h * 0.165f));
     g.setColour (juce::Colour (0xff2b2b2e));
     g.fillRect (0, 0, w, topStripH);
     g.setColour (juce::Colour (0xff18181b));
     g.drawHorizontalLine (topStripH - 1, 0.0f, (float) w);
 
     // Routing Box on Left
-    const float topBarY = 5.0f;
-    const float topBarH = (float) topStripH - 10.0f;
-    const float routingBoxW = juce::jmin ((float) w - 240.0f, 520.0f);
+    const float topBarY = 4.0f;
+    const float topBarH = (float) topStripH - 8.0f;
+    const float routingBoxW = juce::jmin ((float) w - 230.0f, 500.0f);
     auto routingBox = juce::Rectangle<float> (8.0f, topBarY, routingBoxW, topBarH);
 
     g.setColour (juce::Colour (0xff303033));
@@ -624,26 +624,32 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xff8a8a93));
     g.drawRoundedRectangle (routingBox, 3.0f, 1.0f);
 
-    // Stereo Infinity Loop Diagram -> [ L oo R ] ->
-    auto loopBox = juce::Rectangle<float> (routingBox.getCentreX() - 62.0f, topBarY + 4.0f, 124.0f, topBarH - 8.0f);
+    // Stereo Infinity Loop Diagram -> [ L oo R ] -> (distinct top/middle/bottom bands so ∞ never overlaps R)
+    auto loopBox = juce::Rectangle<float> (routingBox.getCentreX() - 60.0f, topBarY + 3.0f, 120.0f, topBarH - 6.0f);
     g.setColour (juce::Colour (0xff252528));
     g.fillRoundedRectangle (loopBox, 2.0f);
     g.setColour (juce::Colour (0xff9ca3af));
     g.drawRoundedRectangle (loopBox, 2.0f, 1.0f);
 
+    const float thirdH = loopBox.getHeight() / 3.0f;
     g.setColour (juce::Colour (0xffd4d4d8));
-    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    g.drawText (juce::CharPointer_UTF8 ("\xe2\x86\x92   L   \xe2\x86\x92"), loopBox.withHeight (16.0f), juce::Justification::centred, false);
-    g.setFont (juce::FontOptions (20.0f, juce::Font::bold));
-    g.drawText (juce::CharPointer_UTF8 ("\xe2\x88\x9e"), loopBox.withTrimmedTop (10.0f).withHeight (22.0f), juce::Justification::centred, false);
-    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    g.drawText (juce::CharPointer_UTF8 ("\xe2\x86\x92   R   \xe2\x86\x92"), loopBox.withTop (loopBox.getBottom() - 16.0f), juce::Justification::centred, false);
+    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+    g.drawText (juce::CharPointer_UTF8 ("\xe2\x86\x92   L   \xe2\x86\x92"),
+                loopBox.withHeight (thirdH + 1.0f), juce::Justification::centred, false);
+    g.setColour (juce::Colour (0xff38bdf8));
+    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    g.drawText (juce::CharPointer_UTF8 ("\xe2\x88\x9e"),
+                loopBox.withY (loopBox.getY() + thirdH - 1.0f).withHeight (thirdH + 2.0f), juce::Justification::centred, false);
+    g.setColour (juce::Colour (0xffd4d4d8));
+    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+    g.drawText (juce::CharPointer_UTF8 ("\xe2\x86\x92   R   \xe2\x86\x92"),
+                loopBox.withY (loopBox.getBottom() - thirdH - 1.0f).withHeight (thirdH + 1.0f), juce::Justification::centred, false);
 
     // LED Meters (Input & Output pairs)
-    const float meterInX = loopBox.getX() - 92.0f;
+    const float meterInX = loopBox.getX() - 90.0f;
     const float meterOutX = loopBox.getRight() + 8.0f;
-    const float mRow1Y = topBarY + topBarH * 0.20f;
-    const float mRow2Y = topBarY + topBarH * 0.60f;
+    const float mRow1Y = topBarY + topBarH * 0.16f;
+    const float mRow2Y = topBarY + topBarH * 0.56f;
     drawLedMeter (g, meterInX, mRow1Y, peakInL);
     drawLedMeter (g, meterInX, mRow2Y, peakInR);
     drawLedMeter (g, meterOutX, mRow1Y, peakOutL);
@@ -651,14 +657,14 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
 
     // Current Effect Title Badge on Right
     g.setColour (juce::Colour (0xfffbbf24));
-    g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 12.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.5f, juce::Font::bold));
     const auto title = "FX" + juce::String (currentSlot + 1) + ": " + unitCanvas.getCurrentModel().name.toUpperCase();
-    const int badgeX = (int) (routingBox.getRight() + 12.0f);
-    const int badgeW = std::max (80, w - badgeX - 110);
-    g.drawText (title, badgeX, (int) topBarY, badgeW, (int) topBarH, juce::Justification::centredRight, false);
+    const int badgeX = (int) (routingBox.getRight() + 8.0f);
+    const int badgeW = std::max (70, w - badgeX - 104);
+    g.drawFittedText (title, badgeX, (int) topBarY, badgeW, (int) topBarH, juce::Justification::centredRight, 2, 0.85f);
 
-    // 2. Bottom Rack Bar (scales proportionally with 2.4:6 container height)
-    const int botBarH = juce::jlimit (40, 56, juce::roundToInt ((float) h * 0.146f));
+    // 2. Bottom Rack Bar (compact on mobile so center faceplate gets more room)
+    const int botBarH = juce::jlimit (34, 46, juce::roundToInt ((float) h * 0.125f));
     const int botBarY = h - botBarH;
     g.setColour (juce::Colour (0xff27272a));
     g.fillRect (0, botBarY, w, botBarH);
@@ -667,23 +673,23 @@ void FxFaceplateComponent::paint (juce::Graphics& g)
 
     // Center Hardware Text
     g.setColour (juce::Colour (0xffa1a1aa));
-    g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain));
+    g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.5f, juce::Font::plain));
     const juce::String engineStr = "BEHRINGER X32 VIRTUAL FX RACK  |  ENGINE " + juce::String (activeEngineLayer + 1) + " ACTIVE";
-    g.drawText (engineStr, 100, botBarY, w - 300, botBarH, juce::Justification::centred, false);
+    g.drawText (engineStr, 96, botBarY, w - 296, botBarH, juce::Justification::centred, false);
 
     // Right "LAYER / ENGINE" Label
     g.setColour (juce::Colour (0xffa1a1aa));
-    g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    g.drawText ("LAYER / ENGINE", w - 210, botBarY, 108, botBarH, juce::Justification::centredRight, false);
+    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+    g.drawText ("LAYER / ENGINE", w - 208, botBarY, 106, botBarH, juce::Justification::centredRight, false);
 }
 
 void FxFaceplateComponent::drawLedMeter (juce::Graphics& g, float x, float y, float peak01)
 {
     // Background recessed box for 11-segment LED meter
     g.setColour (juce::Colour (0xff141416));
-    g.fillRoundedRectangle (x - 3.0f, y - 2.0f, 84.0f, 14.0f, 2.0f);
+    g.fillRoundedRectangle (x - 3.0f, y - 2.0f, 84.0f, 13.0f, 2.0f);
     g.setColour (juce::Colour (0xff3f3f46));
-    g.drawRoundedRectangle (x - 3.0f, y - 2.0f, 84.0f, 14.0f, 2.0f, 0.8f);
+    g.drawRoundedRectangle (x - 3.0f, y - 2.0f, 84.0f, 13.0f, 2.0f, 0.8f);
 
     const int activeLeds = (int) std::round (juce::jlimit (0.0f, 1.0f, peak01) * 11.0f);
     for (int i = 0; i < 11; ++i)
@@ -698,7 +704,7 @@ void FxFaceplateComponent::drawLedMeter (juce::Graphics& g, float x, float y, fl
         {
             g.setColour (juce::Colour (0xff1f1f23));
         }
-        g.fillRect (x + (float) i * 7.2f, y, 5.2f, 10.0f);
+        g.fillRect (x + (float) i * 7.2f, y, 5.2f, 9.0f);
     }
 }
 
@@ -710,37 +716,37 @@ void FxFaceplateComponent::resized()
     const int w = getWidth();
     const int h = getHeight();
 
-    const int topStripH = juce::jlimit (50, 72, juce::roundToInt ((float) h * 0.188f));
-    const float topBarY = 5.0f;
-    const float topBarH = (float) topStripH - 10.0f;
-    const float routingBoxW = juce::jmin ((float) w - 240.0f, 520.0f);
+    const int topStripH = juce::jlimit (44, 62, juce::roundToInt ((float) h * 0.165f));
+    const float topBarY = 4.0f;
+    const float topBarH = (float) topStripH - 8.0f;
+    const float routingBoxW = juce::jmin ((float) w - 230.0f, 500.0f);
     auto routingBox = juce::Rectangle<float> (8.0f, topBarY, routingBoxW, topBarH);
 
-    const int btnH = juce::jlimit (17, 22, (int) (topBarH * 0.36f));
-    const int row1Y = (int) (topBarY + topBarH * 0.10f);
-    const int row2Y = (int) (topBarY + topBarH * 0.54f);
+    const int btnH = juce::jlimit (15, 21, (int) (topBarH * 0.42f));
+    const int row1Y = (int) (topBarY + topBarH * 0.06f);
+    const int row2Y = (int) (topBarY + topBarH * 0.52f);
 
-    insertButtons[0].setBounds ((int) (routingBox.getX() + 8.0f), row1Y, 74, btnH);
-    insertButtons[1].setBounds ((int) (routingBox.getX() + 8.0f), row2Y, 74, btnH);
+    insertButtons[0].setBounds ((int) (routingBox.getX() + 6.0f), row1Y, 74, btnH);
+    insertButtons[1].setBounds ((int) (routingBox.getX() + 6.0f), row2Y, 74, btnH);
 
-    muteButtons[0].setBounds ((int) (routingBox.getRight() - 80.0f), row1Y, 72, btnH);
-    muteButtons[1].setBounds ((int) (routingBox.getRight() - 80.0f), row2Y, 72, btnH);
+    muteButtons[0].setBounds ((int) (routingBox.getRight() - 78.0f), row1Y, 72, btnH);
+    muteButtons[1].setBounds ((int) (routingBox.getRight() - 78.0f), row2Y, 72, btnH);
 
-    effectsButton.setBounds (w - 102, row1Y, 92, btnH + 1);
-    presetsButton.setBounds (w - 102, row2Y, 92, btnH + 1);
+    effectsButton.setBounds (w - 98, row1Y, 90, btnH);
+    presetsButton.setBounds (w - 98, row2Y, 90, btnH);
 
-    const int botBarH = juce::jlimit (40, 56, juce::roundToInt ((float) h * 0.146f));
+    const int botBarH = juce::jlimit (34, 46, juce::roundToInt ((float) h * 0.125f));
     const int botBarY = h - botBarH;
-    const int copyBtnH = juce::jlimit (15, 19, (botBarH - 12) / 2);
+    const int copyBtnH = juce::jlimit (14, 18, (botBarH - 8) / 2);
 
     // Bottom Rack Bar Buttons
-    copyButton.setBounds (12, botBarY + 5, 74, copyBtnH);
-    pasteButton.setBounds (12, botBarY + 7 + copyBtnH, 74, copyBtnH);
+    copyButton.setBounds (10, botBarY + 3, 72, copyBtnH);
+    pasteButton.setBounds (10, botBarY + 5 + copyBtnH, 72, copyBtnH);
 
-    const int engBtnH = juce::jlimit (26, 34, botBarH - 14);
+    const int engBtnH = juce::jlimit (24, 32, botBarH - 8);
     const int engBtnY = botBarY + (botBarH - engBtnH) / 2;
-    engineButtons[0].setBounds (w - 92, engBtnY, 36, engBtnH);
-    engineButtons[1].setBounds (w - 50, engBtnY, 36, engBtnH);
+    engineButtons[0].setBounds (w - 90, engBtnY, 36, engBtnH);
+    engineButtons[1].setBounds (w - 48, engBtnY, 36, engBtnH);
 
     // Center Hardware Unit Canvas
     unitCanvas.setBounds (0, topStripH, w, std::max (80, h - topStripH - botBarH));

@@ -972,54 +972,56 @@ public:
 
     void resized() override
     {
-        if (getWidth() <= 100 || getHeight() <= 100)
+        if (getWidth() <= 100 || getHeight() <= 80)
             return;
-        auto b = getLocalBounds().reduced (12);
+        auto b = getLocalBounds().reduced (10, 6);
         using GF = X32Fx::GuiFamily;
 
         if (currentModel.family == GF::LarcReverb)
         {
-            vfdBounds = juce::Rectangle<int> (b.getX(), b.getY(), b.getWidth(), 48);
-            const int btnH = 26;
+            const int vfdH = juce::jlimit (40, 50, juce::roundToInt ((float) b.getHeight() * 0.28f));
+            vfdBounds = juce::Rectangle<int> (b.getX(), b.getY(), b.getWidth(), vfdH);
+            const int btnH = juce::jlimit (22, 28, juce::roundToInt ((float) b.getHeight() * 0.16f));
             auto btnRow = b.removeFromBottom (btnH);
 
-            // Small page buttons 1, 2, 3 tucked inside the bottom-right corner of the VFD display
-            for (int i = 0; i < 3; ++i)
-                pageButtons[(size_t) i]->setBounds (vfdBounds.getRight() - 62 + i * 20, vfdBounds.getBottom() - 16, 18, 13);
-
-            auto faderArea = b.withTop (vfdBounds.getBottom() + 6).withBottom (btnRow.getY() - 6);
+            // Place page buttons 1, 2, 3 in the gap between the 5th and 6th columns so they never cover LEVEL's dB readout
             const int colW = b.getWidth() / 6;
+            const int pageGroupX = vfdBounds.getX() + 5 * colW - 34;
+            for (int i = 0; i < 3; ++i)
+                pageButtons[(size_t) i]->setBounds (pageGroupX + i * 22, vfdBounds.getBottom() - 16, 20, 14);
+
+            auto faderArea = b.withTop (vfdBounds.getBottom() + 4).withBottom (btnRow.getY() - 4);
 
             for (int i = 0; i < 6; ++i)
             {
-                controls[(size_t) i]->setBounds (b.getX() + i * colW + (colW - 50) / 2, faderArea.getY(), 50, faderArea.getHeight());
-                subButtons[(size_t) i]->setBounds (b.getX() + i * colW + 4, btnRow.getY(), colW - 8, btnH);
+                controls[(size_t) i]->setBounds (b.getX() + i * colW + (colW - 54) / 2, faderArea.getY(), 54, faderArea.getHeight());
+                subButtons[(size_t) i]->setBounds (b.getX() + i * colW + 3, btnRow.getY(), colW - 6, btnH);
             }
             return;
         }
 
         if (currentModel.family == GF::GraphicEq)
         {
-            auto faderZone = b.withTrimmedTop (34);
+            auto faderZone = b.withTrimmedTop (26);
             const int numBands = 31;
             const float colW = (float) faderZone.getWidth() / (float) numBands;
             for (int i = 0; i < numBands; ++i)
             {
                 int cx = juce::roundToInt (faderZone.getX() + i * colW);
-                controls[(size_t) i]->setBounds (cx, faderZone.getY() + 14, juce::jmax (14, juce::roundToInt (colW)), faderZone.getHeight() - 20);
-                labels[(size_t) i]->setBounds (cx - 4, faderZone.getY(), juce::roundToInt (colW) + 8, 13);
+                controls[(size_t) i]->setBounds (cx, faderZone.getY() + 12, juce::jmax (14, juce::roundToInt (colW)), faderZone.getHeight() - 14);
+                labels[(size_t) i]->setBounds (cx - 4, faderZone.getY(), juce::roundToInt (colW) + 8, 12);
             }
             return;
         }
 
         if (currentModel.family == GF::PrecisionLimiter)
         {
-            auto rightArea = b.withTrimmedLeft (160);
+            auto rightArea = b.withTrimmedLeft (145);
             const int colW = rightArea.getWidth() / 6;
             for (int i = 0; i < 6; ++i)
             {
-                auto col = juce::Rectangle<int> (rightArea.getX() + i * colW, rightArea.getY() + 8, colW, rightArea.getHeight() - 16);
-                controls[(size_t) i]->setBounds (col.withTrimmedBottom (20).reduced (colW / 4, 0));
+                auto col = juce::Rectangle<int> (rightArea.getX() + i * colW, rightArea.getY() + 4, colW, rightArea.getHeight() - 8);
+                controls[(size_t) i]->setBounds (col.withTrimmedBottom (20).reduced (colW / 5, 0));
                 labels[(size_t) i]->setBounds (col.removeFromBottom (20));
             }
             return;
@@ -1029,20 +1031,42 @@ public:
         if (activeCount == 0) activeCount = 6;
         activeCount = juce::jmin (activeCount, 12);
 
-        auto workArea = b.withTrimmedTop (32).reduced (20, 4);
-        const int cols = (activeCount > 8) ? 6 : activeCount;
+        const bool hasVuRight = (currentModel.family == GF::FairComp ||
+                                 currentModel.family == GF::LeisureComp ||
+                                 currentModel.family == GF::UltimoComp);
+        const bool hasLeftBanner = (currentModel.family == GF::ColoredMod ||
+                                    currentModel.family == GF::SubOctaver);
+        const bool hasRightMood = (currentModel.family == GF::MoodFilter);
+
         const int rows = (activeCount > 8) ? 2 : 1;
+        const int cols = (rows == 2) ? ((activeCount + 1) / 2) : activeCount;
+
+        const int topHeaderTrim = (rows == 2) ? 22 : 26;
+        auto workArea = b.withTrimmedTop (topHeaderTrim).reduced (12, 0);
+        if (hasVuRight)
+            workArea.removeFromRight (juce::jmin (142, workArea.getWidth() / 5));
+        if (hasLeftBanner)
+            workArea.removeFromLeft (118);
+        if (hasRightMood)
+            workArea.removeFromRight (88);
+
         const int cellW = workArea.getWidth() / juce::jmax (1, cols);
         const int cellH = workArea.getHeight() / rows;
+        const int labelH = (rows == 2) ? 21 : 25;
 
         for (int i = 0; i < activeCount; ++i)
         {
             int r = i / cols;
             int c = i % cols;
             juce::Rectangle<int> cell (workArea.getX() + c * cellW, workArea.getY() + r * cellH, cellW, cellH);
-            int knobSize = juce::jmin (cell.getWidth() - 10, cell.getHeight() - 30, 60);
-            controls[(size_t) i]->setBounds (cell.getCentreX() - knobSize / 2, cell.getY() + 1, knobSize, knobSize);
-            labels[(size_t) i]->setBounds (cell.getX(), cell.getY() + knobSize + 2, cell.getWidth(), 26);
+            int maxKnob = (rows == 2) ? 48 : 64;
+            int minKnob = (rows == 2) ? 32 : 42;
+            int knobSize = juce::jlimit (minKnob, maxKnob, juce::jmin (cell.getWidth() - 8, cell.getHeight() - labelH));
+            const int blockH = knobSize + labelH;
+            const int startKnobY = cell.getY() + std::max (0, (cell.getHeight() - blockH) / 2);
+            controls[(size_t) i]->setBounds (cell.getCentreX() - knobSize / 2, startKnobY, knobSize, knobSize);
+            labels[(size_t) i]->setFont (juce::FontOptions ((rows == 2) ? 9.2f : 10.0f, juce::Font::bold));
+            labels[(size_t) i]->setBounds (cell.getX() - 2, startKnobY + knobSize, cell.getWidth() + 4, labelH);
         }
     }
 
@@ -1370,8 +1394,9 @@ private:
         g.fillAll (juce::Colour (0xff15262d));
         g.setColour (juce::Colour (0xffa5f3fc));
         g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        g.drawText (currentModel.name.toUpperCase(), b.removeFromTop (28).reduced (16, 0), juce::Justification::centredLeft, false);
-        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 140.0f, 18.0f, 120.0f, 58.0f), "VU REDUCTION");
+        g.drawText (currentModel.name.toUpperCase(), b.withHeight (26.0f).reduced (16, 0), juce::Justification::centredLeft, false);
+        const float vuH = juce::jlimit (54.0f, 70.0f, b.getHeight() * 0.44f);
+        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 140.0f, b.getCentreY() - vuH * 0.45f, 124.0f, vuH), "VU REDUCTION");
     }
 
     void paintLeisureCompFaceplate (juce::Graphics& g, juce::Rectangle<float> b)
@@ -1379,8 +1404,9 @@ private:
         g.fillAll (juce::Colour (0xff8c8f94));
         g.setColour (juce::Colour (0xff18181b));
         g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-        g.drawText ("ELECTRONIC  •  " + currentModel.name.toUpperCase(), b.removeFromTop (28).reduced (16, 0), juce::Justification::centredLeft, false);
-        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 145.0f, 18.0f, 125.0f, 62.0f), "LEVELING AMPLIFIER");
+        g.drawText ("ELECTRONIC  •  " + currentModel.name.toUpperCase(), b.withHeight (26.0f).reduced (16, 0), juce::Justification::centredLeft, false);
+        const float vuH = juce::jlimit (56.0f, 72.0f, b.getHeight() * 0.46f);
+        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 142.0f, b.getCentreY() - vuH * 0.45f, 126.0f, vuH), "LEVELING AMPLIFIER");
     }
 
     void paintUltimoCompFaceplate (juce::Graphics& g, juce::Rectangle<float> b)
@@ -1388,8 +1414,9 @@ private:
         g.fillAll (juce::Colour (0xff151517));
         g.setColour (juce::Colours::white);
         g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-        g.drawText (currentModel.name.toUpperCase() + "  •  LIMITING AMPLIFIER", b.removeFromTop (28).reduced (16, 0), juce::Justification::centredLeft, false);
-        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 145.0f, 18.0f, 125.0f, 62.0f), "VU GR");
+        g.drawText (currentModel.name.toUpperCase() + "  •  LIMITING AMPLIFIER", b.withHeight (26.0f).reduced (16, 0), juce::Justification::centredLeft, false);
+        const float vuH = juce::jlimit (56.0f, 72.0f, b.getHeight() * 0.46f);
+        paintVuMeter (g, juce::Rectangle<float> (b.getRight() - 142.0f, b.getCentreY() - vuH * 0.45f, 126.0f, vuH), "VU GR");
     }
 
     void paintEnhancerFaceplate (juce::Graphics& g, juce::Rectangle<float> b)
