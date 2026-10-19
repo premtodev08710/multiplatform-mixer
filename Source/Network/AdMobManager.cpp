@@ -84,44 +84,9 @@ void AdMobManager::initialize (bool showOnFirstLoad)
 
 void AdMobManager::notifyScreenTransition (bool isAudioPlaying)
 {
-    // Never interrupt active multitrack playback with a fullscreen ad
-    if (isAudioPlaying)
-        return;
-
-   #if JUCE_ANDROID
-    if (! initialized)
-        initialize (false);
-
-    ensureAdMobHelperClassLoaded();
-
-    auto* env = juce::getEnv();
-    if (env == nullptr || g_adMobHelperClass == nullptr)
-        return;
-
-    jmethodID mid = env->GetStaticMethodID (
-        g_adMobHelperClass,
-        "maybeShowInterstitial",
-        "(Landroid/app/Activity;J)V");
-
-    if (mid == nullptr)
-    {
-        env->ExceptionClear();
-        return;
-    }
-
-    auto jActivity = juce::getCurrentActivity();
-    if (jActivity.get() == nullptr)
-        return;
-
-    env->CallStaticVoidMethod (
-        g_adMobHelperClass,
-        mid,
-        jActivity.get(),
-        static_cast<jlong> (kScreenSwitchCooldownMs));
-
-    if (env->ExceptionCheck())
-        env->ExceptionClear();
-   #endif
+    // Screen transition ads disabled per user requirement:
+    // Only 1 launch interstitial ad is shown when opening the app.
+    juce::ignoreUnused (isAudioPlaying);
 }
 
 } // namespace mps

@@ -27,7 +27,7 @@
             android:value="ca-app-pub-7548699861335461~9574543547" />
 
         <activity
-            android:name="com.rmsl.juce.JuceActivity"
+            android:name="com.mixpractice.studio.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:screenOrientation="sensorLandscape">

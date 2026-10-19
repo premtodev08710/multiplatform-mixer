@@ -234,12 +234,7 @@ void MainComponent::checkAndShowTermsOfService()
 
 void MainComponent::showScreen (int screenIdx)
 {
-    const bool isScreenSwitch = (currentScreen != screenIdx);
     currentScreen = screenIdx;
-
-    if (isScreenSwitch)
-        adMob.notifyScreenTransition (engine.getStreamer().isPlaying());
-
     homeScreen.setVisible (screenIdx == NavHome);
     detailScreen.setVisible (screenIdx == NavDetail);
     tracksScreen.setVisible (screenIdx == NavTracks);

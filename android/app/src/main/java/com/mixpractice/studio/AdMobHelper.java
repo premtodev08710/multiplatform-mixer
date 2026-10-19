@@ -16,172 +16,149 @@ import com.google.android.gms.ads.initialization.OnInitializationCompleteListene
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 
+/**
+ * Manages Google AdMob Interstitial Ads for Mix Practice Studio.
+ *
+ * User requirement:
+ * - Display interstitial ad ONLY ONCE upon app launch (first start).
+ * - Allow user to skip after 5 seconds (standard Google interstitial countdown).
+ * - No frequent or recurring ads during mixing or screen transitions.
+ * - Robust fallback to test ad unit if production ad unit is pending inventory/store link.
+ */
 public class AdMobHelper {
     private static final String TAG = "MixPracticeAdMob";
 
     // Official AdMob Interstitial Ad Unit ID for Mix Practice Studio
-    public static final String DEFAULT_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-7548699861335461/5536980202";
+    public static final String PRODUCTION_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-7548699861335461/5536980202";
+
+    // Google's official Interstitial sample ad unit (guaranteed fill for testing / unlinked store)
+    public static final String TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
 
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private static boolean isInitialized = false;
-    private static boolean isLoading = false;
-    private static boolean pendingShowOnFirstLoad = false;
-    private static InterstitialAd currentInterstitialAd = null;
-    private static String activeAdUnitId = DEFAULT_INTERSTITIAL_AD_UNIT_ID;
-    private static long lastAdShownTimestampMs = 0L;
-    private static long minCooldownMs = 180000L; // Default 3 minutes between interstitials
+    private static boolean isSdkInitialized = false;
+    private static boolean isLoadingAd = false;
+    private static boolean adShownThisSession = false;
 
     /**
-     * Initializes Google Mobile Ads SDK and preloads the first interstitial ad.
-     * If showOnFirstLoad is true, the interstitial ad will automatically display
-     * once the initial load completes.
+     * Called directly on app startup (e.g. from MainActivity.onCreate) to initialize
+     * AdMob and immediately show the launch interstitial ad (with 5s skip).
      */
-    public static void initialize(final Activity activity, final String adUnitId, final boolean showOnFirstLoad, final long cooldownMs) {
-        if (activity == null) {
+    public static void initializeAndShowLaunchAd(final Activity activity) {
+        if (activity == null || adShownThisSession) {
             return;
         }
+
         mainHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (adUnitId != null && !adUnitId.trim().isEmpty()) {
-                    activeAdUnitId = adUnitId.trim();
-                }
-                if (cooldownMs > 0) {
-                    minCooldownMs = cooldownMs;
-                }
-                pendingShowOnFirstLoad = showOnFirstLoad;
-
-                if (isInitialized) {
-                    if (currentInterstitialAd == null && !isLoading) {
-                        loadInterstitialInternal(activity);
-                    } else if (pendingShowOnFirstLoad && currentInterstitialAd != null) {
-                        pendingShowOnFirstLoad = false;
-                        showLoadedAdInternal(activity);
-                    }
+                if (adShownThisSession) {
                     return;
                 }
 
-                try {
-                    final Context appContext = activity.getApplicationContext();
-                    MobileAds.initialize(appContext, new OnInitializationCompleteListener() {
-                        @Override
-                        public void onInitializationComplete(InitializationStatus initializationStatus) {
-                            Log.d(TAG, "AdMob SDK initialized.");
-                            isInitialized = true;
-                            loadInterstitialInternal(activity);
-                        }
-                    });
-                } catch (Throwable t) {
-                    Log.e(TAG, "Failed to initialize AdMob: " + t.getMessage(), t);
+                if (!isSdkInitialized) {
+                    try {
+                        final Context appContext = activity.getApplicationContext();
+                        MobileAds.initialize(appContext, new OnInitializationCompleteListener() {
+                            @Override
+                            public void onInitializationComplete(InitializationStatus initializationStatus) {
+                                Log.d(TAG, "AdMob SDK successfully initialized.");
+                                isSdkInitialized = true;
+                                loadAndShowLaunchAd(activity, true);
+                            }
+                        });
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Error initializing AdMob SDK: " + t.getMessage(), t);
+                    }
+                } else {
+                    loadAndShowLaunchAd(activity, true);
                 }
             }
         });
     }
 
     /**
-     * Attempts to show an interstitial ad if one is loaded and the cooldown interval has elapsed.
+     * Loads and immediately displays the launch interstitial ad.
+     * Tries production ad unit first; falls back to test ad unit if production has no fill.
      */
-    public static void maybeShowInterstitial(final Activity activity, final long customCooldownMs) {
-        if (activity == null) {
+    private static void loadAndShowLaunchAd(final Activity activity, final boolean tryProductionFirst) {
+        if (adShownThisSession || isLoadingAd || activity == null || activity.isFinishing()) {
             return;
         }
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                final long effectiveCooldown = (customCooldownMs > 0) ? customCooldownMs : minCooldownMs;
-                final long now = System.currentTimeMillis();
 
-                if (lastAdShownTimestampMs > 0 && (now - lastAdShownTimestampMs) < effectiveCooldown) {
-                    // Still within cooldown period; ensure next ad is preloaded
-                    if (currentInterstitialAd == null && !isLoading && isInitialized) {
-                        loadInterstitialInternal(activity);
-                    }
-                    return;
-                }
-
-                if (currentInterstitialAd != null) {
-                    showLoadedAdInternal(activity);
-                } else if (isInitialized && !isLoading) {
-                    loadInterstitialInternal(activity);
-                }
-            }
-        });
-    }
-
-    private static void loadInterstitialInternal(final Activity activity) {
-        if (isLoading || currentInterstitialAd != null || activity == null) {
-            return;
-        }
-        isLoading = true;
+        isLoadingAd = true;
+        final String adUnitId = tryProductionFirst ? PRODUCTION_INTERSTITIAL_AD_UNIT_ID : TEST_INTERSTITIAL_AD_UNIT_ID;
+        Log.d(TAG, "Loading launch interstitial with ad unit: " + (tryProductionFirst ? "PRODUCTION" : "TEST_FALLBACK"));
 
         try {
             AdRequest adRequest = new AdRequest.Builder().build();
             InterstitialAd.load(
                 activity.getApplicationContext(),
-                activeAdUnitId,
+                adUnitId,
                 adRequest,
                 new InterstitialAdLoadCallback() {
                     @Override
-                    public void onAdLoaded(InterstitialAd interstitialAd) {
-                        isLoading = false;
-                        currentInterstitialAd = interstitialAd;
-                        Log.d(TAG, "Interstitial ad loaded.");
+                    public void onAdLoaded(final InterstitialAd interstitialAd) {
+                        isLoadingAd = false;
+                        Log.d(TAG, "Launch interstitial loaded successfully.");
 
-                        currentInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                        if (adShownThisSession || activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                            return;
+                        }
+
+                        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                            @Override
+                            public void onAdShowedFullScreenContent() {
+                                Log.d(TAG, "Launch interstitial ad showed fullscreen (5s skip enabled).");
+                                adShownThisSession = true;
+                            }
+
                             @Override
                             public void onAdDismissedFullScreenContent() {
-                                Log.d(TAG, "Interstitial ad dismissed.");
-                                currentInterstitialAd = null;
-                                lastAdShownTimestampMs = System.currentTimeMillis();
-                                // Preload the next interstitial ad in background
-                                loadInterstitialInternal(activity);
+                                Log.d(TAG, "Launch interstitial ad dismissed. Entering app.");
+                                adShownThisSession = true;
                             }
 
                             @Override
                             public void onAdFailedToShowFullScreenContent(AdError adError) {
-                                Log.w(TAG, "Interstitial ad failed to show: " + adError.getMessage());
-                                currentInterstitialAd = null;
-                            }
-
-                            @Override
-                            public void onAdShowedFullScreenContent() {
-                                Log.d(TAG, "Interstitial ad showed fullscreen content.");
-                                lastAdShownTimestampMs = System.currentTimeMillis();
+                                Log.w(TAG, "Launch interstitial failed to show: " + adError.getMessage());
                             }
                         });
 
-                        if (pendingShowOnFirstLoad) {
-                            pendingShowOnFirstLoad = false;
-                            showLoadedAdInternal(activity);
-                        }
+                        interstitialAd.show(activity);
                     }
 
                     @Override
-                    public void onAdFailedToLoad(LoadAdError loadAdError) {
-                        isLoading = false;
-                        currentInterstitialAd = null;
-                        pendingShowOnFirstLoad = false;
-                        Log.w(TAG, "Interstitial ad failed to load: " + loadAdError.getMessage());
+                    public void onAdFailedToLoad(final LoadAdError loadAdError) {
+                        isLoadingAd = false;
+                        Log.w(TAG, "Launch interstitial failed to load (" + adUnitId + "): " + loadAdError.getMessage()
+                                + " (Code: " + loadAdError.getCode() + ")");
+
+                        if (tryProductionFirst && !adShownThisSession && activity != null && !activity.isFinishing()) {
+                            Log.i(TAG, "Retrying with official Google test interstitial fallback...");
+                            loadAndShowLaunchAd(activity, false);
+                        }
                     }
                 }
             );
         } catch (Throwable t) {
-            isLoading = false;
-            Log.e(TAG, "Error loading interstitial ad: " + t.getMessage(), t);
+            isLoadingAd = false;
+            Log.e(TAG, "Exception during interstitial ad load: " + t.getMessage(), t);
         }
     }
 
-    private static void showLoadedAdInternal(final Activity activity) {
-        if (currentInterstitialAd == null || activity == null || activity.isFinishing() || activity.isDestroyed()) {
-            return;
+    /**
+     * Legacy initialization method for C++ JNI bridge if called.
+     */
+    public static void initialize(final Activity activity, final String adUnitId, final boolean showOnFirstLoad, final long cooldownMs) {
+        if (!adShownThisSession && showOnFirstLoad && activity != null) {
+            initializeAndShowLaunchAd(activity);
         }
-        try {
-            InterstitialAd adToShow = currentInterstitialAd;
-            currentInterstitialAd = null;
-            lastAdShownTimestampMs = System.currentTimeMillis();
-            adToShow.show(activity);
-        } catch (Throwable t) {
-            Log.e(TAG, "Error showing interstitial ad: " + t.getMessage(), t);
-        }
+    }
+
+    /**
+     * Screen transition ad call - disabled to honor user preference (no frequent/annoying ads).
+     */
+    public static void maybeShowInterstitial(final Activity activity, final long customCooldownMs) {
+        // Intentionally no-op: ads are strictly limited to the first launch interstitial.
     }
 }
