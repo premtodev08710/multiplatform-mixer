@@ -103,16 +103,25 @@ void InstallTelemetry::run()
     if (threadShouldExit())
         return;
 
+    // Brief pause to allow network interface/DNS to become ready on mobile
+    juce::Thread::sleep (1500);
+
     const juce::String projectId = juce::String (kFirebaseProjectId).trim();
     const juce::String dbUrl     = juce::String (kFirebaseDatabaseUrl).trim();
     const juce::String apiKey    = juce::String (kFirebaseApiKey).trim();
 
     bool ok = false;
 
-    if (dbUrl.isNotEmpty())
-        ok = sendToRealtimeDb (dbUrl, apiKey);
-    else if (projectId.isNotEmpty())
-        ok = sendToFirestore (projectId, apiKey);
+    for (int attempt = 0; attempt < 3 && ! ok && ! threadShouldExit(); ++attempt)
+    {
+        if (attempt > 0)
+            juce::Thread::sleep (3000);
+
+        if (dbUrl.isNotEmpty())
+            ok = sendToRealtimeDb (dbUrl, apiKey);
+        else if (projectId.isNotEmpty())
+            ok = sendToFirestore (projectId, apiKey);
+    }
 
     if (ok && ! threadShouldExit())
     {
@@ -172,10 +181,12 @@ bool InstallTelemetry::sendToFirestore (const juce::String& projectId, const juc
     url = url.withPOSTData (payload);
 
     int statusCode = 0;
+    // Use POST with X-HTTP-Method-Override: PATCH for full Android HttpURLConnection compatibility
+    // (Android HttpURLConnection throws ProtocolException if setRequestMethod("PATCH") is called directly).
     auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
-                       .withHttpRequestCmd ("PATCH")
-                       .withExtraHeaders ("Content-Type: application/json\r\n")
-                       .withConnectionTimeoutMs (8000)
+                       .withHttpRequestCmd ("POST")
+                       .withExtraHeaders ("Content-Type: application/json\r\nX-HTTP-Method-Override: PATCH\r\n")
+                       .withConnectionTimeoutMs (10000)
                        .withStatusCode (&statusCode);
 
     auto stream = url.createInputStream (options);

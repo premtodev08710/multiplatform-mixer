@@ -117,6 +117,8 @@ target_sources(MixPracticeStudio PRIVATE
     Source/UI/SetupScreen.cpp
     Source/UI/MainComponent.h
     Source/UI/MainComponent.cpp
+    Source/UI/SponsorOverlay.h
+    Source/UI/SponsorOverlay.cpp
 
     # Application Entry
     Source/Main.cpp

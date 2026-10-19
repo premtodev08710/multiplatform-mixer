@@ -14,6 +14,7 @@
 #include "SetupScreen.h"
 #include "TracksScreen.h"
 #include "TransportBar.h"
+#include "SponsorOverlay.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -39,6 +40,7 @@ public:
     void saveCurrentSession (bool showNotification = false);
     void restorePreviousSession();
     void checkAndShowTermsOfService();
+    void showSponsorOverlayIfNeeded();
 
     EffectsScreen& getEffectsScreen() noexcept { return effectsScreen; }
     AudioEngine& getAudioEngine() noexcept { return engine; }
@@ -88,6 +90,9 @@ private:
 
     // Bottom Transport
     TransportBar transportBar { engine };
+
+    // Sponsor Shopee Overlay
+    std::unique_ptr<SponsorOverlay> sponsorOverlay;
 };
 
 } // namespace mps

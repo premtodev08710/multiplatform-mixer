@@ -190,8 +190,8 @@ void MainComponent::checkAndShowTermsOfService()
     auto markerFile = getTermsAcceptedMarkerFile();
     if (markerFile.existsAsFile())
     {
-        // Terms already accepted; initialize AdMob and show launch interstitial
-        adMob.initialize (AdMobManager::kShowOnAppLaunch);
+        // Terms already accepted; show Shopee sponsor overlay on app launch
+        showSponsorOverlayIfNeeded();
         return;
     }
 
@@ -227,9 +227,23 @@ void MainComponent::checkAndShowTermsOfService()
                 juce::URL ("https://www.facebook.com/premsak.sed").launchInDefaultBrowser();
                 markerFile.replaceWithText ("accepted on " + juce::Time::getCurrentTime().toISO8601 (true));
             }
-            adMob.initialize (AdMobManager::kShowOnAppLaunch);
+            showSponsorOverlayIfNeeded();
         })
     );
+}
+
+void MainComponent::showSponsorOverlayIfNeeded()
+{
+    if (SponsorOverlay::shouldShowThisSession())
+    {
+        sponsorOverlay = std::make_unique<SponsorOverlay> ([this] {
+            if (sponsorOverlay != nullptr)
+                sponsorOverlay->setVisible (false);
+        });
+        addAndMakeVisible (sponsorOverlay.get());
+        sponsorOverlay->setBounds (getLocalBounds());
+        sponsorOverlay->toFront (true);
+    }
 }
 
 void MainComponent::showScreen (int screenIdx)
@@ -525,6 +539,9 @@ void MainComponent::resized()
     scenesScreen.setBounds (area);
     setupScreen.setBounds (area);
     placeholderLabel.setBounds (area);
+
+    if (sponsorOverlay != nullptr)
+        sponsorOverlay->setBounds (getLocalBounds());
 }
 
 } // namespace mps
