@@ -7,9 +7,10 @@ namespace mps
 {
 
 /**
- * Cross-platform sponsor dialog displayed once upon app startup.
- * Counts down 5 seconds, then enables the Shopee affiliate sponsor button
- * which opens the sponsor link and enters the app.
+ * Cross-platform full-display sponsor banner displayed once upon app startup.
+ * Displays an eye-catching Shopee Audio Equipment promotional banner,
+ * counts down 5 seconds, and AUTOMATICALLY opens Shopee to drop the affiliate
+ * cookie and enters the app (no skip button needed).
  */
 class SponsorOverlay : public juce::Component,
                        private juce::Timer
@@ -23,6 +24,7 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent& e) override;
 
 private:
     void timerCallback() override;
@@ -31,9 +33,7 @@ private:
 
     std::function<void()> onDismissCallback;
     int countdownSeconds = 5;
-
-    juce::TextButton shopeeButton;
-    juce::TextButton skipButton;
+    bool hasRedirected = false;
 
     static inline bool hasShownThisSession = false;
 

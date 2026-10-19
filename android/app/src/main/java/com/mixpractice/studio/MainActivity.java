@@ -14,6 +14,9 @@ public class MainActivity extends JuceActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "MainActivity onCreate");
+        Log.d(TAG, "MainActivity onCreate - triggering telemetry check-in");
+
+        // Report install & active user telemetry directly in background thread
+        TelemetryHelper.reportAppLaunchAsync(this);
     }
 }

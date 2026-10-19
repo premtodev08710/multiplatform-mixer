@@ -56,6 +56,8 @@ android {
             "src/main/java",
             "../../external/JUCE/modules/juce_core/native/javacore/init",
             "../../external/JUCE/modules/juce_core/native/javacore/app",
+            "../../external/JUCE/modules/juce_core/native/java/app",
+            "../../external/JUCE/modules/juce_gui_basics/native/java/app",
             "../../external/JUCE/modules/juce_gui_basics/native/javaopt/app"
         ]
     }
