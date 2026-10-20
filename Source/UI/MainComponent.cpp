@@ -528,8 +528,9 @@ void MainComponent::resized()
     settingsButton.setBounds (getWidth() - gearSize - 5, 3, gearSize, gearSize);
     settingsButton.toFront (false);
 
-    // Bottom Transport bar (52px for timeline + controls)
-    transportBar.setBounds (area.removeFromBottom (52));
+    // Bottom Transport bar (enlarged 72px for touch-friendly timeline & time zoom)
+    const int transportH = (getHeight() < 500) ? 64 : 72;
+    transportBar.setBounds (area.removeFromBottom (transportH));
 
     // Center Active Screen (takes maximum vertical height with top menu hidden)
     homeScreen.setBounds (area);

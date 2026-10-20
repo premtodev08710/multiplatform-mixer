@@ -287,8 +287,9 @@ void TransportBar::resized()
 {
     auto area = getLocalBounds().reduced (8, 4);
 
-    // Row 1: Interactive Song Timeline & Range Selector
-    timeline.setBounds (area.removeFromTop (18));
+    // Row 1: Interactive Song Timeline & Range Selector (enlarged for touch and zooming)
+    const int timelineH = std::max (24, std::min (34, area.getHeight() - 28));
+    timeline.setBounds (area.removeFromTop (timelineH));
 
     area.removeFromTop (4);
 

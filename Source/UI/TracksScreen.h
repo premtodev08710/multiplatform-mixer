@@ -3,6 +3,7 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "TimelineRangeComponent.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <vector>
 
@@ -14,14 +15,16 @@ class TracksScreen : public juce::Component,
                      public juce::TableListBoxModel,
                      public juce::DragAndDropContainer,
                      public juce::DragAndDropTarget,
-                     public juce::FileDragAndDropTarget
+                     public juce::FileDragAndDropTarget,
+                     private juce::Timer
 {
 public:
     TracksScreen (AudioEngine& engine, ProjectModel& project);
-    ~TracksScreen() override = default;
+    ~TracksScreen() override;
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    void visibilityChanged() override;
 
     void buttonClicked (juce::Button* button) override;
 
@@ -46,6 +49,8 @@ public:
     std::function<void()> onBack;
 
 private:
+    void timerCallback() override;
+
     juce::TextButton backButton { "< Mixer" };
     void importAudioFiles();
     void importAudioFilesInternal();
@@ -60,6 +65,17 @@ private:
     juce::TextButton importFolderButton { "IMPORT STEMS FOLDER" };
     juce::TextButton clearButton { "CLEAR ALL TRACKS" };
     juce::Label dragHintLabel;
+
+    // Dedicated Master Multitrack Timeline & Zoom Workspace
+    TimelineRangeComponent masterTimeline;
+    juce::TextButton trackPlayButton { "▶ PLAY" };
+    juce::TextButton trackStopButton { "■ STOP" };
+    juce::TextButton trackLoopButton { "🔁 LOOP" };
+    juce::TextButton trackSetAButton { "[ A ]" };
+    juce::TextButton trackSetBButton { "[ B ]" };
+    juce::TextButton trackAllButton  { "ALL" };
+    juce::Label trackTimeLabel;
+    juce::Label trackLoopLabel;
 
     juce::TableListBox trackTable;
 

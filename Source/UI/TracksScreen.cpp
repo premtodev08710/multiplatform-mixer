@@ -97,6 +97,15 @@ private:
     juce::TextButton delButton { juce::CharPointer_UTF8 ("\xe2\x9c\x95") }; // ✕
 };
 
+static juce::String formatTimeMinSec (int64_t frames, double sr)
+{
+    if (sr <= 0.0 || frames <= 0) return "00:00.00";
+    const double totalSecs = (double) frames / sr;
+    const int mins = (int) (totalSecs / 60.0);
+    const double secs = std::fmod (totalSecs, 60.0);
+    return juce::String::formatted ("%02d:%05.2f", mins, secs);
+}
+
 //==============================================================================
 TracksScreen::TracksScreen (AudioEngine& eng, ProjectModel& proj)
     : engine (eng), project (proj)
@@ -124,6 +133,56 @@ TracksScreen::TracksScreen (AudioEngine& eng, ProjectModel& proj)
     dragHintLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (dragHintLabel);
 
+    // Dedicated Master Multitrack Timeline & Zoom Workspace
+    masterTimeline.onSeek = [this] (double normPos) {
+        engine.seekToNormalized ((float) normPos);
+    };
+    masterTimeline.onRangeChanged = [this] (double startNorm, double endNorm) {
+        const int64_t len = engine.getStreamer().getLength();
+        if (len > 0)
+        {
+            const int64_t a = (int64_t) std::round (startNorm * (double) len);
+            const int64_t b = (int64_t) std::round (endNorm * (double) len);
+            engine.setLoop (trackLoopButton.getToggleState(), a, b);
+        }
+    };
+    addAndMakeVisible (masterTimeline);
+
+    trackPlayButton.addListener (this);
+    trackPlayButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2e7d32));
+    addAndMakeVisible (trackPlayButton);
+
+    trackStopButton.addListener (this);
+    trackStopButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffc62828));
+    addAndMakeVisible (trackStopButton);
+
+    trackLoopButton.addListener (this);
+    trackLoopButton.setClickingTogglesState (true);
+    trackLoopButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffb74d));
+    addAndMakeVisible (trackLoopButton);
+
+    trackSetAButton.addListener (this);
+    trackSetAButton.setTooltip ("Set Section Start [ A ] at current playhead");
+    addAndMakeVisible (trackSetAButton);
+
+    trackSetBButton.addListener (this);
+    trackSetBButton.setTooltip ("Set Section End [ B ] at current playhead");
+    addAndMakeVisible (trackSetBButton);
+
+    trackAllButton.addListener (this);
+    trackAllButton.setTooltip ("Select Entire Song Range");
+    addAndMakeVisible (trackAllButton);
+
+    trackTimeLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    trackTimeLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
+    trackTimeLabel.setText ("00:00.00 / 00:00.00", juce::dontSendNotification);
+    addAndMakeVisible (trackTimeLabel);
+
+    trackLoopLabel.setFont (juce::FontOptions (11.0f));
+    trackLoopLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffb74d));
+    trackLoopLabel.setText ("Loop: [00:00.00 - 00:00.00]", juce::dontSendNotification);
+    addAndMakeVisible (trackLoopLabel);
+
     // Setup table columns
     trackTable.setModel (this);
     trackTable.setRowHeight (26);
@@ -136,6 +195,55 @@ TracksScreen::TracksScreen (AudioEngine& eng, ProjectModel& proj)
     trackTable.getHeader().addColumn ("Assigned To", 7, 110, 80, 180);
     trackTable.getHeader().addColumn ("Clear", 8, 48, 40, 60);
     addAndMakeVisible (trackTable);
+}
+
+TracksScreen::~TracksScreen()
+{
+    stopTimer();
+}
+
+void TracksScreen::visibilityChanged()
+{
+    if (isVisible())
+        startTimerHz (25);
+    else
+        stopTimer();
+}
+
+void TracksScreen::timerCallback()
+{
+    auto& s = engine.getStreamer();
+    const bool isPlaying = s.isPlaying();
+    const int64_t ph = s.getPlayhead();
+    const int64_t len = s.getLength();
+    const double sr = engine.getSampleRate();
+
+    trackPlayButton.setButtonText (isPlaying ? "⏸ PAUSE" : "▶ PLAY");
+    trackPlayButton.setColour (juce::TextButton::buttonColourId, isPlaying ? juce::Colour (0xfff57f17) : juce::Colour (0xff2e7d32));
+    trackLoopButton.setToggleState (s.getLoopEnabled(), juce::dontSendNotification);
+
+    if (len > 0 && sr > 0.0)
+    {
+        masterTimeline.setTotalLength (len, sr);
+        masterTimeline.setPlayhead ((double) ph / (double) len);
+        masterTimeline.setRange ((double) s.getLoopStart() / (double) len,
+                                 (double) s.getLoopEnd() / (double) len);
+        masterTimeline.setLoopActive (s.getLoopEnabled());
+
+        trackTimeLabel.setText (formatTimeMinSec (ph, sr) + " / " + formatTimeMinSec (len, sr), juce::dontSendNotification);
+        const int64_t a = s.getLoopStart();
+        const int64_t b = s.getLoopEnd();
+        const int64_t span = b - a;
+        trackLoopLabel.setText ("[" + formatTimeMinSec (a, sr) + " - " + formatTimeMinSec (b, sr) + "] (" + formatTimeMinSec (span, sr) + ")",
+                                juce::dontSendNotification);
+    }
+    else
+    {
+        masterTimeline.setTotalLength (0, sr);
+        masterTimeline.setPlayhead (0.0);
+        trackTimeLabel.setText ("--:-- / --:--", juce::dontSendNotification);
+        trackLoopLabel.setText ("No Tracks Loaded", juce::dontSendNotification);
+    }
 }
 
 int TracksScreen::getNumRows()
@@ -249,6 +357,64 @@ void TracksScreen::buttonClicked (juce::Button* b)
     if (b == &backButton)
     {
         if (onBack) onBack();
+        return;
+    }
+
+    if (b == &trackPlayButton)
+    {
+        if (engine.getStreamer().isPlaying()) engine.pause();
+        else                                  engine.play();
+        return;
+    }
+    if (b == &trackStopButton)
+    {
+        engine.stop();
+        return;
+    }
+    if (b == &trackLoopButton)
+    {
+        const bool on = trackLoopButton.getToggleState();
+        masterTimeline.setLoopActive (on);
+        const int64_t len = engine.getStreamer().getLength();
+        if (len > 0)
+        {
+            const int64_t a = (int64_t) std::round (masterTimeline.getRangeStart() * (double) len);
+            const int64_t b = (int64_t) std::round (masterTimeline.getRangeEnd() * (double) len);
+            engine.setLoop (on, a, b);
+        }
+        else
+        {
+            engine.setLoop (on, 0, 0);
+        }
+        return;
+    }
+    if (b == &trackSetAButton)
+    {
+        const int64_t len = engine.getStreamer().getLength();
+        if (len > 0)
+        {
+            const int64_t ph = engine.getStreamer().getPlayhead();
+            const double newStart = (double) ph / (double) len;
+            const double curEnd = masterTimeline.getRangeEnd();
+            masterTimeline.setRange (newStart, std::max (newStart + 0.005, curEnd), true);
+        }
+        return;
+    }
+    if (b == &trackSetBButton)
+    {
+        const int64_t len = engine.getStreamer().getLength();
+        if (len > 0)
+        {
+            const int64_t ph = engine.getStreamer().getPlayhead();
+            const double newEnd = (double) ph / (double) len;
+            const double curStart = masterTimeline.getRangeStart();
+            masterTimeline.setRange (std::min (curStart, newEnd - 0.005), newEnd, true);
+        }
+        return;
+    }
+    if (b == &trackAllButton)
+    {
+        masterTimeline.setRange (0.0, 1.0, true);
         return;
     }
 
@@ -830,7 +996,17 @@ void TracksScreen::paint (juce::Graphics& g)
     g.fillAll (ConsoleLookAndFeel::bgDark);
 
     auto bounds = getLocalBounds().reduced (12);
-    bounds.removeFromTop (44); // Button area
+    const int topButtonsH = (getWidth() < 900) ? 72 : 44;
+    bounds.removeFromTop (topButtonsH);
+
+    // Timeline panel background
+    auto timelineBox = bounds.removeFromTop (68);
+    g.setColour (juce::Colour (0xff141822));
+    g.fillRoundedRectangle (timelineBox.toFloat(), 6.0f);
+    g.setColour (juce::Colour (0xff283244));
+    g.drawRoundedRectangle (timelineBox.toFloat(), 6.0f, 1.0f);
+
+    bounds.removeFromTop (8);
 
     g.setColour (ConsoleLookAndFeel::bgPanel);
     g.fillRoundedRectangle (bounds.toFloat(), 4.0f);
@@ -871,6 +1047,40 @@ void TracksScreen::resized()
         dragHintLabel.setBounds (topRow);
         area.removeFromTop (8);
     }
+
+    // Dedicated Master Multitrack Timeline & Zoom Workspace (Height: 68px)
+    auto timelinePanel = area.removeFromTop (68).reduced (6, 4);
+    area.removeFromTop (8);
+
+    // Row 1 of Timeline Panel: Large 36px scrub/zoom timeline
+    masterTimeline.setBounds (timelinePanel.removeFromTop (36));
+    timelinePanel.removeFromTop (4);
+
+    // Row 2 of Timeline Panel: Transport controls & Loop markers
+    auto controlRow = timelinePanel;
+    const bool isCompact = getWidth() < 800;
+    const int btnW = isCompact ? 54 : 64;
+
+    trackPlayButton.setBounds (controlRow.removeFromLeft (btnW));
+    controlRow.removeFromLeft (4);
+    trackStopButton.setBounds (controlRow.removeFromLeft (isCompact ? 46 : 54));
+    controlRow.removeFromLeft (4);
+    trackLoopButton.setBounds (controlRow.removeFromLeft (isCompact ? 56 : 66));
+    controlRow.removeFromLeft (isCompact ? 6 : 10);
+
+    const int markerW = isCompact ? 30 : 36;
+    trackSetAButton.setBounds (controlRow.removeFromLeft (markerW));
+    controlRow.removeFromLeft (3);
+    trackSetBButton.setBounds (controlRow.removeFromLeft (markerW));
+    controlRow.removeFromLeft (3);
+    trackAllButton.setBounds (controlRow.removeFromLeft (isCompact ? 34 : 38));
+    controlRow.removeFromLeft (isCompact ? 6 : 12);
+
+    const int timeW = isCompact ? 115 : 140;
+    trackTimeLabel.setBounds (controlRow.removeFromLeft (timeW));
+    controlRow.removeFromLeft (isCompact ? 4 : 8);
+    trackLoopLabel.setBounds (controlRow);
+
     trackTable.setBounds (area);
 }
 
