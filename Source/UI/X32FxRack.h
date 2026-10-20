@@ -837,7 +837,6 @@ public:
         }
 
         loadEffectModel (X32Fx::getCatalog()[0]);
-        startTimerHz (20);
     }
 
     ~X32HardwareUnitCanvas() override
@@ -1090,8 +1089,22 @@ private:
     float meterPhase = 0.0f;
     float meterL = 0.0f, meterR = 0.0f;
 
+    void visibilityChanged() override
+    {
+        if (isShowing())
+            startTimerHz (15);
+        else
+            stopTimer();
+    }
+
     void timerCallback() override
     {
+        if (! isShowing())
+        {
+            stopTimer();
+            return;
+        }
+
         meterPhase += 0.18f;
         if (currentModel.family == X32Fx::GuiFamily::FairComp ||
             currentModel.family == X32Fx::GuiFamily::LeisureComp ||

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MixPracticeStudio VERSION 1.0.0 LANGUAGES C CXX)
+project(MixPracticeStudio VERSION 1.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,7 +19,7 @@ juce_add_gui_app(MixPracticeStudio
     PRODUCT_NAME "Mix Practice Studio"
     COMPANY_NAME "Mix Practice Studio"
     BUNDLE_ID "com.mixpractice.studio"
-    VERSION 1.0.0
+    VERSION 1.0.1
     ICON_BIG Resources/app_icon.png
 )
 
@@ -193,6 +193,7 @@ if(NOT ANDROID)
         Source/UI/ScenesScreen.cpp
         Source/UI/SetupScreen.cpp
         Source/UI/MainComponent.cpp
+        Source/UI/SponsorOverlay.cpp
         Source/Core/MixEngine.cpp
         Source/Core/EffectsDsp.cpp
         Source/Core/TimelineStreamer.cpp
@@ -201,7 +202,7 @@ if(NOT ANDROID)
     target_compile_definitions(UiSnapshotTest PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_APPLICATION_VERSION_STRING="1.0.0"
+        JUCE_APPLICATION_VERSION_STRING="1.0.1"
     )
     target_link_libraries(UiSnapshotTest PRIVATE
         juce::juce_audio_basics

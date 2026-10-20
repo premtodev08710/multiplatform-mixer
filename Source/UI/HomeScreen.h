@@ -25,6 +25,7 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    void visibilityChanged() override;
 
     void buttonClicked (juce::Button* button) override;
     void comboBoxChanged (juce::ComboBox* comboBox) override;

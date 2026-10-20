@@ -494,6 +494,7 @@ private:
     AtomicPeak outPeakL, outPeakR;
 
     std::vector<float> workL, workR;
+    int silentBlocks = 0;
 
     ReverbDsp reverb;
     DelayDsp delay;

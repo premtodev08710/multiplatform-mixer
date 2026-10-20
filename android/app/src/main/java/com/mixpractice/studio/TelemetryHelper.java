@@ -167,4 +167,80 @@ public class TelemetryHelper {
             Log.e(TAG, "Failed to report telemetry: " + t.getMessage(), t);
         }
     }
+
+    /**
+     * Reports a Shopee Affiliate sponsor redirect event to Firebase Firestore.
+     */
+    public static void reportShopeeClickAsync(final Context context, final String targetUrl) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection conn = null;
+                try {
+                    SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US);
+                    isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    String nowIso = isoFormat.format(new Date());
+
+                    JSONObject fields = new JSONObject();
+                    fields.put("timestamp", new JSONObject().put("stringValue", nowIso));
+                    fields.put("platform", new JSONObject().put("stringValue", "Android"));
+                    fields.put("osName", new JSONObject().put("stringValue", "Android " + Build.VERSION.RELEASE));
+                    fields.put("deviceModel", new JSONObject().put("stringValue", Build.MANUFACTURER + " " + Build.MODEL));
+                    fields.put("targetUrl", new JSONObject().put("stringValue", targetUrl != null ? targetUrl : ""));
+
+                    JSONObject root = new JSONObject();
+                    root.put("fields", fields);
+                    String payload = root.toString();
+
+                    String endpoint = "https://firestore.googleapis.com/v1/projects/" + FIREBASE_PROJECT_ID
+                            + "/databases/(default)/documents/shopee_clicks?key=" + FIREBASE_API_KEY;
+
+                    URL url = new URL(endpoint);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    conn.setDoOutput(true);
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(payload.getBytes(StandardCharsets.UTF_8));
+                        os.flush();
+                    }
+
+                    int responseCode = conn.getResponseCode();
+                    Log.i(TAG, "Shopee click reported to Firestore (HTTP " + responseCode + ")");
+                } catch (Throwable t) {
+                    Log.w(TAG, "Failed to report Shopee click: " + t.getMessage());
+                } finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
+            }
+        }, "ShopeeReportThread").start();
+    }
+
+    /**
+     * Safely opens an external web browser or Shopee app with complete exception handling
+     * so it never crashes even if no browser is installed or intent fails.
+     */
+    public static boolean openBrowserSafely(final Context context, final String urlString) {
+        if (context == null || urlString == null || urlString.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            android.content.Intent intent = new android.content.Intent(
+                android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse(urlString.trim())
+            );
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to launch URL safely: " + t.getMessage(), t);
+            return false;
+        }
+    }
 }
+

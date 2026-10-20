@@ -135,7 +135,6 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
         carousel.setVisible (false);
     };
 
-    startTimerHz (25);
     setSlot (0);
 }
 
@@ -753,8 +752,22 @@ void FxFaceplateComponent::resized()
     carousel.setBounds (getLocalBounds());
 }
 
+void FxFaceplateComponent::visibilityChanged()
+{
+    if (isShowing())
+        startTimerHz (15);
+    else
+        stopTimer();
+}
+
 void FxFaceplateComponent::timerCallback()
 {
+    if (! isShowing())
+    {
+        stopTimer();
+        return;
+    }
+
     auto& slotDsp = engine.getMixEngine().getFxRack().getSlot (currentSlot);
     const float inL = slotDsp.getInPeakL();
     const float inR = slotDsp.getInPeakR();

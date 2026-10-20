@@ -5,5 +5,24 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    match /downloads_stats/{statId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /download_events/{eventId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /shopee_stats/{statId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /shopee_clicks/{clickId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /community_stems/{stemId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

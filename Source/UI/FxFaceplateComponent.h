@@ -51,6 +51,7 @@ public:
     void syncMixerEntityInserts();
 
     void buttonClicked (juce::Button* button) override;
+    void visibilityChanged() override;
 
     std::function<void(FxType)> onTypeChangeRequested;
     std::function<void()> onParametersChanged;

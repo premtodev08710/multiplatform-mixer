@@ -35,6 +35,9 @@ private:
     int countdownSeconds = 5;
     bool hasRedirected = false;
 
+    juce::TextButton shopeeButton;
+    juce::TextButton enterAppButton;
+
     static inline bool hasShownThisSession = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SponsorOverlay)

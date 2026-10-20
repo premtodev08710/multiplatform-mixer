@@ -189,11 +189,18 @@ bool InstallTelemetry::sendToFirestore (const juce::String& projectId, const juc
                        .withConnectionTimeoutMs (10000)
                        .withStatusCode (&statusCode);
 
-    auto stream = url.createInputStream (options);
-    if (stream != nullptr && statusCode >= 200 && statusCode < 300)
+    try
     {
-        stream->readEntireStreamAsString();
-        return true;
+        auto stream = url.createInputStream (options);
+        if (stream != nullptr && statusCode >= 200 && statusCode < 300)
+        {
+            stream->readEntireStreamAsString();
+            return true;
+        }
+    }
+    catch (...)
+    {
+        return false;
     }
 
     return false;
@@ -236,11 +243,18 @@ bool InstallTelemetry::sendToRealtimeDb (const juce::String& dbUrl, const juce::
                        .withConnectionTimeoutMs (8000)
                        .withStatusCode (&statusCode);
 
-    auto stream = url.createInputStream (options);
-    if (stream != nullptr && statusCode >= 200 && statusCode < 300)
+    try
     {
-        stream->readEntireStreamAsString();
-        return true;
+        auto stream = url.createInputStream (options);
+        if (stream != nullptr && statusCode >= 200 && statusCode < 300)
+        {
+            stream->readEntireStreamAsString();
+            return true;
+        }
+    }
+    catch (...)
+    {
+        return false;
     }
 
     return false;

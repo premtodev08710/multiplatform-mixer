@@ -2028,6 +2028,9 @@ void PremiumUtilityAmpDsp::process (float* chL, float* chR, int numSamples,
 void FxSlotProcessor::prepare (double sampleRate)
 {
     sr = sampleRate;
+    workL.assign (4096, 0.0f);
+    workR.assign (4096, 0.0f);
+    silentBlocks = 0;
     reverb.prepare (sampleRate);
     delay.prepare (sampleRate);
     modulation.prepare (sampleRate);
@@ -2041,6 +2044,7 @@ void FxSlotProcessor::prepare (double sampleRate)
 
 void FxSlotProcessor::reset()
 {
+    silentBlocks = 0;
     reverb.reset();
     delay.reset();
     modulation.reset();
@@ -2094,6 +2098,27 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
         outPeakL.update (inPkL);
         outPeakR.update (inPkR);
         return;
+    }
+
+    // Smart silence / idle detection for low-end CPUs:
+    // If input is near-silent (< -90 dB) and previous blocks were also silent (tails finished decaying),
+    // skip heavy DSP computation entirely to save CPU.
+    const bool inputSilent = (inPkL < 1e-4f && inPkR < 1e-4f);
+    if (inputSilent)
+    {
+        ++silentBlocks;
+        if (silentBlocks > 120)
+        {
+            std::memset (outL, 0, sizeof (float) * (size_t) numSamples);
+            std::memset (outR, 0, sizeof (float) * (size_t) numSamples);
+            outPeakL.update (0.0f);
+            outPeakR.update (0.0f);
+            return;
+        }
+    }
+    else
+    {
+        silentBlocks = 0;
     }
 
     // Prepare work buffer
@@ -2534,6 +2559,8 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
     }
     outPeakL.update (outPkL);
     outPeakR.update (outPkR);
+    if (inputSilent && outPkL < 1e-5f && outPkR < 1e-5f && silentBlocks > 40)
+        silentBlocks = 121; // output has already died down, sleep immediately
 }
 
 //==============================================================================

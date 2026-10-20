@@ -71,7 +71,6 @@ HomeScreen::HomeScreen (AudioEngine& eng, ProjectModel& proj)
     addAndMakeVisible (masterStrip.get());
 
     rebuildStrips();
-    startTimerHz (20); // Fast metering refresh for top bank mini-meters
 }
 
 HomeScreen::~HomeScreen()
@@ -79,8 +78,21 @@ HomeScreen::~HomeScreen()
     stopTimer();
 }
 
+void HomeScreen::visibilityChanged()
+{
+    if (isShowing())
+        startTimerHz (20);
+    else
+        stopTimer();
+}
+
 void HomeScreen::timerCallback()
 {
+    if (! isShowing())
+    {
+        stopTimer();
+        return;
+    }
     bankSelectorBar.repaint();
 }
 

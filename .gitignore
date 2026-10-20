@@ -7,9 +7,17 @@ external/JUCE/
 # Executables and App Bundles
 *.exe
 *.apk
+*.ipa
+*.pkg
 *.app/
 *.dmg
 *.zip
+*.bin
+dashboard/downloads/
+.firebase/
+firebase-debug.log
+prompt*.html
+effects_*.png
 
 # Android Local & Cache Files
 android/.gradle/

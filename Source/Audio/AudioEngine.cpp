@@ -205,8 +205,11 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     currentSampleRate.store (sr);
     currentBlockSize.store (bs);
 
-    // Pre-allocate scratch buffers
-    slotBuffers.assign ((size_t) kMaxTracks * 2, std::vector<float> ((size_t) bs, 0.0f));
+    // Pre-allocate scratch buffers with safe capacity (at least 4096 samples)
+    // to prevent buffer overflows on Android where callback block sizes can exceed the device's reported buffer size.
+    const int safeCapacity = std::max (4096, bs * 4);
+
+    slotBuffers.assign ((size_t) kMaxTracks * 2, std::vector<float> ((size_t) safeCapacity, 0.0f));
     slotPointers.resize ((size_t) kMaxTracks * 2);
     slotConstPointers.resize ((size_t) kMaxTracks * 2);
     for (size_t i = 0; i < slotBuffers.size(); ++i)
@@ -216,10 +219,10 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     }
 
     slotChannels.assign ((size_t) kMaxTracks, 0);
-    engineOutL.assign ((size_t) bs, 0.0f);
-    engineOutR.assign ((size_t) bs, 0.0f);
+    engineOutL.assign ((size_t) safeCapacity, 0.0f);
+    engineOutR.assign ((size_t) safeCapacity, 0.0f);
 
-    mixEngine.prepare (sr, bs);
+    mixEngine.prepare (sr, safeCapacity);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -241,11 +244,22 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* /*inputC
         if (outputChannelData[ch] != nullptr)
             std::memset (outputChannelData[ch], 0, sizeof (float) * (size_t) numSamples);
 
+    juce::ScopedNoDenormals noDenormals;
+
     // Ensure scratch buffers are large enough for the requested callback block size
-    if ((size_t) numSamples > engineOutL.size())
+    if (slotBuffers.empty() || (size_t) numSamples > slotBuffers[0].size())
     {
-        engineOutL.resize ((size_t) numSamples, 0.0f);
-        engineOutR.resize ((size_t) numSamples, 0.0f);
+        const size_t newCap = (size_t) std::max (4096, numSamples);
+        for (auto& buf : slotBuffers)
+            buf.resize (newCap, 0.0f);
+        for (size_t i = 0; i < slotBuffers.size(); ++i)
+        {
+            slotPointers[i] = slotBuffers[i].data();
+            slotConstPointers[i] = slotBuffers[i].data();
+        }
+        engineOutL.resize (newCap, 0.0f);
+        engineOutR.resize (newCap, 0.0f);
+        mixEngine.prepare (getSampleRate(), (int) newCap);
     }
 
     // 1. Pull synchronized multitrack frame from the lock-free ring

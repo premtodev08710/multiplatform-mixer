@@ -59,7 +59,6 @@ DetailScreen::DetailScreen (AudioEngine& eng, ProjectModel& proj)
     updateTabVisibility();
     refreshFromModel();
     engine.getMixEngine().setRtaChannel (selectedChannel);
-    startTimerHz (25); // Fast metering refresh
 }
 
 DetailScreen::~DetailScreen()
@@ -1354,8 +1353,22 @@ void DetailScreen::refreshFromModel()
     repaint();
 }
 
+void DetailScreen::visibilityChanged()
+{
+    if (isShowing())
+        startTimerHz (20);
+    else
+        stopTimer();
+}
+
 void DetailScreen::timerCallback()
 {
+    if (! isShowing())
+    {
+        stopTimer();
+        return;
+    }
+
     bankSelectorBar.repaint();
 
     // Keep channel name & colour in sync with project model (only for InputChannel)

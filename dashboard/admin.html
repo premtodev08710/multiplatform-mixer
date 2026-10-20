@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Multiplatform Mixer & Mix Practice Studio</title>
+  <link rel="icon" type="image/png" href="assets/app_icon.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-main: #0a0d14;
+      --bg-card: #121722;
+      --bg-card-hover: #181f2e;
+      --border: #222c3d;
+      --border-focus: #00e5ff;
+
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+
+      --accent-cyan: #00e5ff;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a855f7;
+      --accent-rose: #f43f5e;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #00e5ff, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 22px;
+      color: #0b0f19;
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.35);
+    }
+
+    .brand-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    .btn {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-cyan);
+      transform: translateY(-1px);
+    }
+
+    .btn-public {
+      background: rgba(0, 229, 255, 0.12);
+      border-color: rgba(0, 229, 255, 0.35);
+      color: var(--accent-cyan);
+    }
+
+    .btn-public:hover {
+      background: rgba(0, 229, 255, 0.22);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+      color: #fff;
+    }
+
+    .btn-primary {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.35);
+      color: #fb7185;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.28);
+      border-color: #f43f5e;
+      color: #fff;
+    }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.28);
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    /* Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: var(--bg-card);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.1);
+      border-color: rgba(0, 229, 255, 0.3);
+    }
+
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent-cyan);
+    }
+
+    .kpi-card.blue::before { background: var(--accent-blue); }
+    .kpi-card.green::before { background: var(--accent-green); }
+    .kpi-card.amber::before { background: var(--accent-amber); }
+    .kpi-card.purple::before { background: var(--accent-purple); }
+
+    .kpi-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .kpi-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Panels */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .panel-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Platform Bars */
+    .platform-bars-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .bar-item {
+      margin-bottom: 14px;
+    }
+
+    .bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .bar-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00e5ff, #3b82f6);
+      border-radius: 999px;
+      transition: width 0.5s ease;
+    }
+
+    /* Table */
+    .table-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .filter-select, .search-box {
+      background: var(--bg-main);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .filter-select:focus, .search-box:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .search-box {
+      min-width: 260px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      padding: 12px 16px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--text-primary);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge-windows { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-macos { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-android { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-ios { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+    .badge-github { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-stems { background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3); }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    /* Tab views */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Status banner */
+    .status-banner {
+      display: none;
+      padding: 12px 16px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      border-radius: var(--radius-sm);
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    .status-banner.error {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 16px;
+      }
+      header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .header-actions {
+        justify-content: space-between;
+      }
+      .search-box {
+        width: 100%;
+      }
+    }
+
+    /* =========================================================================
+       Admin Authentication Gate (Login Screen)
+       ========================================================================= */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 20%, #151d2c 0%, #07090e 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 38px 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 229, 255, 0.1);
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .login-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+      filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.3));
+    }
+
+    .login-header h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+      letter-spacing: -0.01em;
+    }
+
+    .login-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .login-error {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fb7185;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 18px;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+
+    .login-field {
+      margin-bottom: 16px;
+    }
+
+    .login-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .login-field input {
+      width: 100%;
+      background: #0a0d14;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .login-field input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+    }
+
+    .password-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .password-wrapper input {
+      padding-right: 44px;
+    }
+
+    .btn-toggle-pwd {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .btn-toggle-pwd:hover { opacity: 1; }
+
+    .login-remember {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .login-remember label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .login-remember input[type="checkbox"] {
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    .btn-login {
+      width: 100%;
+      background: linear-gradient(135deg, #00e5ff 0%, #0099ff 100%);
+      color: #050a14;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.3);
+      transition: all 0.2s;
+    }
+
+    .btn-login:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(0, 229, 255, 0.45);
+    }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .login-back-link {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .login-back-link:hover { color: var(--accent-cyan); }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Admin Authentication Modal Overlay -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon">🎚️</div>
+        <h2>Mix Practice Studio</h2>
+        <div class="login-subtitle">ระบบควบคุมแดชบอร์ดผู้ดูแล (Admin Login)</div>
+      </div>
+
+      <div id="loginError" class="login-error">
+        ⚠️ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (กรุณากรอก admin / 1234)
+      </div>
+
+      <form id="adminLoginForm" onsubmit="return handleAdminLogin(event)">
+        <div class="login-field">
+          <label for="adminUsername">ชื่อผู้ใช้งาน (Username)</label>
+          <input type="text" id="adminUsername" placeholder="admin" value="admin" autocomplete="username" required />
+        </div>
+
+        <div class="login-field">
+          <label for="adminPassword">รหัสผ่าน (Password)</label>
+          <div class="password-wrapper">
+            <input type="password" id="adminPassword" placeholder="••••" autocomplete="current-password" autofocus required />
+            <button type="button" class="btn-toggle-pwd" id="btnTogglePwd" onclick="togglePasswordVisibility()" title="แสดง/ซ่อนรหัสผ่าน">👁️</button>
+          </div>
+        </div>
+
+        <div class="login-remember">
+          <label>
+            <input type="checkbox" id="rememberMe" checked />
+            <span>จดจำการเข้าสู่ระบบบนเครื่องนี้</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-login" id="btnLoginSubmit">
+          <span>🔓 เข้าสู่ระบบ Admin</span>
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <a href="/" class="login-back-link">← กลับไปหน้าดาวน์โหลดหลัก (Public Site)</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" id="adminDashboard" style="display: none;">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🎚️</div>
+        <div class="brand-text">
+          <h1>Mix Practice Studio — Admin Center</h1>
+          <p>ระบบติดตามสถิติการดาวน์โหลดหน้าเว็บ & สถิติการติดตั้งแอปพลิเคชัน</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          <span id="connectionStatus">เชื่อมต่อ Firestore สด</span>
+        </div>
+        <a href="/" class="btn btn-public">
+          <span>🌐 หน้าเว็บดาวน์โหลด (Public Site)</span>
+        </a>
+        <button id="btnLogout" class="btn" onclick="handleAdminLogout()" style="background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.35); color: #fb7185;">
+          <span>🔒 ออกจากระบบ</span>
+        </button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="status-banner"></div>
+
+    <!-- Overall Top KPIs -->
+    <div class="kpi-grid">
+      <!-- Web Downloads -->
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <span>ยอดดาวน์โหลดจากเว็บ (Web Downloads)</span>
+          <span>📥</span>
+        </div>
+        <div class="kpi-value" id="kpiWebDownloads">0</div>
+        <div class="kpi-sub">จำนวนการคลิกดาวน์โหลดบนหน้าเว็บ</div>
+      </div>
+
+      <!-- App Installs -->
+      <div class="kpi-card blue">
+        <div class="kpi-label">
+          <span>ติดตั้งในเครื่องจริง (Total Installs)</span>
+          <span>💻</span>
+        </div>
+        <div class="kpi-value" id="kpiTotalInstalls">0</div>
+        <div class="kpi-sub">นับตาม UUID เครื่องจริงไม่ซ้ำกัน</div>
+      </div>
+
+      <!-- Active 24h -->
+      <div class="kpi-card green">
+        <div class="kpi-label">
+          <span>เปิดแอปใน 24 ชม. (Active 24h)</span>
+          <span>🟢</span>
+        </div>
+        <div class="kpi-value" id="kpiActive24h">0</div>
+        <div class="kpi-sub">ผู้ใช้งานที่เปิดแอปวันนี้</div>
+      </div>
+
+      <!-- Total Launches -->
+      <div class="kpi-card amber">
+        <div class="kpi-label">
+          <span>จำนวนครั้งเปิดแอปรวม (Total Launches)</span>
+          <span>🚀</span>
+        </div>
+        <div class="kpi-value" id="kpiTotalLaunches">0</div>
+        <div class="kpi-sub">รวมการเรียกเปิดใช้งานทุกเครื่อง</div>
+      </div>
+
+      <!-- Shopee Clicks -->
+      <div class="kpi-card" style="border-left: 4px solid #ee4d2d;">
+        <div class="kpi-label">
+          <span>คลิกไป Shopee (Shopee Clicks)</span>
+          <span>🛒</span>
+        </div>
+        <div class="kpi-value" id="kpiShopeeClicks" style="color: #ff5722;">0</div>
+        <div class="kpi-sub">ส่งผู้ใช้ไป Shopee Affiliate (Live)</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('downloadsTab', this)">
+        <span>📥 สถิติการดาวน์โหลดหน้าเว็บ (Download Analytics)</span>
+        <span class="tab-badge" id="tabBadgeDownloads">0</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('installsTab', this)">
+        <span>💻 สถิติเครื่องที่ติดตั้ง (App Telemetry & Active Users)</span>
+        <span class="tab-badge" id="tabBadgeInstalls">0</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('shopeeTab', this)">
+        <span>🛒 สถิติคลิก Shopee Affiliate (Real-time)</span>
+        <span class="tab-badge" id="tabBadgeShopee" style="background: rgba(238, 77, 45, 0.2); color: #ff5722;">0</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('communityTab', this)" id="btnTabCommunity">
+        <span>🎵 มัลติแทร็กชุมชน & แจ้งลิงก์เสีย</span>
+        <span class="tab-badge" id="tabBadgeCommunity">0</span>
+        <span class="tab-badge" id="tabBadgeReported" style="background: rgba(244, 63, 94, 0.25); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); display: none;">🚨 0 ลิงก์เสีย</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: DOWNLOAD ANALYTICS -->
+    <div id="downloadsTab" class="tab-content active">
+      <!-- Platform Breakdown -->
+      <div class="platform-bars-grid">
+        <div class="panel">
+          <div class="panel-title">
+            <span>สัดส่วนการดาวน์โหลดแยกตามช่องทาง / ระบบ (Downloads by Platform)</span>
+          </div>
+          <div id="downloadPlatformBars" style="margin-top: 16px;">
+            <div style="color:var(--text-muted); font-size:13px;">กำลังโหลดสถิติ...</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>สรุปยอดดาวน์โหลดแยกตามรายการ (Summary by Item)</span>
+          </div>
+          <div style="margin-top: 16px;">
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>🪟 Windows (.exe / .zip)</span>
+                <span class="mono" id="sumWin">0 ครั้ง</span>
+              </div>
+            </div>
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>🍏 macOS (.pkg / .zip)</span>
+                <span class="mono" id="sumMac">0 ครั้ง</span>
+              </div>
+            </div>
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>🤖 Android (.apk)</span>
+                <span class="mono" id="sumAndroid">0 ครั้ง</span>
+              </div>
+            </div>
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>📱 iOS (.ipa)</span>
+                <span class="mono" id="sumIos">0 ครั้ง</span>
+              </div>
+            </div>
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>📦 GitHub Repo / Clone</span>
+                <span class="mono" id="sumGithub">0 ครั้ง</span>
+              </div>
+            </div>
+            <div class="bar-item">
+              <div class="bar-header">
+                <span>🎛️ มัลติแทร็ก Google Drive & ไฟล์ประกอบ</span>
+                <span class="mono" id="sumStems">0 ครั้ง</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-time Download Logs Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>ประวัติการคลิกดาวน์โหลดแบบ Real-time (<span id="filteredDownloadCount">0</span> รายการ)</span>
+          </div>
+          <button class="btn" id="btnExportDownloadCsv">
+            <span>📥 Export ประวัติดาวน์โหลด (CSV)</span>
+          </button>
+        </div>
+
+        <div class="table-controls">
+          <select id="downloadPlatformFilter" class="filter-select">
+            <option value="ALL">ทุกหมวดหมู่ (All Channels)</option>
+            <option value="windows">Windows</option>
+            <option value="macos">macOS</option>
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+            <option value="github">GitHub</option>
+            <option value="stems">มัลติแทร็ก (Stems)</option>
+            <option value="supporting">ไฟล์ประกอบ</option>
+          </select>
+          <input type="text" id="downloadSearchInput" class="search-box" placeholder="ค้นหาชื่อไฟล์, ระบบ, เบราว์เซอร์..." />
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลา (Timestamp)</th>
+                <th>แพลตฟอร์ม</th>
+                <th>ไฟล์ / ลิงก์ที่ดาวน์โหลด</th>
+                <th>เบราว์เซอร์ / อุปกรณ์ (User Agent)</th>
+                <th>ขนาดหน้าจอ</th>
+              </tr>
+            </thead>
+            <tbody id="downloadEventsTableBody">
+              <tr>
+                <td colspan="5" class="empty-state">กำลังเชื่อมต่อฐานข้อมูลประวัติการดาวน์โหลด...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: APP INSTALLS TELEMETRY -->
+    <div id="installsTab" class="tab-content">
+      <!-- Platform & Version Bars -->
+      <div class="platform-bars-grid">
+        <div class="panel">
+          <div class="panel-title">
+            <span>สัดส่วนเครื่องจริงแยกตาม OS (Installed OS)</span>
+          </div>
+          <div id="installPlatformBars" style="margin-top: 16px;">
+            <div style="color:var(--text-muted); font-size:13px;">กำลังโหลดสถิติ...</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>สัดส่วนตามเวอร์ชันแอป (App Versions)</span>
+          </div>
+          <div id="installVersionBars" style="margin-top: 16px;">
+            <div style="color:var(--text-muted); font-size:13px;">กำลังโหลดสถิติ...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Installed Devices Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>รายการเครื่องที่ติดตั้งทั้งหมด (<span id="filteredInstallCount">0</span> เครื่อง)</span>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-primary" id="btnSimulate">+ จำลองส่งข้อมูลทดสอบ (Test Ping)</button>
+            <button class="btn" id="btnExportInstallCsv">📥 Export ข้อมูลติดตั้ง (CSV)</button>
+          </div>
+        </div>
+
+        <div class="table-controls">
+          <select id="installPlatformFilter" class="filter-select">
+            <option value="ALL">ทุกระบบปฏิบัติการ (All OS)</option>
+            <option value="Windows">Windows</option>
+            <option value="macOS">macOS</option>
+            <option value="Android">Android</option>
+            <option value="iOS">iOS</option>
+            <option value="Linux">Linux</option>
+          </select>
+          <input type="text" id="installSearchInput" class="search-box" placeholder="ค้นหา Install ID, OS, CPU, รุ่นเครื่อง..." />
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Platform</th>
+                <th>OS / อุปกรณ์</th>
+                <th>CPU</th>
+                <th>Version</th>
+                <th>เปิดแอป (ครั้ง)</th>
+                <th>ติดตั้งครั้งแรก (First Install)</th>
+                <th>เปิดล่าสุด (Last Seen)</th>
+                <th>Install ID</th>
+              </tr>
+            </thead>
+            <tbody id="installTableBody">
+              <tr>
+                <td colspan="8" class="empty-state">กำลังเชื่อมต่อข้อมูลการติดตั้ง...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: SHOPEE AFFILIATE CLICKS -->
+    <div id="shopeeTab" class="tab-content">
+      <!-- Shopee Summary & Link Breakdown Grid -->
+      <div class="platform-bars-grid">
+        <div class="panel">
+          <div class="panel-title">
+            <span style="color:#ee4d2d;">🛒</span>
+            <span>สัดส่วนการคลิก Shopee แยกตามแพลตฟอร์ม (Clicks by Platform)</span>
+          </div>
+          <div id="shopeePlatformBars" style="margin-top: 16px;">
+            <div style="color:var(--text-muted); font-size:13px;">กำลังโหลดสถิติ...</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span style="color:#ee4d2d;">🔗</span>
+            <span>สรุปยอดคลิกแยกตามลิงก์ Affiliate (By Shopee Link)</span>
+          </div>
+          <div id="shopeeLinkBars" style="margin-top: 16px;">
+            <div style="color:var(--text-muted); font-size:13px;">กำลังโหลดสถิติ...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shopee Live Clicks Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>ประวัติการส่งผู้ใช้ไปยัง Shopee แบบ Real-time (<span id="filteredShopeeCount">0</span> รายการ)</span>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btnSimulateShopee" style="background: rgba(238, 77, 45, 0.15); border-color: rgba(238, 77, 45, 0.4); color: #ff5722;">
+              + จำลองคลิก Shopee (Test Click)
+            </button>
+            <button class="btn" id="btnExportShopeeCsv">
+              📥 Export ข้อมูล Shopee (CSV)
+            </button>
+          </div>
+        </div>
+
+        <div class="table-controls">
+          <select id="shopeePlatformFilter" class="filter-select">
+            <option value="ALL">ทุกแพลตฟอร์ม (All Platforms)</option>
+            <option value="Android">Android</option>
+            <option value="Windows">Windows</option>
+            <option value="macOS">macOS</option>
+            <option value="Web">Web</option>
+          </select>
+          <input type="text" id="shopeeSearchInput" class="search-box" placeholder="ค้นหาลิงก์, รุ่นอุปกรณ์, แพลตฟอร์ม..." />
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลา (Timestamp)</th>
+                <th>แพลตฟอร์ม</th>
+                <th>ลิงก์ Shopee Affiliate ที่เปิด</th>
+                <th>รุ่นเครื่อง / อุปกรณ์ (Device)</th>
+                <th>เวอร์ชันแอป</th>
+              </tr>
+            </thead>
+            <tbody id="shopeeTableBody">
+              <tr>
+                <td colspan="5" class="empty-state">ยังไม่มีประวัติการคลิก Shopee หรือกำลังเชื่อมต่อ...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: COMMUNITY STEMS & BROKEN LINK REPORTS -->
+    <div id="communityTab" class="tab-content">
+      <!-- Summary KPI Row in Community Tab -->
+      <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 24px;">
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-cyan);">
+          <div class="kpi-label">
+            <span>มัลติแทร็กชุมชนทั้งหมด (Total Shared Stems)</span>
+            <span>🎵</span>
+          </div>
+          <div class="kpi-value" id="kpiCommunityTotal" style="color: var(--accent-cyan);">0</div>
+          <div class="kpi-sub">รายการเพลงที่ผู้ใช้ร่วมแบ่งปันในระบบ</div>
+        </div>
+
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-rose);" id="cardReportedKpi">
+          <div class="kpi-label">
+            <span>ลิงก์ที่ถูกแจ้งเสีย (Reported Broken Links)</span>
+            <span>🚨</span>
+          </div>
+          <div class="kpi-value" id="kpiCommunityReported" style="color: var(--accent-rose);">0</div>
+          <div class="kpi-sub" id="kpiCommunityReportedSub">ไม่มีรายงานลิงก์เสียในขณะนี้</div>
+        </div>
+
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-amber);">
+          <div class="kpi-label">
+            <span>คะแนนความนิยมเฉลี่ย (Average Rating)</span>
+            <span>⭐</span>
+          </div>
+          <div class="kpi-value" id="kpiCommunityAvgRating" style="color: var(--accent-amber);">5.0</div>
+          <div class="kpi-sub">จากคะแนนรีวิวของผู้ใช้งานทั้งหมด</div>
+        </div>
+      </div>
+
+      <!-- Community Table Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">
+              <span>คลังมัลติแทร็กชุมชน & รายการแจ้งลิงก์เสีย</span>
+              <span class="live-dot" style="margin-left:8px;"></span>
+            </div>
+            <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+              แอดมินสามารถตรวจสอบความถูกต้องของลิงก์ ทดสอบเปิดลิงก์ รีเซ็ตการรายงาน หรือกดลบลิงก์ที่ใช้งานไม่ได้ออกจากระบบได้ทันที
+            </p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" id="btnAdminAddStem" onclick="openAdminAddStemModal()" style="background: rgba(0,229,255,0.12); border-color: rgba(0,229,255,0.3); color: var(--accent-cyan);">
+              <span>➕ เพิ่มเพลงมัลติแทร็ก (แอดมิน)</span>
+            </button>
+            <button class="btn" id="btnExportStemsCsv">
+              <span>📥 Export รายการมัลติแทร็ก (CSV)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="table-controls">
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <select id="communityStatusFilter" class="filter-select">
+              <option value="ALL">รายการทั้งหมด (All Stems)</option>
+              <option value="REPORTED">🚨 เฉพาะลิงก์ที่ถูกรายงานเสีย (Reported Only)</option>
+              <option value="NORMAL">✅ เฉพาะลิงก์ปกติ (Normal Only)</option>
+            </select>
+            <select id="communityGenreFilter" class="filter-select">
+              <option value="ALL">ทุกแนวเพลง (All Genres)</option>
+              <option value="Rock">Rock / Metal</option>
+              <option value="Pop">Pop / R&B</option>
+              <option value="Indie">Indie / Alternative</option>
+              <option value="Acoustic">Acoustic / Folk</option>
+              <option value="Country">ลูกทุ่ง / หมอลำ / เพื่อชีวิต</option>
+              <option value="Electronic">Electronic / Dance</option>
+              <option value="Other">อื่นๆ</option>
+            </select>
+          </div>
+          <input type="text" id="communitySearchInput" class="search-box" placeholder="ค้นหาชื่อวง, เพลง, ผู้แชร์, หรือ URL..." />
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลาที่แชร์ (Timestamp)</th>
+                <th>ชื่อวง / ศิลปิน</th>
+                <th>ชื่อเพลง & แนว</th>
+                <th>ผู้แชร์</th>
+                <th>คะแนนรีวิว</th>
+                <th>ลิงก์ดาวน์โหลด (Download Link)</th>
+                <th>สถานะรายงาน (Reports)</th>
+                <th style="text-align: right;">การจัดการ (Admin Actions)</th>
+              </tr>
+            </thead>
+            <tbody id="communityTableBody">
+              <tr>
+                <td colspan="8" class="empty-state">กำลังเชื่อมต่อฐานข้อมูลมัลติแทร็กชุมชน...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Admin Add Community Multitrack -->
+  <div id="adminAddStemModal" class="login-overlay" style="display: none; z-index: 10000;">
+    <div class="login-card" style="max-width: 480px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+        <h3 style="font-size: 17px; font-weight: 800; color: #fff;">➕ เพิ่มเพลงมัลติแทร็ก (แอดมินแชร์เอง)</h3>
+        <button type="button" class="btn" onclick="closeAdminAddStemModal()" style="padding: 4px 10px; font-size: 14px;">✕</button>
+      </div>
+
+      <form id="adminAddStemForm" onsubmit="return handleAdminAddStem(event)">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">ชื่อวง / ศิลปิน *</label>
+          <input type="text" id="adminStemBand" class="login-input" placeholder="เช่น Silly Fools, Bodyslam..." required />
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">ชื่อเพลง *</label>
+          <input type="text" id="adminStemSong" class="login-input" placeholder="เช่น วัดใจ, ขอบฟ้า..." required />
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">แนวเพลง</label>
+          <select id="adminStemGenre" class="login-input">
+            <option value="Rock">🎸 Rock / Metal</option>
+            <option value="Pop">🎹 Pop / R&B</option>
+            <option value="Indie">🎧 Indie / Alternative</option>
+            <option value="Acoustic">🪕 Acoustic / Folk</option>
+            <option value="Country">🎤 ลูกทุ่ง / หมอลำ / เพื่อชีวิต</option>
+            <option value="Electronic">🎚️ Electronic / Dance</option>
+            <option value="Other">🎶 อื่นๆ</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">ลิงก์ดาวน์โหลด *</label>
+          <input type="url" id="adminStemUrl" class="login-input" placeholder="https://drive.google.com/..." required />
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">เครดิต / ผู้แชร์</label>
+          <input type="text" id="adminStemUploader" class="login-input" value="Admin Studio" />
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn" onclick="closeAdminAddStemModal()">ยกเลิก</button>
+          <button type="submit" class="btn btn-public" id="btnAdminSubmitStem">
+            <span>🚀 โพสต์มัลติแทร็ก</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Authentication Logic -->
+  <script>
+    function checkAdminAuth() {
+      const isAuth = sessionStorage.getItem('mps_admin_auth') === 'true' || localStorage.getItem('mps_admin_auth') === 'true';
+      const overlay = document.getElementById('loginOverlay');
+      const dashboard = document.getElementById('adminDashboard');
+      
+      if (isAuth) {
+        if (overlay) overlay.style.display = 'none';
+        if (dashboard) dashboard.style.display = 'block';
+      } else {
+        if (overlay) overlay.style.display = 'flex';
+        if (dashboard) dashboard.style.display = 'none';
+        setTimeout(() => {
+          const pwd = document.getElementById('adminPassword');
+          if (pwd) pwd.focus();
+        }, 150);
+      }
+    }
+
+    function handleAdminLogin(e) {
+      if (e) e.preventDefault();
+      const u = (document.getElementById('adminUsername')?.value || '').trim().toLowerCase();
+      const p = (document.getElementById('adminPassword')?.value || '').trim();
+      const remember = document.getElementById('rememberMe')?.checked;
+      const errEl = document.getElementById('loginError');
+
+      // Check: username 'admin' and password '1234'
+      // Also accept if entered as passcode 'admin 1234' or 'admin1234'
+      const isMatch = (
+        (u === 'admin' && p === '1234') ||
+        (u === 'admin' && (p === 'admin 1234' || p === 'admin1234')) ||
+        (u === 'admin 1234' && (p === '1234' || p === 'admin 1234' || p === '')) ||
+        (p === 'admin 1234' || p === 'admin1234')
+      );
+
+      if (isMatch) {
+        sessionStorage.setItem('mps_admin_auth', 'true');
+        if (remember) {
+          localStorage.setItem('mps_admin_auth', 'true');
+        }
+        if (errEl) errEl.style.display = 'none';
+        checkAdminAuth();
+      } else {
+        if (errEl) errEl.style.display = 'block';
+        const card = document.querySelector('.login-card');
+        if (card) {
+          card.classList.add('shake');
+          setTimeout(() => card.classList.remove('shake'), 450);
+        }
+        const pwd = document.getElementById('adminPassword');
+        if (pwd) {
+          pwd.select();
+          pwd.focus();
+        }
+      }
+      return false;
+    }
+
+    function handleAdminLogout() {
+      if (confirm('คุณต้องการออกจากระบบ Admin ใช่หรือไม่?')) {
+        sessionStorage.removeItem('mps_admin_auth');
+        localStorage.removeItem('mps_admin_auth');
+        const pwd = document.getElementById('adminPassword');
+        if (pwd) pwd.value = '';
+        checkAdminAuth();
+      }
+    }
+
+    function togglePasswordVisibility() {
+      const pwd = document.getElementById('adminPassword');
+      const btn = document.getElementById('btnTogglePwd');
+      if (pwd) {
+        if (pwd.type === 'password') {
+          pwd.type = 'text';
+          if (btn) btn.textContent = '🙈';
+        } else {
+          pwd.type = 'password';
+          if (btn) btn.textContent = '👁️';
+        }
+      }
+    }
+
+    window.checkAdminAuth = checkAdminAuth;
+    window.handleAdminLogin = handleAdminLogin;
+    window.handleAdminLogout = handleAdminLogout;
+    window.togglePasswordVisibility = togglePasswordVisibility;
+
+    // Check auth immediately upon page script evaluation
+    checkAdminAuth();
+    document.addEventListener('DOMContentLoaded', checkAdminAuth);
+  </script>
+
+  <!-- Firebase Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      onSnapshot, 
+      doc, 
+      setDoc,
+      addDoc,
+      deleteDoc,
+      increment
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrnDzAK1WLPgdKRUq__zYpHpag6vOFUQ8",
+      authDomain: "pad-mix.firebaseapp.com",
+      projectId: "pad-mix",
+      storageBucket: "pad-mix.firebasestorage.app",
+      messagingSenderId: "804078476904",
+      appId: "1:804078476904:web:f737995ae30b266585a5dd",
+      measurementId: "G-TVQKWH0FVN"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allInstalls = [];
+    let allDownloadEvents = [];
+    let downloadStats = {};
+
+    // Elements
+    const kpiWebDownloads = document.getElementById('kpiWebDownloads');
+    const kpiTotalInstalls = document.getElementById('kpiTotalInstalls');
+    const kpiActive24h = document.getElementById('kpiActive24h');
+    const kpiTotalLaunches = document.getElementById('kpiTotalLaunches');
+
+    const sumWin = document.getElementById('sumWin');
+    const sumMac = document.getElementById('sumMac');
+    const sumAndroid = document.getElementById('sumAndroid');
+    const sumIos = document.getElementById('sumIos');
+    const sumGithub = document.getElementById('sumGithub');
+    const sumStems = document.getElementById('sumStems');
+
+    const downloadPlatformBars = document.getElementById('downloadPlatformBars');
+    const downloadEventsTableBody = document.getElementById('downloadEventsTableBody');
+    const filteredDownloadCount = document.getElementById('filteredDownloadCount');
+    const tabBadgeDownloads = document.getElementById('tabBadgeDownloads');
+
+    const installTableBody = document.getElementById('installTableBody');
+    const filteredInstallCount = document.getElementById('filteredInstallCount');
+    const installPlatformBars = document.getElementById('installPlatformBars');
+    const installVersionBars = document.getElementById('installVersionBars');
+    const tabBadgeInstalls = document.getElementById('tabBadgeInstalls');
+
+    let allShopeeClicks = [];
+    const kpiShopeeClicks = document.getElementById('kpiShopeeClicks');
+    const tabBadgeShopee = document.getElementById('tabBadgeShopee');
+    const shopeePlatformBars = document.getElementById('shopeePlatformBars');
+    const shopeeLinkBars = document.getElementById('shopeeLinkBars');
+    const shopeeTableBody = document.getElementById('shopeeTableBody');
+    const filteredShopeeCount = document.getElementById('filteredShopeeCount');
+    const shopeeSearchInput = document.getElementById('shopeeSearchInput');
+    const shopeePlatformFilter = document.getElementById('shopeePlatformFilter');
+
+    // Tab switching
+    window.switchTab = function(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    };
+
+    function formatDateTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return isoStr;
+      return d.toLocaleString('th-TH', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function timeAgo(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diffSec < 60) return 'เมื่อสักครู่';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} นาทีที่แล้ว`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} ชั่วโมงที่แล้ว`;
+      return `${Math.floor(diffSec / 86400)} วันที่แล้ว`;
+    }
+
+    function renderBars(container, countsMap, total) {
+      const entries = Object.entries(countsMap).sort((a, b) => b[1] - a[1]);
+      if (entries.length === 0) {
+        container.innerHTML = `<div style="color:var(--text-muted);font-size:13px;">ยังไม่มีข้อมูล</div>`;
+        return;
+      }
+      container.innerHTML = entries.map(([label, count]) => {
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        return `
+          <div class="bar-item">
+            <div class="bar-header">
+              <span><strong>${label}</strong></span>
+              <span class="mono">${count.toLocaleString()} (${pct}%)</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 1. Listen to Download Summary Stats
+    const statsDocRef = doc(db, 'downloads_stats', 'summary');
+    onSnapshot(statsDocRef, (snap) => {
+      if (snap.exists()) {
+        downloadStats = snap.data();
+        const total = Number(downloadStats.totalDownloads) || 0;
+        kpiWebDownloads.textContent = total.toLocaleString();
+
+        const w = Number(downloadStats.platform_windows) || 0;
+        const m = Number(downloadStats.platform_macos) || 0;
+        const a = Number(downloadStats.platform_android) || 0;
+        const i = Number(downloadStats.platform_ios) || 0;
+        const g = Number(downloadStats.platform_github) || 0;
+        const s = (Number(downloadStats.platform_stems) || 0) + (Number(downloadStats.platform_supporting) || 0);
+
+        sumWin.textContent = `${w.toLocaleString()} ครั้ง`;
+        sumMac.textContent = `${m.toLocaleString()} ครั้ง`;
+        sumAndroid.textContent = `${a.toLocaleString()} ครั้ง`;
+        sumIos.textContent = `${i.toLocaleString()} ครั้ง`;
+        sumGithub.textContent = `${g.toLocaleString()} ครั้ง`;
+        sumStems.textContent = `${s.toLocaleString()} ครั้ง`;
+
+        renderBars(downloadPlatformBars, {
+          'Windows': w,
+          'macOS': m,
+          'Android': a,
+          'iOS': i,
+          'GitHub Repo': g,
+          'Stems & Files': s
+        }, total);
+      }
+    });
+
+    // 2. Listen to Download Events
+    const eventsRef = collection(db, 'download_events');
+    onSnapshot(eventsRef, (snapshot) => {
+      allDownloadEvents = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      tabBadgeDownloads.textContent = allDownloadEvents.length.toLocaleString();
+      renderDownloadTable();
+    });
+
+    function getPlatformBadge(plat) {
+      const p = (plat || '').toLowerCase();
+      if (p.includes('win')) return `<span class="badge badge-windows">🪟 Windows</span>`;
+      if (p.includes('mac')) return `<span class="badge badge-macos">🍏 macOS</span>`;
+      if (p.includes('android')) return `<span class="badge badge-android">🤖 Android</span>`;
+      if (p.includes('ios')) return `<span class="badge badge-ios">📱 iOS</span>`;
+      if (p.includes('git')) return `<span class="badge badge-github">📦 GitHub</span>`;
+      if (p.includes('stem')) return `<span class="badge badge-stems">🎛️ Stems</span>`;
+      return `<span class="badge" style="background:rgba(255,255,255,0.1);color:#fff;">${plat || 'Other'}</span>`;
+    }
+
+    function renderDownloadTable() {
+      const query = document.getElementById('downloadSearchInput').value.trim().toLowerCase();
+      const filter = document.getElementById('downloadPlatformFilter').value.toLowerCase();
+
+      const filtered = allDownloadEvents.filter(e => {
+        const plat = (e.platform || '').toLowerCase();
+        if (filter !== 'all' && !plat.includes(filter)) return false;
+        if (!query) return true;
+        const haystack = [e.platform, e.fileName, e.targetUrl, e.userAgent, e.screen].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+
+      filtered.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+      filteredDownloadCount.textContent = filtered.length.toLocaleString();
+
+      if (filtered.length === 0) {
+        downloadEventsTableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="empty-state">ยังไม่มีประวัติการดาวน์โหลด หรือไม่พบข้อมูลตามคำค้นหา</td>
+          </tr>
+        `;
+        return;
+      }
+
+      downloadEventsTableBody.innerHTML = filtered.map(e => `
+        <tr>
+          <td>
+            <div><strong>${formatDateTime(e.timestamp)}</strong></div>
+            <div style="font-size:11px; color:#34d399">${timeAgo(e.timestamp)}</div>
+          </td>
+          <td>${getPlatformBadge(e.platform)}</td>
+          <td>
+            <div style="font-weight:600; color:#fff;">${e.fileName || '-'}</div>
+            <div style="font-size:11px; color:var(--text-muted); word-break:break-all;">${e.targetUrl || ''}</div>
+          </td>
+          <td>
+            <div style="max-width:320px; font-size:12px; color:var(--text-secondary); word-break:break-word;">
+              ${e.userAgent || '-'}
+            </div>
+          </td>
+          <td class="mono" style="font-size:12px; color:var(--text-muted);">${e.screen || '-'}</td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('downloadSearchInput').addEventListener('input', renderDownloadTable);
+    document.getElementById('downloadPlatformFilter').addEventListener('change', renderDownloadTable);
+
+    // Export Download CSV
+    document.getElementById('btnExportDownloadCsv').addEventListener('click', () => {
+      if (allDownloadEvents.length === 0) {
+        alert('ยังไม่มีข้อมูลการดาวน์โหลดสำหรับ Export');
+        return;
+      }
+      const headers = ['timestamp', 'platform', 'fileName', 'targetUrl', 'userAgent', 'screen'];
+      const rows = allDownloadEvents.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `multiplatform-mixer-downloads-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    });
+
+    // 3. Listen to App Installs Telemetry
+    const installsRef = collection(db, 'installs');
+    onSnapshot(installsRef, (snapshot) => {
+      allInstalls = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      updateInstallsTab();
+    }, (err) => {
+      console.error('Firestore Error:', err);
+    });
+
+    function updateInstallsTab() {
+      const now = Date.now();
+      const ms24h = 24 * 60 * 60 * 1000;
+
+      let active24h = 0;
+      let totalLaunches = 0;
+      const platformCounts = {};
+      const versionCounts = {};
+
+      allInstalls.forEach(r => {
+        const lastSeenMs = new Date(r.lastSeenTime || r.firstInstallTime || 0).getTime();
+        if (!isNaN(lastSeenMs) && (now - lastSeenMs <= ms24h)) {
+          active24h++;
+        }
+        totalLaunches += Number(r.launchCount) || 1;
+
+        const plat = r.platform || 'Unknown';
+        platformCounts[plat] = (platformCounts[plat] || 0) + 1;
+
+        const ver = r.appVersion || '1.0.0';
+        versionCounts[ver] = (versionCounts[ver] || 0) + 1;
+      });
+
+      kpiTotalInstalls.textContent = allInstalls.length.toLocaleString();
+      kpiActive24h.textContent = active24h.toLocaleString();
+      kpiTotalLaunches.textContent = totalLaunches.toLocaleString();
+      tabBadgeInstalls.textContent = allInstalls.length.toLocaleString();
+
+      renderBars(installPlatformBars, platformCounts, allInstalls.length);
+      renderBars(installVersionBars, versionCounts, allInstalls.length);
+
+      renderInstallTable();
+    }
+
+    function renderInstallTable() {
+      const query = document.getElementById('installSearchInput').value.trim().toLowerCase();
+      const platFilter = document.getElementById('installPlatformFilter').value;
+
+      const filtered = allInstalls.filter(r => {
+        if (platFilter !== 'ALL' && (r.platform || 'Unknown') !== platFilter) return false;
+        if (!query) return true;
+        const haystack = [
+          r.installId, r.platform, r.osName, r.deviceModel, r.cpuModel, r.appVersion
+        ].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+
+      filtered.sort((a, b) => new Date(b.lastSeenTime || b.firstInstallTime || 0) - new Date(a.lastSeenTime || a.firstInstallTime || 0));
+      filteredInstallCount.textContent = filtered.length.toLocaleString();
+
+      if (filtered.length === 0) {
+        installTableBody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">ยังไม่มีรายการข้อมูลการติดตั้ง หรือไม่พบข้อมูลตามคำค้นหา</td>
+          </tr>
+        `;
+        return;
+      }
+
+      installTableBody.innerHTML = filtered.map(r => {
+        const plat = r.platform || 'Unknown';
+        const launches = Number(r.launchCount) || 1;
+        return `
+          <tr>
+            <td>${getPlatformBadge(plat)}</td>
+            <td>
+              <div><strong>${r.osName || '-'}</strong></div>
+              <div style="font-size:11px; color:var(--text-muted)">${r.deviceModel || ''}</div>
+            </td>
+            <td style="font-size:12px; color:var(--text-secondary)">${r.cpuModel || '-'}</td>
+            <td><span class="mono">${r.appVersion || '1.0.0'}</span></td>
+            <td><strong class="mono">${launches.toLocaleString()}</strong></td>
+            <td><div>${formatDateTime(r.firstInstallTime)}</div></td>
+            <td>
+              <div>${formatDateTime(r.lastSeenTime)}</div>
+              <div style="font-size:11px; color:#34d399">${timeAgo(r.lastSeenTime)}</div>
+            </td>
+            <td class="mono" style="color:var(--text-muted); font-size:11px;">${r.installId || r.id}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('installSearchInput').addEventListener('input', renderInstallTable);
+    document.getElementById('installPlatformFilter').addEventListener('change', renderInstallTable);
+
+    // Simulate Test Ping
+    document.getElementById('btnSimulate').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSimulate');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่ง...';
+      try {
+        const testId = 'test-admin-' + Math.floor(Math.random() * 1000);
+        const nowIso = new Date().toISOString();
+        await setDoc(doc(db, 'installs', testId), {
+          installId: testId,
+          platform: 'Windows',
+          osName: 'Windows 11 (Admin Test)',
+          appVersion: '1.0.1',
+          deviceModel: 'Studio PC',
+          cpuModel: 'Intel Core i7',
+          firstInstallTime: nowIso,
+          lastSeenTime: nowIso,
+          launchCount: 1
+        }, { merge: true });
+      } catch (e) {
+        alert('ส่งข้อมูลไม่สำเร็จ: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '+ จำลองส่งข้อมูลทดสอบ (Test Ping)';
+      }
+    });
+
+    // Export Installs CSV
+    document.getElementById('btnExportInstallCsv').addEventListener('click', () => {
+      if (allInstalls.length === 0) {
+        alert('ยังไม่มีข้อมูลสำหรับ Export');
+        return;
+      }
+      const headers = ['installId', 'platform', 'osName', 'deviceModel', 'cpuModel', 'appVersion', 'launchCount', 'firstInstallTime', 'lastSeenTime'];
+      const rows = allInstalls.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `multiplatform-mixer-installs-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    });
+
+    // 4. Listen to Shopee Affiliate Clicks (Real-time)
+    const shopeeClicksRef = collection(db, 'shopee_clicks');
+    onSnapshot(shopeeClicksRef, (snapshot) => {
+      allShopeeClicks = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      updateShopeeTab();
+    }, (err) => {
+      console.warn('Shopee clicks subscription error:', err);
+    });
+
+    function updateShopeeTab() {
+      kpiShopeeClicks.textContent = allShopeeClicks.length.toLocaleString();
+      tabBadgeShopee.textContent = allShopeeClicks.length.toLocaleString();
+
+      const platformCounts = {};
+      const linkCounts = {};
+
+      allShopeeClicks.forEach(c => {
+        const p = c.platform || 'Unknown';
+        platformCounts[p] = (platformCounts[p] || 0) + 1;
+
+        const u = c.targetUrl || c.url || 'Shopee Link';
+        linkCounts[u] = (linkCounts[u] || 0) + 1;
+      });
+
+      renderBars(shopeePlatformBars, platformCounts, allShopeeClicks.length);
+      renderBars(shopeeLinkBars, linkCounts, allShopeeClicks.length);
+      renderShopeeTable();
+    }
+
+    function renderShopeeTable() {
+      const query = shopeeSearchInput.value.trim().toLowerCase();
+      const filter = shopeePlatformFilter.value.toLowerCase();
+
+      const filtered = allShopeeClicks.filter(c => {
+        const plat = (c.platform || '').toLowerCase();
+        if (filter !== 'all' && !plat.includes(filter)) return false;
+        if (!query) return true;
+        const haystack = [c.platform, c.targetUrl, c.url, c.deviceModel, c.osName, c.installId].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+
+      filtered.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+      filteredShopeeCount.textContent = filtered.length.toLocaleString();
+
+      if (filtered.length === 0) {
+        shopeeTableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="empty-state">ยังไม่มีประวัติการส่งผู้ใช้ไปยัง Shopee หรือไม่พบข้อมูลตามคำค้นหา</td>
+          </tr>
+        `;
+        return;
+      }
+
+      shopeeTableBody.innerHTML = filtered.map(c => {
+        const url = c.targetUrl || c.url || '';
+        return `
+          <tr>
+            <td>
+              <div><strong>${formatDateTime(c.timestamp)}</strong></div>
+              <div style="font-size:11px; color:#ff5722;">${timeAgo(c.timestamp)}</div>
+            </td>
+            <td>${getPlatformBadge(c.platform)}</td>
+            <td>
+              <div style="font-weight:600; color:#fff; word-break:break-all;">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#ff5722; text-decoration:none;">
+                  ${url || 'Shopee Affiliate'} ↗
+                </a>
+              </div>
+            </td>
+            <td>
+              <div><strong>${c.deviceModel || c.osName || '-'}</strong></div>
+              <div style="font-size:11px; color:var(--text-muted);">${c.osName || ''}</div>
+            </td>
+            <td><span class="mono">${c.appVersion || '1.0.0'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    shopeeSearchInput.addEventListener('input', renderShopeeTable);
+    shopeePlatformFilter.addEventListener('change', renderShopeeTable);
+
+    // Simulate Test Shopee Click
+    document.getElementById('btnSimulateShopee').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSimulateShopee');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งคลิก...';
+      try {
+        const testLinks = [
+          "https://s.shopee.co.th/80DYoxalGQ",
+          "https://s.shopee.co.th/9pfD0LgqtV",
+          "https://s.shopee.co.th/2BFlsHjNlY",
+          "https://s.shopee.co.th/3Vl9SmXBNO",
+          "https://s.shopee.co.th/7pu8clzF22"
+        ];
+        const randomLink = testLinks[Math.floor(Math.random() * testLinks.length)];
+        const nowIso = new Date().toISOString();
+        await addDoc(collection(db, 'shopee_clicks'), {
+          platform: 'Android',
+          osName: 'Android 14 (Test Ping)',
+          appVersion: '1.0.1',
+          deviceModel: 'Samsung Galaxy S24',
+          targetUrl: randomLink,
+          timestamp: nowIso
+        });
+      } catch (e) {
+        alert('จำลองส่งคลิกไม่สำเร็จ: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '+ จำลองคลิก Shopee (Test Click)';
+      }
+    });
+
+    // Export Shopee CSV
+    document.getElementById('btnExportShopeeCsv').addEventListener('click', () => {
+      if (allShopeeClicks.length === 0) {
+        alert('ยังไม่มีข้อมูลคลิก Shopee สำหรับ Export');
+        return;
+      }
+      const headers = ['timestamp', 'platform', 'targetUrl', 'osName', 'deviceModel', 'appVersion'];
+      const rows = allShopeeClicks.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shopee-affiliate-clicks-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    });
+
+    // =========================================================================
+    // Community Multitracks & Broken Link Reports Logic (Admin)
+    // =========================================================================
+    let allCommunityStems = [];
+    const tabBadgeCommunity = document.getElementById('tabBadgeCommunity');
+    const tabBadgeReported = document.getElementById('tabBadgeReported');
+    const kpiCommunityTotal = document.getElementById('kpiCommunityTotal');
+    const kpiCommunityReported = document.getElementById('kpiCommunityReported');
+    const kpiCommunityReportedSub = document.getElementById('kpiCommunityReportedSub');
+    const kpiCommunityAvgRating = document.getElementById('kpiCommunityAvgRating');
+    const communityTableBody = document.getElementById('communityTableBody');
+    const communityStatusFilter = document.getElementById('communityStatusFilter');
+    const communityGenreFilter = document.getElementById('communityGenreFilter');
+    const communitySearchInput = document.getElementById('communitySearchInput');
+    const adminAddStemModal = document.getElementById('adminAddStemModal');
+    const adminAddStemForm = document.getElementById('adminAddStemForm');
+    const btnAdminSubmitStem = document.getElementById('btnAdminSubmitStem');
+
+    window.openAdminAddStemModal = function() {
+      if (adminAddStemModal) adminAddStemModal.style.display = 'flex';
+    };
+
+    window.closeAdminAddStemModal = function() {
+      if (adminAddStemModal) adminAddStemModal.style.display = 'none';
+    };
+
+    if (adminAddStemModal) {
+      adminAddStemModal.addEventListener('click', (e) => {
+        if (e.target === adminAddStemModal) window.closeAdminAddStemModal();
+      });
+    }
+
+    // Admin Add Stem Handler
+    window.handleAdminAddStem = async function(e) {
+      if (e) e.preventDefault();
+      const band = (document.getElementById('adminStemBand')?.value || '').trim();
+      const song = (document.getElementById('adminStemSong')?.value || '').trim();
+      const genre = document.getElementById('adminStemGenre')?.value || 'Rock';
+      const url = (document.getElementById('adminStemUrl')?.value || '').trim();
+      const uploader = (document.getElementById('adminStemUploader')?.value || '').trim() || 'Admin Studio';
+
+      if (!band || !song || !url) {
+        alert('กรุณากรอกชื่อวง, ชื่อเพลง และลิงก์ดาวน์โหลดให้ครบถ้วน');
+        return false;
+      }
+
+      if (btnAdminSubmitStem) {
+        btnAdminSubmitStem.disabled = true;
+        btnAdminSubmitStem.textContent = 'กำลังโพสต์...';
+      }
+
+      try {
+        await addDoc(collection(db, 'community_stems'), {
+          bandName: band,
+          songTitle: song,
+          genre: genre,
+          downloadUrl: url,
+          sharedBy: uploader,
+          ratingSum: 5,
+          ratingCount: 1,
+          averageRating: 5.0,
+          reportCount: 0,
+          status: 'active',
+          createdAt: new Date().toISOString()
+        });
+
+        if (adminAddStemForm) adminAddStemForm.reset();
+        window.closeAdminAddStemModal();
+        alert(`เพิ่มเพลง "${song}" (${band}) เข้าคลังมัลติแทร็กเรียบร้อยแล้ว`);
+      } catch (err) {
+        console.error('Error posting stem by admin:', err);
+        alert('เกิดข้อผิดพลาดในการโพสต์: ' + err.message);
+      } finally {
+        if (btnAdminSubmitStem) {
+          btnAdminSubmitStem.disabled = false;
+          btnAdminSubmitStem.textContent = '🚀 โพสต์มัลติแทร็ก';
+        }
+      }
+      return false;
+    };
+
+    // Admin Delete Stem (Remove from Firestore)
+    window.deleteCommunityStem = async function(stemId, bandName, songTitle) {
+      const confirmPrompt = `⚠️ ยืนยันการลบมัลติแทร็กนี้ถาวร?\n\nเพลง: ${songTitle || '-'}\nวง: ${bandName || '-'}\n\nเมื่อกดตกลง รายการนี้จะถูกลบออกจากทั้งหน้าเว็บและระบบทันที`;
+      if (!confirm(confirmPrompt)) return;
+
+      try {
+        await deleteDoc(doc(db, 'community_stems', stemId));
+        alert(`ลบมัลติแทร็กเพลง "${songTitle}" ออกจากระบบเรียบร้อยแล้ว`);
+      } catch (err) {
+        console.error('Delete stem error:', err);
+        alert('ลบไม่สำเร็จ: ' + err.message);
+      }
+    };
+
+    // Admin Reset Broken Link Reports
+    window.resetStemReports = async function(stemId, songTitle) {
+      if (!confirm(`เคลียร์รายงานของเพลง "${songTitle}" หรือไม่?\n\n(รายงานจะถูกรีเซ็ตกลับเป็น 0 ลิงก์จะกลับสู่สถานะปกติ)`)) return;
+
+      try {
+        await setDoc(doc(db, 'community_stems', stemId), {
+          reportCount: 0,
+          status: 'active'
+        }, { merge: true });
+        alert(`เคลียร์รายงานของเพลง "${songTitle}" เรียบร้อยแล้ว`);
+      } catch (err) {
+        console.error('Reset reports error:', err);
+        alert('เคลียร์รายงานไม่สำเร็จ: ' + err.message);
+      }
+    };
+
+    // Escape attribute text
+    function escapeAttr(str) {
+      if (!str) return '';
+      return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // Subscribe to Firestore community_stems
+    onSnapshot(collection(db, 'community_stems'), (snapshot) => {
+      allCommunityStems = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      updateCommunityTab();
+    }, (err) => {
+      console.warn('Community stems snapshot error:', err);
+    });
+
+    function updateCommunityTab() {
+      const total = allCommunityStems.length;
+      const reportedStems = allCommunityStems.filter(s => (Number(s.reportCount) || 0) > 0);
+      const reportedCount = reportedStems.length;
+
+      // Calculate total rating
+      let totalRatingSum = 0;
+      let totalRatingCount = 0;
+      allCommunityStems.forEach(s => {
+        const count = Number(s.ratingCount) || 0;
+        const sum = Number(s.ratingSum) || (count * 5);
+        if (count > 0) {
+          totalRatingSum += sum;
+          totalRatingCount += count;
+        }
+      });
+      const avgOverall = totalRatingCount > 0 ? (totalRatingSum / totalRatingCount).toFixed(1) : '5.0';
+
+      // Update KPIs
+      if (kpiCommunityTotal) kpiCommunityTotal.textContent = total.toLocaleString();
+      if (kpiCommunityReported) kpiCommunityReported.textContent = reportedCount.toLocaleString();
+      if (kpiCommunityReportedSub) {
+        kpiCommunityReportedSub.textContent = reportedCount > 0 
+          ? `มี ${reportedCount} รายการที่ผู้ใช้กดรายงานว่าโหลดไม่ได้` 
+          : 'ไม่มีรายงานลิงก์เสียในขณะนี้';
+      }
+      if (kpiCommunityAvgRating) kpiCommunityAvgRating.textContent = avgOverall;
+
+      // Update Nav Tab Badges
+      if (tabBadgeCommunity) tabBadgeCommunity.textContent = total.toLocaleString();
+      if (tabBadgeReported) {
+        if (reportedCount > 0) {
+          tabBadgeReported.style.display = 'inline-flex';
+          tabBadgeReported.textContent = `🚨 ${reportedCount} ลิงก์เสีย`;
+        } else {
+          tabBadgeReported.style.display = 'none';
+        }
+      }
+
+      renderCommunityTable();
+    }
+
+    function renderCommunityTable() {
+      if (!communityTableBody) return;
+
+      const statusFilter = communityStatusFilter ? communityStatusFilter.value : 'ALL';
+      const genreFilter = communityGenreFilter ? communityGenreFilter.value : 'ALL';
+      const query = (communitySearchInput ? communitySearchInput.value : '').trim().toLowerCase();
+
+      let filtered = allCommunityStems.filter(stem => {
+        const repCount = Number(stem.reportCount) || 0;
+        if (statusFilter === 'REPORTED' && repCount === 0) return false;
+        if (statusFilter === 'NORMAL' && repCount > 0) return false;
+        if (genreFilter !== 'ALL' && (stem.genre || '').toLowerCase() !== genreFilter.toLowerCase()) return false;
+        if (!query) return true;
+        const haystack = [stem.bandName, stem.songTitle, stem.genre, stem.sharedBy, stem.downloadUrl].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+
+      // Sort: Reported items first, then newest first
+      filtered.sort((a, b) => {
+        const aRep = Number(a.reportCount) || 0;
+        const bRep = Number(b.reportCount) || 0;
+        if (aRep > 0 && bRep === 0) return -1;
+        if (aRep === 0 && bRep > 0) return 1;
+        if (aRep !== bRep) return bRep - aRep;
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
+
+      if (filtered.length === 0) {
+        communityTableBody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">
+              ${statusFilter === 'REPORTED' ? '🎉 ยอดเยี่ยม! ไม่มีลิงก์ใดถูกรายงานว่าเสียในขณะนี้' : 'ไม่พบรายการมัลติแทร็กตามคำค้นหา'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      communityTableBody.innerHTML = filtered.map(stem => {
+        const repCount = Number(stem.reportCount) || 0;
+        const rCount = Number(stem.ratingCount) || 0;
+        const rSum = Number(stem.ratingSum) || (rCount * 5);
+        const avg = rCount > 0 ? (rSum / rCount).toFixed(1) : '5.0';
+        const url = stem.downloadUrl || '#';
+        const band = stem.bandName || 'ไม่ระบุวง';
+        const song = stem.songTitle || 'ไม่ระบุเพลง';
+        const uploader = stem.sharedBy || 'สมาชิก';
+        const genre = stem.genre || 'Rock';
+
+        return `
+          <tr style="${repCount > 0 ? 'background: rgba(244, 63, 94, 0.05);' : ''}">
+            <td>
+              <div><strong>${formatDateTime(stem.createdAt)}</strong></div>
+              <div style="font-size:11px; color:var(--text-muted);">${timeAgo(stem.createdAt)}</div>
+            </td>
+            <td>
+              <div style="font-weight:700; color:#fff; font-size:14px;">🎸 ${band}</div>
+            </td>
+            <td>
+              <div style="font-weight:600; color:var(--accent-cyan);">🎵 ${song}</div>
+              <div style="margin-top:2px;"><span class="badge" style="background:rgba(255,255,255,0.06); font-size:10px;">${genre}</span></div>
+            </td>
+            <td>
+              <div>👤 ${uploader}</div>
+            </td>
+            <td>
+              <div style="color:#fbbf24; font-weight:700;">★ ${avg}</div>
+              <div style="font-size:11px; color:var(--text-muted);">(${rCount} โหวต)</div>
+            </td>
+            <td>
+              <div style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-cyan); text-decoration:none; font-size:12px;">
+                  ${url} ↗
+                </a>
+              </div>
+            </td>
+            <td>
+              ${repCount > 0 
+                ? `<span class="badge" style="background: rgba(244,63,94,0.18); color:#f43f5e; border:1px solid rgba(244,63,94,0.4); font-weight:700;">🚨 รายงานเสีย ${repCount} ครั้ง</span>`
+                : `<span class="badge" style="background: rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3);">ปกติ (0)</span>`
+              }
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <div style="display:inline-flex; gap:6px; align-items:center;">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn" style="padding:6px 10px; font-size:12px;" title="เปิดดูลิงก์ดาวน์โหลดเพื่อตรวจสอบว่าเข้าได้ไหม">
+                  🔗 ตรวจสอบ
+                </a>
+                ${repCount > 0 ? `
+                  <button type="button" class="btn btn-success" onclick="resetStemReports('${stem.id}', '${escapeAttr(song)}')" title="เคลียร์รายงานเป็น 0 (กรณีลิงก์ยังใช้งานได้)">
+                    🛡️ เคลียร์รายงาน
+                  </button>
+                ` : ''}
+                <button type="button" class="btn btn-danger" onclick="deleteCommunityStem('${stem.id}', '${escapeAttr(band)}', '${escapeAttr(song)}')" title="ลบมัลติแทร็กนี้ออกจากระบบทันที">
+                  🗑️ ลบลิงก์
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    if (communitySearchInput) communitySearchInput.addEventListener('input', renderCommunityTable);
+    if (communityStatusFilter) communityStatusFilter.addEventListener('change', renderCommunityTable);
+    if (communityGenreFilter) communityGenreFilter.addEventListener('change', renderCommunityTable);
+
+    // Export Community Stems CSV
+    const btnExportStemsCsv = document.getElementById('btnExportStemsCsv');
+    if (btnExportStemsCsv) {
+      btnExportStemsCsv.addEventListener('click', () => {
+        if (allCommunityStems.length === 0) {
+          alert('ยังไม่มีข้อมูลมัลติแทร็กในระบบสำหรับ Export');
+          return;
+        }
+        const headers = ['createdAt', 'bandName', 'songTitle', 'genre', 'sharedBy', 'downloadUrl', 'averageRating', 'ratingCount', 'reportCount', 'status'];
+        const rows = allCommunityStems.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `community-multitracks-${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+      });
+    }
+  </script>
+</body>
+</html>

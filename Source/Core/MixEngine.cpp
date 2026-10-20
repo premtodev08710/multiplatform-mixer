@@ -8,7 +8,7 @@ MixEngine::MixEngine (MixerParams& p, MixerMeters& m) : params (p), meters (m) {
 void MixEngine::prepare (double sr, int maxBlockSize)
 {
     sampleRate = sr > 0.0 ? sr : 48000.0;
-    maxBlock = std::max (1, maxBlockSize);
+    maxBlock = std::max (4096, maxBlockSize);
 
     states.assign ((size_t) kMaxInputChannels, ChannelState{});
     chL.assign ((size_t) maxBlock, 0.0f);

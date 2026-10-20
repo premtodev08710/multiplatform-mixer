@@ -389,6 +389,9 @@ void ChannelStripComponent::updateFromModel()
 
 void ChannelStripComponent::timerCallback()
 {
+    if (! isShowing())
+        return;
+
     // Keep UI synchronized if scene recalled or modified
     if (stripType == StripType::InputChannel)
     {
