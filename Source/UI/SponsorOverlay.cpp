@@ -28,68 +28,38 @@ SponsorOverlay::SponsorOverlay (std::function<void()> onDismissed)
     markShownThisSession();
     setInterceptsMouseClicks (true, true);
 
-    // Button 1: Shopee Sponsor Visit
-    shopeeButton.setButtonText (juce::CharPointer_UTF8 ("\xf0\x9f\x9b\x92 \xe0\xb9\x81\xe0\xb8\xa7\xe0\xb8\xb0\xe0\xb8\x8a\xe0\xb8\xa1 Shopee (\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb1\xe0\xb8\x9a\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb8\xe0\xb8\x99\xe0\xb8\x9c\xe0\xb8\xb9\xe0\xb9\x89\xe0\xb8\x9e\xe0\xb8\xb1\xe0\xb8\x92\xe0\xb8\x99\xe0\xb8\xb2)"));
+    // Primary Action Button: mandatory visit Shopee to unlock app interface
+    shopeeButton.setButtonText (juce::CharPointer_UTF8 (
+        "\xf0\x9f\x9b\x92\x20\xe0\xb9\x81\xe0\xb8\xa7\xe0\xb8\xb0\xe0\xb8\x8a\xe0\xb8\xa1\x20"
+        "Shopee\x20\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9b"
+        "\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\xa5\xe0\xb9\x87\xe0\xb8\xad\xe0\xb8\x84\xe0\xb9\x80"
+        "\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81"
+        "\xe0\xb8\xad\xe0\xb8\x9e\x20\x28\xe0\xb9\x81\xe0\xb8\x95\xe0\xb8\xb0\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88\xe0\xb8\x99\xe0\xb8\xb5\xe0\xb9\x88\x29"));
     shopeeButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffee4d2d));
+    shopeeButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffc42306));
     shopeeButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    shopeeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::white);
     shopeeButton.onClick = [this] { openShopeeAndDismiss(); };
     addAndMakeVisible (shopeeButton);
-
-    // Button 2: Enter App Directly (Skip)
-    enterAppButton.setButtonText (juce::CharPointer_UTF8 ("\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb5 (\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xa1)"));
-    enterAppButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff1e2638));
-    enterAppButton.setColour (juce::TextButton::textColourOffId, juce::Colour (0xffcbd5e1));
-    enterAppButton.onClick = [this] { dismissDirectly(); };
-    addAndMakeVisible (enterAppButton);
-
-    startTimer (1000);
 }
 
-SponsorOverlay::~SponsorOverlay()
-{
-    stopTimer();
-}
-
-void SponsorOverlay::timerCallback()
-{
-    if (countdownSeconds > 1)
-    {
-        --countdownSeconds;
-        repaint();
-    }
-    else
-    {
-        countdownSeconds = 0;
-        stopTimer();
-
-        // 5 seconds elapsed: seamlessly dismiss banner and enter app directly.
-        // NEVER kick the user out of the app automatically!
-        dismissDirectly();
-    }
-}
+SponsorOverlay::~SponsorOverlay() = default;
 
 void SponsorOverlay::mouseDown (const juce::MouseEvent& e)
 {
     const auto bounds = getLocalBounds();
     const int dialogW = juce::jmin (560, bounds.getWidth() - 24);
-    const int dialogH = juce::jmin (390, bounds.getHeight() - 20);
+    const int dialogH = juce::jmin (400, bounds.getHeight() - 20);
     const auto dialogRect = juce::Rectangle<int> ((bounds.getWidth() - dialogW) / 2,
                                                   (bounds.getHeight() - dialogH) / 2,
                                                   dialogW, dialogH);
-    const float bannerH = (float) dialogH * 0.60f;
-    const auto bannerRect = juce::Rectangle<int> (dialogRect.getX(), dialogRect.getY(),
-                                                  dialogRect.getWidth(), (int) bannerH);
 
-    // If tapping inside the banner card, visit Shopee
-    if (bannerRect.contains (e.getPosition()))
+    // If tapping inside the dialog card, visit Shopee and unlock the app
+    if (dialogRect.contains (e.getPosition()))
     {
         openShopeeAndDismiss();
     }
-    else if (! dialogRect.contains (e.getPosition()))
-    {
-        // Tapping outside the dialog dismisses into the app
-        dismissDirectly();
-    }
+    // Strictly do nothing if tapping outside: NO skip, NO outside-click dismiss!
 }
 
 static void reportShopeeClickToFirestore (const juce::String& chosenUrl)
@@ -178,7 +148,6 @@ void SponsorOverlay::openShopeeAndDismiss()
         return;
 
     hasRedirected = true;
-    stopTimer();
 
     if (kShopeeAffiliateLinks.size() > 0)
     {
@@ -228,7 +197,6 @@ void SponsorOverlay::openShopeeAndDismiss()
 
 void SponsorOverlay::dismissDirectly()
 {
-    stopTimer();
     setVisible (false);
     if (onDismissCallback != nullptr)
         onDismissCallback();
@@ -236,12 +204,12 @@ void SponsorOverlay::dismissDirectly()
 
 void SponsorOverlay::paint (juce::Graphics& g)
 {
-    // Semi-transparent dark backdrop
-    g.fillAll (juce::Colours::black.withAlpha (0.80f));
+    // Semi-transparent dark backdrop (blocking underlying interaction)
+    g.fillAll (juce::Colours::black.withAlpha (0.85f));
 
     const auto bounds = getLocalBounds();
     const int dialogW = juce::jmin (560, bounds.getWidth() - 24);
-    const int dialogH = juce::jmin (420, bounds.getHeight() - 20);
+    const int dialogH = juce::jmin (400, bounds.getHeight() - 20);
     const auto dialogRect = juce::Rectangle<int> ((bounds.getWidth() - dialogW) / 2,
                                                   (bounds.getHeight() - dialogH) / 2,
                                                   dialogW, dialogH).toFloat();
@@ -249,7 +217,7 @@ void SponsorOverlay::paint (juce::Graphics& g)
     // Dialog outer container
     g.setColour (juce::Colour (0xff121620));
     g.fillRoundedRectangle (dialogRect, 16.0f);
-    g.setColour (juce::Colour (0xffee4d2d).withAlpha (0.50f));
+    g.setColour (juce::Colour (0xffee4d2d));
     g.drawRoundedRectangle (dialogRect, 16.0f, 2.0f);
 
     //==========================================================================
@@ -259,7 +227,7 @@ void SponsorOverlay::paint (juce::Graphics& g)
     const auto bannerRect = juce::Rectangle<float> (dialogRect.getX(), dialogRect.getY(),
                                                     dialogRect.getWidth(), bannerH);
 
-    // Save state for clipping rounded top corners
+    // Clip rounded top corners
     g.saveState();
     juce::Path bannerClip;
     bannerClip.addRoundedRectangle (dialogRect.getX(), dialogRect.getY(),
@@ -279,7 +247,7 @@ void SponsorOverlay::paint (juce::Graphics& g)
     g.fillEllipse (bannerRect.getRight() - 120.0f, bannerRect.getY() - 40.0f, 200.0f, 200.0f);
     g.fillEllipse (bannerRect.getRight() - 60.0f, bannerRect.getBottom() - 80.0f, 140.0f, 140.0f);
 
-    // Draw stylized audio graphic (headphone / equalizer waveforms) on the right
+    // Stylized audio equalizer waveform bars on the right
     const float eqX = bannerRect.getRight() - 110.0f;
     const float eqY = bannerRect.getY() + 35.0f;
     static const float kBarHeights[] = { 22.0f, 44.0f, 65.0f, 38.0f, 52.0f, 30.0f, 48.0f, 25.0f };
@@ -292,7 +260,7 @@ void SponsorOverlay::paint (juce::Graphics& g)
     }
 
     // Shopee Mall / Official Sponsor Pill
-    auto pillRect = juce::Rectangle<float> (bannerRect.getX() + 20.0f, bannerRect.getY() + 16.0f, 148.0f, 24.0f);
+    auto pillRect = juce::Rectangle<float> (bannerRect.getX() + 20.0f, bannerRect.getY() + 16.0f, 150.0f, 24.0f);
     g.setColour (juce::Colours::white);
     g.fillRoundedRectangle (pillRect, 12.0f);
     g.setColour (juce::Colour (0xffee4d2d));
@@ -331,10 +299,10 @@ void SponsorOverlay::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
     g.drawText (juce::CharPointer_UTF8 ("\xf0\x9f\x9a\x9a \xe0\xb9\x82\xe0\xb8\x84\xe0\xb9\x89\xe0\xb8\x94\xe0\xb8\xaa\xe0\xb9\x88\xe0\xb8\x87\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\x9e\xe0\xb8\xb4\xe0\xb9\x80\xe0\xb8\xa8\xe0\xb8\xa9"), shipBadge, juce::Justification::centred);
 
-    // Tap notice
-    g.setColour (juce::Colours::white.withAlpha (0.90f));
-    g.setFont (juce::FontOptions (11.0f, juce::Font::italic));
-    g.drawText (juce::CharPointer_UTF8 ("(\xe0\xb9\x81\xe0\xb8\x95\xe0\xb8\xb0\xe0\xb8\x9b\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xa2\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94 Shopee \xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb1\xe0\xb8\x9a\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb8\xe0\xb8\x99\xe0\xb8\x9c\xe0\xb8\xb9\xe0\xb9\x89\xe0\xb8\x9e\xe0\xb8\xb1\xe0\xb8\x92\xe0\xb8\x99\xe0\xb8\xb2)"),
+    // Tap banner notice
+    g.setColour (juce::Colours::white.withAlpha (0.95f));
+    g.setFont (juce::FontOptions (11.5f, juce::Font::italic));
+    g.drawText (juce::CharPointer_UTF8 ("\x28\xe0\xb9\x81\xe0\xb8\x95\xe0\xb8\xb0\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88\xe0\xb8\x9b\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xa2\xe0\xb8\xab\xe0\xb8\xa3\xe0\xb8\xb7\xe0\xb8\xad\xe0\xb8\x9b\xe0\xb8\xb8\xe0\xb9\x88\xe0\xb8\xa1\xe0\xb8\x94\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\xa5\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x87\x20\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\x20\x53\x68\x6f\x70\x65\x65\x20\xe0\xb9\x81\xe0\xb8\xa5\xe0\xb8\xb0\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81\xe0\xb8\xad\xe0\xb8\x9e\x29"),
                 (int) bannerRect.getX() + 20, (int) bannerRect.getY() + 136,
                 (int) bannerRect.getWidth() - 40, 18,
                 juce::Justification::centredLeft);
@@ -342,7 +310,7 @@ void SponsorOverlay::paint (juce::Graphics& g)
     g.restoreState();
 
     //==========================================================================
-    // COUNTDOWN & ACTION FOOTER (Bottom 42%)
+    // MANDATORY ACTION FOOTER (Bottom 42%)
     //==========================================================================
     const float footerY = bannerRect.getBottom();
     const float footerH = dialogRect.getBottom() - footerY;
@@ -352,47 +320,32 @@ void SponsorOverlay::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xff0f131a));
     g.fillRect (footerRect.reduced (1.0f));
 
-    // Progress bar showing elapsed time
-    const float progressFraction = (float) (5 - countdownSeconds) / 5.0f;
-    const auto progBarRect = juce::Rectangle<float> (footerRect.getX() + 20.0f, footerY + 14.0f,
-                                                     footerRect.getWidth() - 40.0f, 4.0f);
-    g.setColour (juce::Colour (0xff1e2638));
-    g.fillRoundedRectangle (progBarRect, 2.0f);
+    // Divider line between banner and footer
+    g.setColour (juce::Colour (0xff242d3d));
+    g.drawLine (footerRect.getX() + 10.0f, footerY, footerRect.getRight() - 10.0f, footerY, 1.0f);
 
-    auto fillRect = progBarRect;
-    fillRect.setWidth (progBarRect.getWidth() * progressFraction);
-    g.setColour (juce::Colour (0xffee4d2d));
-    g.fillRoundedRectangle (fillRect, 2.0f);
-
-    // Auto-enter countdown notice (clear explanation that it enters app, not kicks out)
+    // Title instruction: Mandatory visit to unlock
     g.setColour (juce::Colours::white);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (14.5f, juce::Font::bold));
+    g.drawText (juce::CharPointer_UTF8 ("\xf0\x9f\x94\x92\x20\xe0\xb9\x81\xe0\xb8\xa7\xe0\xb8\xb0\xe0\xb8\x8a\xe0\xb8\xa1\x20\x53\x68\x6f\x70\x65\x65\x20\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9b\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\xa5\xe0\xb9\x87\xe0\xb8\xad\xe0\xb8\x84\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81\xe0\xb8\xad\xe0\xb8\x9e"),
+                (int) footerRect.getX() + 20, (int) footerY + 16,
+                (int) footerRect.getWidth() - 40, 22,
+                juce::Justification::centred);
 
-    if (countdownSeconds > 0)
-    {
-        const juce::String statusMsg = juce::String (juce::CharPointer_UTF8 ("\xe2\x8f\xb3 \xe0\xb8\x81\xe0\xb8\xb3\xe0\xb8\xa5\xe0\xb8\xb1\xe0\xb8\x87\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81\xe0\xb8\xad\xe0\xb8\x9b\xe0\xb9\x83\xe0\xb8\x99 "))
-                                     + juce::String (countdownSeconds)
-                                     + juce::String (juce::CharPointer_UTF8 (" \xe0\xb8\xa7\xe0\xb8\xb4\xe0\xb8\x99\xe0\xb8\xb2\xe0\xb8\x97\xe0\xb8\xb5... (\xe0\xb8\xab\xe0\xb8\xa3\xe0\xb8\xb7\xe0\xb8\xad\xe0\xb9\x80\xe0\xb8\xa5\xe0\xb8\xb7\xe0\xb8\xad\xe0\xb8\x81\xe0\xb8\x9b\xe0\xb8\xb8\xe0\xb9\x88\xe0\xb8\xa1\xe0\xb8\x94\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\xa5\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x87)"));
-        g.drawText (statusMsg,
-                    (int) footerRect.getX() + 20, (int) footerY + 24,
-                    (int) footerRect.getWidth() - 40, 22,
-                    juce::Justification::centred);
-    }
-    else
-    {
-        g.setColour (juce::Colour (0xff10b981));
-        g.drawText (juce::CharPointer_UTF8 ("\xe2\x9c\x85 \xe0\xb8\x9e\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa1\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x81\xe0\xb8\xa5\xe0\xb9\x89\xe0\xb8\xa7!"),
-                    (int) footerRect.getX() + 20, (int) footerY + 24,
-                    (int) footerRect.getWidth() - 40, 22,
-                    juce::Justification::centred);
-    }
+    // Subtitle instruction
+    g.setColour (juce::Colour (0xff94a3b8));
+    g.setFont (juce::FontOptions (12.0f, juce::Font::plain));
+    g.drawText (juce::CharPointer_UTF8 ("\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb1\xe0\xb8\x9a\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb8\xe0\xb8\x99\xe0\xb8\x9c\xe0\xb8\xb9\xe0\xb9\x89\xe0\xb8\x9e\xe0\xb8\xb1\xe0\xb8\x92\xe0\xb8\x99\xe0\xb8\xb2\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\xe0\xb9\x83\xe0\xb8\xab\xe0\xb9\x89\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\x20\x28\xe0\xb8\x81\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\x20\x53\x68\x6f\x70\x65\x65\x20\x31\x20\xe0\xb8\x84\xe0\xb8\xa3\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x87\x29"),
+                (int) footerRect.getX() + 20, (int) footerY + 40,
+                (int) footerRect.getWidth() - 40, 18,
+                juce::Justification::centred);
 }
 
 void SponsorOverlay::resized()
 {
     const auto bounds = getLocalBounds();
     const int dialogW = juce::jmin (560, bounds.getWidth() - 24);
-    const int dialogH = juce::jmin (420, bounds.getHeight() - 20);
+    const int dialogH = juce::jmin (400, bounds.getHeight() - 20);
     const auto dialogRect = juce::Rectangle<int> ((bounds.getWidth() - dialogW) / 2,
                                                   (bounds.getHeight() - dialogH) / 2,
                                                   dialogW, dialogH);
@@ -400,15 +353,13 @@ void SponsorOverlay::resized()
     const int footerY = dialogRect.getY() + (int) ((float) dialogH * 0.58f);
     const int footerH = dialogRect.getBottom() - footerY;
 
-    const int btnH = 40;
-    const int btnSpacing = 12;
-    const int totalBtnW = dialogRect.getWidth() - 40;
-    const int btnW = (totalBtnW - btnSpacing) / 2;
+    // Full-width prominent touch button
+    const int btnH = 46;
+    const int btnW = dialogRect.getWidth() - 40;
+    const int btnX = dialogRect.getX() + 20;
+    const int btnY = footerY + footerH - btnH - 18;
 
-    const int btnY = footerY + footerH - btnH - 16;
-
-    shopeeButton.setBounds (dialogRect.getX() + 20, btnY, btnW, btnH);
-    enterAppButton.setBounds (dialogRect.getX() + 20 + btnW + btnSpacing, btnY, btnW, btnH);
+    shopeeButton.setBounds (btnX, btnY, btnW, btnH);
 }
 
 } // namespace mps

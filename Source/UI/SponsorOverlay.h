@@ -8,12 +8,10 @@ namespace mps
 
 /**
  * Cross-platform full-display sponsor banner displayed once upon app startup.
- * Displays an eye-catching Shopee Audio Equipment promotional banner,
- * counts down 5 seconds, and AUTOMATICALLY opens Shopee to drop the affiliate
- * cookie and enters the app (no skip button needed).
+ * Enforces visiting the Shopee sponsor link before unlocking the app interface.
+ * Strictly no skip button, auto-timeout bypass, or outside-click dismiss.
  */
-class SponsorOverlay : public juce::Component,
-                       private juce::Timer
+class SponsorOverlay : public juce::Component
 {
 public:
     SponsorOverlay (std::function<void()> onDismissed = nullptr);
@@ -27,16 +25,13 @@ public:
     void mouseDown (const juce::MouseEvent& e) override;
 
 private:
-    void timerCallback() override;
     void openShopeeAndDismiss();
     void dismissDirectly();
 
     std::function<void()> onDismissCallback;
-    int countdownSeconds = 5;
     bool hasRedirected = false;
 
     juce::TextButton shopeeButton;
-    juce::TextButton enterAppButton;
 
     static inline bool hasShownThisSession = false;
 
