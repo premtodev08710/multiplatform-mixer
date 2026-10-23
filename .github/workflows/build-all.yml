@@ -2,7 +2,7 @@ name: Build Multiplatform (Windows EXE, macOS DMG, Android APK, iOS IPA)
 
 on:
   push:
-    branches: [ main, master, 'codex/**' ]
+    branches: [ main, master, 'codex/**', '!codex/ios-track-import-fix' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:

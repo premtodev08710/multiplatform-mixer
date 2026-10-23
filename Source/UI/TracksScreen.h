@@ -56,6 +56,9 @@ private:
     void importAudioFilesInternal();
     void importFolderStems();
     void importFolderStemsInternal();
+   #if JUCE_IOS
+    void importIOSAudio (bool selectFolder);
+   #endif
     void processLoadedFilesInBackground (const juce::Array<juce::File>& rawFiles);
 
     AudioEngine& engine;

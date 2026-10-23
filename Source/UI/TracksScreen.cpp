@@ -4,6 +4,10 @@
 #include "../Core/AppEdition.h"
 #include <algorithm>
 
+#if JUCE_IOS
+#include "../Audio/IOSAudioImporter.h"
+#endif
+
 #if JUCE_ANDROID
 #include <jni.h>
 #endif
@@ -725,7 +729,9 @@ static juce::StringArray runAndroidDocumentImporter (const juce::StringArray& ur
 // File Choosers
 void TracksScreen::importAudioFiles()
 {
-   #if JUCE_ANDROID
+   #if JUCE_IOS
+    importIOSAudio (false);
+   #elif JUCE_ANDROID
     ensureFolderImporterClassLoaded();
     juce::RuntimePermissions::request (juce::RuntimePermissions::readMediaAudio, [this] (bool) {
         juce::RuntimePermissions::request (juce::RuntimePermissions::readExternalStorage, [this] (bool) {
@@ -781,74 +787,6 @@ void TracksScreen::importAudioFilesInternal()
             }
             processLoadedFilesInBackground (filesToLoad);
         });
-       #elif JUCE_IOS
-        auto urls = chooser.getURLResults();
-        auto rawResults = chooser.getResults();
-
-        if (urls.isEmpty() && rawResults.isEmpty())
-            return;
-
-        dragHintLabel.setText ("Importing audio files in background...", juce::dontSendNotification);
-        importButton.setEnabled (false);
-        importFolderButton.setEnabled (false);
-
-        auto importDirectory = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
-                                   .getChildFile ("Imported Audio");
-        importDirectory.createDirectory();
-
-        juce::Thread::launch ([this, urls, rawResults, importDirectory] {
-            juce::Array<juce::File> filesToLoad;
-            for (const auto& u : urls)
-            {
-                auto in = u.createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress));
-                if (in != nullptr)
-                {
-                    auto rawName = u.getFileName();
-                    auto safeName = juce::URL::removeEscapeChars (rawName);
-                    if (safeName.isEmpty()) safeName = "track.wav";
-                    auto destFile = importDirectory.getChildFile (safeName);
-                    destFile.deleteFile();
-                    auto out = destFile.createOutputStream();
-                    if (out != nullptr)
-                    {
-                        out->writeFromInputStream (*in, -1);
-                        out->flush();
-                        out.reset();
-                        if (destFile.existsAsFile() && destFile.getSize() > 0)
-                            filesToLoad.add (destFile);
-                    }
-                }
-            }
-
-            if (filesToLoad.isEmpty())
-            {
-                for (const auto& f : rawResults)
-                {
-                    if (f.existsAsFile())
-                    {
-                        auto destFile = importDirectory.getChildFile (f.getFileName());
-                        if (f != destFile)
-                        {
-                            destFile.deleteFile();
-                            f.copyFileTo (destFile);
-                            if (destFile.existsAsFile() && destFile.getSize() > 0)
-                                filesToLoad.add (destFile);
-                            else
-                                filesToLoad.add (f);
-                        }
-                        else
-                        {
-                            filesToLoad.add (f);
-                        }
-                    }
-                }
-            }
-
-            if (! filesToLoad.isEmpty())
-                setLastImportDir (filesToLoad[0]);
-
-            processLoadedFilesInBackground (filesToLoad);
-        });
        #else
         auto filesToLoad = chooser.getResults();
         if (! filesToLoad.isEmpty())
@@ -862,7 +800,9 @@ void TracksScreen::importAudioFilesInternal()
 
 void TracksScreen::importFolderStems()
 {
-   #if JUCE_ANDROID
+   #if JUCE_IOS
+    importIOSAudio (true);
+   #elif JUCE_ANDROID
     ensureFolderImporterClassLoaded();
     juce::RuntimePermissions::request (juce::RuntimePermissions::readMediaAudio, [this] (bool) {
         juce::RuntimePermissions::request (juce::RuntimePermissions::readExternalStorage, [this] (bool) {
@@ -945,46 +885,6 @@ void TracksScreen::importFolderStemsInternal()
 
             processLoadedFilesInBackground (filesToLoad);
         });
-       #elif JUCE_IOS
-        const auto folder = chooser.getResult();
-        if (! folder.isDirectory())
-            return;
-
-        dragHintLabel.setText ("Importing multitrack stems in background...", juce::dontSendNotification);
-        importButton.setEnabled (false);
-        importFolderButton.setEnabled (false);
-
-        auto importDirectory = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
-                                   .getChildFile ("Imported Audio");
-        importDirectory.createDirectory();
-
-        juce::Thread::launch ([this, folder, importDirectory] {
-            juce::Array<juce::File> filesToLoad;
-            juce::Array<juce::File> found;
-            collectAudioFilesRecursively (folder, found);
-            for (const auto& f : found)
-            {
-                auto destFile = importDirectory.getChildFile (f.getFileName());
-                if (f != destFile)
-                {
-                    destFile.deleteFile();
-                    f.copyFileTo (destFile);
-                    if (destFile.existsAsFile() && destFile.getSize() > 0)
-                        filesToLoad.add (destFile);
-                    else if (f.existsAsFile())
-                        filesToLoad.add (f);
-                }
-                else
-                {
-                    filesToLoad.add (f);
-                }
-            }
-
-            if (! filesToLoad.isEmpty())
-                setLastImportDir (filesToLoad[0]);
-
-            processLoadedFilesInBackground (filesToLoad);
-        });
        #else
         const auto folder = chooser.getResult();
         if (folder.isDirectory())
@@ -998,6 +898,33 @@ void TracksScreen::importFolderStemsInternal()
        #endif
     });
 }
+
+#if JUCE_IOS
+void TracksScreen::importIOSAudio (bool selectFolder)
+{
+    importButton.setEnabled (false);
+    importFolderButton.setEnabled (false);
+    dragHintLabel.setText ("Select audio in Files. iCloud files may take time to download...", juce::dontSendNotification);
+
+    juce::Component::SafePointer<TracksScreen> safeThis (this);
+    showIOSAudioImportPicker (*this, selectFolder, [safeThis] (juce::Array<juce::File> files, juce::String error) {
+        if (safeThis == nullptr) return;
+        safeThis->importButton.setEnabled (true);
+        safeThis->importFolderButton.setEnabled (true);
+        safeThis->dragHintLabel.setText ("Tip: Import audio files or a stems folder", juce::dontSendNotification);
+
+        if (error.isNotEmpty())
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                files.isEmpty() ? "Import Failed" : "Some Files Could Not Be Imported", error);
+
+        if (! files.isEmpty())
+        {
+            setLastImportDir (files[0]);
+            safeThis->assignFilesToSlots (files);
+        }
+    });
+}
+#endif
 
 void TracksScreen::assignFilesToSlots (const juce::Array<juce::File>& rawFiles)
 {
@@ -1091,7 +1018,7 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
         trackTable.updateContent();
         trackTable.repaint();
 
-       #if JUCE_ANDROID
+       #if JUCE_ANDROID || JUCE_IOS
         if (! readyTracks.empty())
         {
             juce::AlertWindow::showMessageBoxAsync (

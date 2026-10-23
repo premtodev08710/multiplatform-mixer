@@ -12,7 +12,7 @@ public:
     MixPracticeStudioApplication() = default;
 
     const juce::String getApplicationName() override       { return AppEdition::isPro() ? "Mix Practice Studio Pro" : "Mix Practice Studio"; }
-    const juce::String getApplicationVersion() override    { return "1.0.1"; }
+    const juce::String getApplicationVersion() override    { return JUCE_APPLICATION_VERSION_STRING; }
     bool moreThanOneInstanceAllowed() override             { return true; }
 
     void initialise (const juce::String& /*commandLine*/) override

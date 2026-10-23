@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MixPracticeStudio VERSION 1.0.1 LANGUAGES C CXX)
+project(MixPracticeStudio VERSION 1.0.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 17)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+endif()
 
 # Add local JUCE 8 framework dependency
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/JUCE/CMakeLists.txt")
@@ -116,17 +122,15 @@ juce_add_gui_app(MixPracticeStudio
     PRODUCT_NAME "Mix Practice Studio"
     COMPANY_NAME "Mix Practice Studio"
     BUNDLE_ID "com.mixpractice.studio"
-    VERSION 1.0.1
+    VERSION 1.0.2
     ICON_BIG Resources/app_icon.png
     FILE_SHARING_ENABLED TRUE
-    DOCUMENT_BROWSER_ENABLED TRUE
+    DOCUMENT_BROWSER_ENABLED FALSE
     DOCUMENT_EXTENSIONS wav aif aiff flac mp3 ogg mpsproj scn
     PLIST_TO_MERGE [[
         <key>UIFileSharingEnabled</key>
         <true/>
         <key>LSSupportsOpeningDocumentsInPlace</key>
-        <true/>
-        <key>UISupportsDocumentBrowser</key>
         <true/>
         <key>NSMicrophoneUsageDescription</key>
         <string>Mix Practice Studio requires microphone access for audio monitoring and recording.</string>
@@ -149,6 +153,11 @@ target_compile_definitions(MixPracticeStudio PRIVATE
 )
 target_link_libraries(MixPracticeStudio PRIVATE ${MPS_COMMON_LIBRARIES})
 
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    target_sources(MixPracticeStudio PRIVATE Source/Audio/IOSAudioImporter.mm)
+    target_link_libraries(MixPracticeStudio PRIVATE "-framework UniformTypeIdentifiers")
+endif()
+
 # JUCE's Android Java bootstrap loads this library by its fixed name.
 if(ANDROID)
     set_target_properties(MixPracticeStudio PROPERTIES OUTPUT_NAME juce_jni)
@@ -169,17 +178,15 @@ juce_add_gui_app(MixPracticeStudioPro
     PRODUCT_NAME "Mix Practice Studio Pro"
     COMPANY_NAME "Mix Practice Studio"
     BUNDLE_ID "com.mixpractice.studio.pro"
-    VERSION 1.0.1
+    VERSION 1.0.2
     ICON_BIG Resources/app_icon.png
     FILE_SHARING_ENABLED TRUE
-    DOCUMENT_BROWSER_ENABLED TRUE
+    DOCUMENT_BROWSER_ENABLED FALSE
     DOCUMENT_EXTENSIONS wav aif aiff flac mp3 ogg mpsproj scn
     PLIST_TO_MERGE [[
         <key>UIFileSharingEnabled</key>
         <true/>
         <key>LSSupportsOpeningDocumentsInPlace</key>
-        <true/>
-        <key>UISupportsDocumentBrowser</key>
         <true/>
         <key>NSMicrophoneUsageDescription</key>
         <string>Mix Practice Studio requires microphone access for audio monitoring and recording.</string>
@@ -202,6 +209,11 @@ target_compile_definitions(MixPracticeStudioPro PRIVATE
 )
 target_link_libraries(MixPracticeStudioPro PRIVATE ${MPS_COMMON_LIBRARIES})
 
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    target_sources(MixPracticeStudioPro PRIVATE Source/Audio/IOSAudioImporter.mm)
+    target_link_libraries(MixPracticeStudioPro PRIVATE "-framework UniformTypeIdentifiers")
+endif()
+
 if(MSVC)
     target_compile_options(MixPracticeStudioPro PRIVATE /utf-8)
 endif()
@@ -209,7 +221,7 @@ endif()
 
 #==============================================================================
 # Automated Core Unit Tests (Desktop Host Only)
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(MixPracticeCoreTests
         Tests/CoreTests.cpp
         Source/Core/MixEngine.cpp
@@ -263,7 +275,7 @@ if(NOT ANDROID)
     target_compile_definitions(UiSnapshotTest PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_APPLICATION_VERSION_STRING="1.0.1"
+        JUCE_APPLICATION_VERSION_STRING="1.0.2"
     )
     target_link_libraries(UiSnapshotTest PRIVATE
         juce::juce_audio_basics

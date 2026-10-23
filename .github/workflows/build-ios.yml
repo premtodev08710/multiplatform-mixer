@@ -1,0 +1,51 @@
+name: Build iOS import fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/ios-track-import-fix']
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JUCE
+        run: git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
+      - name: Configure iPhone and iPad app
+        run: >-
+          cmake -S . -B build-ios -G Xcode
+          -DCMAKE_SYSTEM_NAME=iOS
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
+      - name: Build app
+        run: cmake --build build-ios --config Release --target MixPracticeStudio -- -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+      - name: Package IPA for sideloading
+        shell: python
+        run: |
+          import pathlib, plistlib, shutil, subprocess
+          candidates = list(pathlib.Path('build-ios/MixPracticeStudio_artefacts').glob('**/Release-iphoneos/Mix Practice Studio.app'))
+          if len(candidates) != 1:
+              raise SystemExit(f'Expected one device app, found {candidates}')
+          app = candidates[0]
+          info = plistlib.loads((app / 'Info.plist').read_bytes())
+          assert info['CFBundleShortVersionString'] == '1.0.2', info
+          assert info['UIFileSharingEnabled'] is True
+          assert info.get('UISupportsDocumentBrowser', False) is False
+          pathlib.Path('Payload').mkdir()
+          shutil.copytree(app, pathlib.Path('Payload') / app.name)
+          subprocess.run(['zip', '-qry', 'MixPracticeStudio.ipa', 'Payload'], check=True)
+          subprocess.run(['zip', '-q', 'MixPracticeStudio-iOS-IPA.zip', 'MixPracticeStudio.ipa'], check=True)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-iOS-1.0.2
+          path: |
+            MixPracticeStudio.ipa
+            MixPracticeStudio-iOS-IPA.zip
+          if-no-files-found: error
