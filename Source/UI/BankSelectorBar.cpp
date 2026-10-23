@@ -1,5 +1,6 @@
 // Mix Practice Studio - Console Bank Selector Bar Implementation
 #include "BankSelectorBar.h"
+#include "../Core/AppEdition.h"
 #include "../Core/DspMath.h"
 
 namespace mps
@@ -38,8 +39,13 @@ void BankSelectorBar::paint (juce::Graphics& g)
     g.drawText ("MPS", (int) logoArea.getX(), (int) logoArea.getY() + 1, (int) logoW, compact ? 16 : 20, juce::Justification::centred);
 
     g.setFont (juce::FontOptions (compact ? 7.5f : 8.5f, juce::Font::bold));
-    g.setColour (juce::Colour (0xffb0bec5));
-    g.drawText ("DEMO MODE", (int) logoArea.getX(), (int) logoArea.getY() + (compact ? 16 : 22), (int) logoW, 11, juce::Justification::centred);
+    g.setColour (AppEdition::isPro() ? (AppEdition::isTrialActive() ? juce::Colour (0xff00e5ff) : juce::Colour (0xffffd700)) : juce::Colour (0xff00d2ff));
+    const juce::String badgeText = AppEdition::isPro() 
+        ? (AppEdition::isLifetimePro() ? "PRO (LIFETIME)" 
+           : (AppEdition::isTrialActive() ? ("TRIAL (" + juce::String (AppEdition::getDaysRemaining()) + "d)")
+                                         : ("PRO (" + juce::String (AppEdition::getDaysRemaining()) + "d)"))) 
+        : "FREE (8 CH)";
+    g.drawText (badgeText, (int) logoArea.getX(), (int) logoArea.getY() + (compact ? 16 : 22), (int) logoW, 11, juce::Justification::centred);
 
     if (! compact)
     {
@@ -50,8 +56,11 @@ void BankSelectorBar::paint (juce::Graphics& g)
     }
 
     // 2. 10 Bank Buttons
-    const char* bankNames[NumBanks] = {
-        "Ch 1-8", "Ch 9-16", "Ch 17-24", "Ch 25-32",
+    const juce::String bankNames[NumBanks] = {
+        "Ch 1-8",
+        AppEdition::isPro() ? "Ch 9-16" : "Ch 9-16 [PRO]",
+        AppEdition::isPro() ? "Ch 17-24" : "Ch 17-24 [PRO]",
+        AppEdition::isPro() ? "Ch 25-32" : "Ch 25-32 [PRO]",
         "Aux 1-8", "FX 1L-4R", "Bus 1-8", "Bus 9-16",
         "Mtx-Main", "DCA 1-8"
     };

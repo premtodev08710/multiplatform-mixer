@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "../Core/AppEdition.h"
 
 namespace mps
 {
@@ -63,6 +64,8 @@ MainComponent::MainComponent()
         if (type == ChannelStripComponent::StripType::InputChannel)
             homeScreen.setSelectedChannel (idx);
     };
+    effectsScreen.onFxSlotChanged = [this] (int slot) { oscClient.sendFxSlot (slot); };
+    oscClient.onFxStateChanged = [this] { effectsScreen.refreshFromModel(); };
     scenesScreen.onBack = [this] { showScreen (NavHome); };
     setupScreen.onBack = [this] { showScreen (NavHome); };
 
@@ -187,6 +190,9 @@ static juce::File getTermsAcceptedMarkerFile()
 
 void MainComponent::checkAndShowTermsOfService()
 {
+    if (AppEdition::isPro())
+        return;
+
     auto markerFile = getTermsAcceptedMarkerFile();
     if (markerFile.existsAsFile())
     {
@@ -234,6 +240,9 @@ void MainComponent::checkAndShowTermsOfService()
 
 void MainComponent::showSponsorOverlayIfNeeded()
 {
+    if (! AppEdition::hasShopeeAds())
+        return;
+
     if (SponsorOverlay::shouldShowThisSession())
     {
         sponsorOverlay = std::make_unique<SponsorOverlay> ([this] {

@@ -53,7 +53,7 @@ TransportBar::TransportBar (AudioEngine& eng) : engine (eng)
     addAndMakeVisible (sectionMenuButton);
 
     // Save Button
-    saveButton.setTooltip ("Save current project & tracks (บันทึกโปรเจกต์และการตั้งค่า)");
+    saveButton.setTooltip (juce::String::fromUTF8 ("Save current project & tracks (บันทึกโปรเจกต์และการตั้งค่า)"));
     saveButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff00838f)); // Cyan
     saveButton.addListener (this);
     addAndMakeVisible (saveButton);

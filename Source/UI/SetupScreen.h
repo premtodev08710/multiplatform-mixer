@@ -49,6 +49,15 @@ private:
     juce::TextButton x32ConnectButton { "CONNECT TO X32" };
     juce::TextButton x32AutoDiscoverButton { "AUTO DISCOVER" };
     juce::Label x32StatusLabel;
+
+    // Pro License & Annual Prepaid Key Panel
+    juce::Label licenseTitleLabel;
+    juce::Label licenseStatusLabel;
+    juce::Label licenseKeyLabel;
+    juce::TextEditor licenseKeyEditor;
+    juce::TextButton activateKeyButton;
+    juce::TextButton buyKeyButton;
+    void refreshLicenseStatus();
 };
 
 } // namespace mps

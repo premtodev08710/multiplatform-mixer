@@ -17,10 +17,10 @@ TimelineRangeComponent::TimelineRangeComponent()
         addChildComponent (btn);
     };
 
-    setupBtn (zoomOutBtn,  "Zoom Out (ขยายเวลาออก)",      0xdd1e2532, 0xff00d2ff);
-    setupBtn (zoomInBtn,   "Zoom In (ซูมเข้าเวลา)",         0xdd1e2532, 0xff00d2ff);
-    setupBtn (zoomFitBtn,  "Fit 1x (แสดงทั้งเพลง)",         0xdd1e2532, 0xffcbd5e1);
-    setupBtn (zoomLoopBtn, "Zoom to Loop A-B (ซูมเข้าลูป)", 0xdd2e2212, 0xffffb74d);
+    setupBtn (zoomOutBtn,  juce::String::fromUTF8 ("Zoom Out (ขยายเวลาออก)"),      0xdd1e2532, 0xff00d2ff);
+    setupBtn (zoomInBtn,   juce::String::fromUTF8 ("Zoom In (ซูมเข้าเวลา)"),         0xdd1e2532, 0xff00d2ff);
+    setupBtn (zoomFitBtn,  juce::String::fromUTF8 ("Fit 1x (แสดงทั้งเพลง)"),         0xdd1e2532, 0xffcbd5e1);
+    setupBtn (zoomLoopBtn, juce::String::fromUTF8 ("Zoom to Loop A-B (ซูมเข้าลูป)"), 0xdd2e2212, 0xffffb74d);
 
     setShowZoomButtons (true);
 }

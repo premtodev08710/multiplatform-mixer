@@ -1,4 +1,5 @@
 // Mix Practice Studio - Main Application Entry Point
+#include "Core/AppEdition.h"
 #include "UI/MainComponent.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 
@@ -10,9 +11,9 @@ class MixPracticeStudioApplication : public juce::JUCEApplication
 public:
     MixPracticeStudioApplication() = default;
 
-    const juce::String getApplicationName() override       { return "Mix Practice Studio"; }
-    const juce::String getApplicationVersion() override    { return "1.0.0"; }
-    bool moreThanOneInstanceAllowed() override             { return false; }
+    const juce::String getApplicationName() override       { return AppEdition::isPro() ? "Mix Practice Studio Pro" : "Mix Practice Studio"; }
+    const juce::String getApplicationVersion() override    { return "1.0.1"; }
+    bool moreThanOneInstanceAllowed() override             { return true; }
 
     void initialise (const juce::String& /*commandLine*/) override
     {
@@ -22,7 +23,8 @@ public:
         });
        #endif
 
-        mainWindow = std::make_unique<MainWindow> (getApplicationName());
+        const juce::String title = getApplicationName() + " [" + AppEdition::getEditionName() + "]";
+        mainWindow = std::make_unique<MainWindow> (title);
     }
 
     void shutdown() override

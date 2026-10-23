@@ -16,12 +16,54 @@
         "source": "/download.html",
         "destination": "/",
         "type": 301
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Android.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.apk",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Android-APK.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Android-APK.zip",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Windows.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.exe",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-iOS.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.ipa",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-iOS-IPA.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-iOS-IPA.zip",
+        "type": 302
       }
     ],
     "rewrites": [
       {
+        "source": "/home",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/maintenance",
+        "destination": "/maintenance.html"
+      },
+      {
         "source": "/admin",
         "destination": "/admin.html"
+      },
+      {
+        "source": "/lite",
+        "destination": "/lite.html"
       }
     ],
     "headers": [
@@ -81,7 +123,10 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "downloads/*.bin",
+      "downloads/*Android*",
+      "downloads/*iOS*"
     ]
   }
 }

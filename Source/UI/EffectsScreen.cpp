@@ -1,5 +1,6 @@
 // Mix Practice Studio - Effects Rack UI Screen Implementation
 #include "EffectsScreen.h"
+#include "../Core/AppEdition.h"
 
 namespace mps
 {
@@ -22,7 +23,8 @@ EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
     // 3. 8 Slot Tabs: FX1 .. FX8
     for (int i = 0; i < 8; ++i)
     {
-        slotTabs[(size_t) i].setButtonText ("FX" + juce::String (i + 1));
+        const juce::String proSuffix = (! AppEdition::isPro() && i >= AppEdition::getMaxFxSlots()) ? " [PRO]" : "";
+        slotTabs[(size_t) i].setButtonText ("FX" + juce::String (i + 1) + proSuffix);
         slotTabs[(size_t) i].addListener (this);
         addAndMakeVisible (slotTabs[(size_t) i]);
     }
@@ -42,9 +44,11 @@ EffectsScreen::EffectsScreen (AudioEngine& eng, ProjectModel& proj)
     faceplate.onTypeChangeRequested = [this] (FxType) {
         refreshFromModel();
         project.setModified();
+        if (! ignoreCallbacks && onFxSlotChanged) onFxSlotChanged (selectedSlot);
     };
     faceplate.onParametersChanged = [this] {
         project.setModified();
+        if (! ignoreCallbacks && onFxSlotChanged) onFxSlotChanged (selectedSlot);
     };
 
     refreshFromModel();
@@ -58,11 +62,14 @@ void EffectsScreen::refreshFromModel()
 
     for (int i = 0; i < 8; ++i)
     {
+        const bool isLocked = (! AppEdition::isPro() && i >= AppEdition::getMaxFxSlots());
         const bool active = (i == selectedSlot);
+        const juce::String proSuffix = isLocked ? " [PRO]" : "";
+        slotTabs[(size_t) i].setButtonText ("FX" + juce::String (i + 1) + proSuffix);
         slotTabs[(size_t) i].setColour (juce::TextButton::buttonColourId,
-                                        active ? juce::Colour (0xff3c3c3e) : juce::Colour (0xff202022));
+                                        active ? juce::Colour (0xff3c3c3e) : (isLocked ? juce::Colour (0xff19191c) : juce::Colour (0xff202022)));
         slotTabs[(size_t) i].setColour (juce::TextButton::textColourOffId,
-                                        active ? juce::Colours::white : juce::Colour (0xffa1a1aa));
+                                        active ? juce::Colours::white : (isLocked ? juce::Colour (0xff63636e) : juce::Colour (0xffa1a1aa)));
     }
 
     const bool is58 = (selectedSlot >= 4);
@@ -92,6 +99,19 @@ void EffectsScreen::buttonClicked (juce::Button* b)
     {
         if (b == &slotTabs[(size_t) i])
         {
+            if (! AppEdition::isPro() && i >= AppEdition::getMaxFxSlots())
+            {
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::InfoIcon,
+                    "PRO FEATURE: Virtual FX Rack " + juce::String (i + 1),
+                    juce::CharPointer_UTF8 (
+                        "\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\xaa\xe0\xb8\xb2\xe0\xb8\xa1\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb8\x96\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x84\xe0\xb8\x94\xe0\xb9\x89 2 \xe0\xb9\x81\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x84 (FX1 \xe0\xb9\x81\xe0\xb8\xa5\xe0\xb8\xb0 FX2)\n"
+                        "\xe0\xb8\xad\xe0\xb8\xb1\xe0\xb8\x9b\xe0\xb9\x80\xe0\xb8\x81\xe0\xb8\xa3\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb9\x87\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99 Pro \xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9b\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\xa5\xe0\xb9\x87\xe0\xb8\xad\xe0\xb8\x84\xe0\xb8\x84\xe0\xb8\xa3\xe0\xb8\x9a\xe0\xb8\x97\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x87 8 FX Racks!"
+                    )
+                );
+                return;
+            }
+
             selectedSlot = i;
             faceplate.setSlot (selectedSlot);
             refreshFromModel();

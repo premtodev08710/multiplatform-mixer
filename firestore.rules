@@ -24,5 +24,8 @@ service cloud.firestore {
     match /community_stems/{stemId} {
       allow read, create, update, delete: if true;
     }
+    match /pro_licenses/{licenseId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

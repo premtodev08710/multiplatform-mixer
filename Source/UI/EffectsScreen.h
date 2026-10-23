@@ -38,6 +38,7 @@ public:
 
     std::function<void()> onBack;
     std::function<void(ChannelStripComponent::StripType, int)> onStripNavigated;
+    std::function<void(int)> onFxSlotChanged;
 
 private:
     AudioEngine& engine;

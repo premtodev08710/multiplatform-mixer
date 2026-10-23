@@ -65,7 +65,7 @@ private:
 
     juce::TextButton navButtons[NumNavTabs];
     int currentScreen = NavHome;
-    bool showTopNavBar = false;
+    bool showTopNavBar = true;
 
     class SettingsButton : public juce::Button
     {

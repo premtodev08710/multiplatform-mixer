@@ -2,6 +2,7 @@
 #pragma once
 
 #include "../Audio/AudioEngine.h"
+#include "../Core/EffectsDsp.h"
 #include "../Model/ProjectModel.h"
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
@@ -39,12 +40,15 @@ public:
     void sendChannelName (int channel, const juce::String& name);
     void sendChannelColor (int channel, int colorIndex);
     void sendBusSend (int channel, int busIndex, float sendDb);
+    void sendFxSlot (int slot);
+    void requestFxState();
 
     // Auto-discover X32 on local network
     void autoDiscover();
 
     std::function<void (bool connected)> onConnectionChanged;
     std::function<void (const juce::String& info)> onConsoleIdentified;
+    std::function<void()> onFxStateChanged;
 
 private:
     void run() override;
@@ -57,6 +61,8 @@ private:
     void sendOscMessage (const juce::String& address, const juce::String& str);
 
     void processIncomingOscPacket (const char* data, int size);
+    static juce::String fxTypeToOscCode (FxType type);
+    static FxType fxTypeFromOscCode (const juce::String& code);
 
     AudioEngine& engine;
     ProjectModel& project;

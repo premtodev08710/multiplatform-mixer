@@ -81,6 +81,7 @@ bool X32OscClient::connectToConsole (const juce::String& ipAddress, int port)
     // Initial handshake
     sendOscMessage ("/xinfo");
     sendOscMessage ("/xremote");
+    requestFxState();
 
     if (onConnectionChanged)
         onConnectionChanged (true);
@@ -246,6 +247,66 @@ void X32OscClient::sendBusSend (int channel, int busIndex, float sendDb)
     sendOscMessage (addr, faderDbToPos (sendDb));
 }
 
+juce::String X32OscClient::fxTypeToOscCode (FxType type)
+{
+    static constexpr const char* codes[] = {
+        "HALL", "AMBI", "RPLT", "ROOM", "CHAM", "PLAT", "VREV", "VRM", "GATE", "RVRS",
+        "DLY", "3TAP", "4TAP", "CRS", "FLNG", "PHAS", "DIMC", "FILT", "ROTA", "PAN",
+        "SUB", "D/RV", "CR/R", "FL/R", "D/CR", "D/FL", "MODD", "GEQ2", "GEQ", "TEQ2",
+        "TEQ", "DES2", "DES", "P1A", "P1A2", "PQ5", "PQ5S", "WAVD", "LIM", "CMB",
+        "CMB2", "FAC", "FAC1M", "FAC2", "LEC", "LEC2", "ULC", "ULC2", "ENH2", "ENH",
+        "EXC2", "EXC", "IMG", "EDI", "SON", "AMP2", "AMP", "DRV2", "DRV", "PIT2", "PIT"
+    };
+    const int index = juce::jlimit (0, getNumFxTypes() - 1, (int) type);
+    return codes[index];
+}
+
+FxType X32OscClient::fxTypeFromOscCode (const juce::String& code)
+{
+    const auto wanted = code.trim().toUpperCase();
+    for (int i = 0; i < getNumFxTypes(); ++i)
+        if (fxTypeToOscCode ((FxType) i) == wanted)
+            return (FxType) i;
+    return FxType::HallReverb;
+}
+
+void X32OscClient::sendFxSlot (int slot)
+{
+    if (slot < 0 || slot >= 8 || ! connected.load()) return;
+
+    const auto prefix = "/fx/" + juce::String (slot + 1);
+    const auto& fx = engine.getMixerParams().fxSlots[(size_t) slot];
+    const auto type = (FxType) fx.fxType.getInt();
+    sendOscMessage (prefix + "/type", fxTypeToOscCode (type));
+
+    for (int parameter = 0; parameter < FxSlotParams::kNumParameters; ++parameter)
+        sendOscMessage (prefix + "/par/" + juce::String (parameter + 1).paddedLeft ('0', 2),
+                        fx.parameter (parameter).get());
+
+    // The dual/stereo GEQ uses its 31-band arrays rather than the generic controls.
+    if (type == FxType::StereoGEQ || type == FxType::DualGEQ)
+    {
+        for (int band = 0; band < 31; ++band)
+            sendOscMessage (prefix + "/par/" + juce::String (band + 1).paddedLeft ('0', 2),
+                            juce::jlimit (0.0f, 1.0f, (fx.geqGainsL[(size_t) band].get() + 15.0f) / 30.0f));
+        if (type == FxType::DualGEQ)
+            for (int band = 0; band < 31; ++band)
+                sendOscMessage (prefix + "/par/" + juce::String (band + 33).paddedLeft ('0', 2),
+                                juce::jlimit (0.0f, 1.0f, (fx.geqGainsR[(size_t) band].get() + 15.0f) / 30.0f));
+    }
+}
+
+void X32OscClient::requestFxState()
+{
+    if (! connected.load()) return;
+    for (int slot = 0; slot < 8; ++slot)
+    {
+        const auto prefix = "/fx/" + juce::String (slot + 1);
+        sendOscMessage (prefix + "/type");
+        sendOscMessage (prefix + "/par");
+    }
+}
+
 void X32OscClient::run()
 {
     char buffer[4096];
@@ -308,7 +369,44 @@ void X32OscClient::processIncomingOscPacket (const char* data, int size)
         return;
     }
 
-    // 3. Channels (/ch/XX/...)
+    // 3. FX rack (/fx/1..8/type and /fx/1..8/par/01..64)
+    if (address.startsWith ("/fx/") && address.length() >= 10)
+    {
+        const int slot = address.substring (4, 5).getIntValue() - 1;
+        if (slot >= 0 && slot < 8)
+        {
+            auto& fx = engine.getMixerParams().fxSlots[(size_t) slot];
+            const auto sub = address.substring (5);
+            bool changed = false;
+
+            if (sub == "/type" && typeTag.containsChar ('s'))
+            {
+                fx.setDefaultsForType (fxTypeFromOscCode (readPaddedString (data, size, offset)));
+                changed = true;
+            }
+            else if (sub.startsWith ("/par/") && typeTag.containsChar ('f'))
+            {
+                const int parameter = sub.substring (5).getIntValue() - 1;
+                const float value = readBigEndianFloat (data, size, offset);
+                const auto type = (FxType) fx.fxType.getInt();
+                if ((type == FxType::StereoGEQ || type == FxType::DualGEQ) && parameter >= 0 && parameter < 31)
+                    fx.geqGainsL[(size_t) parameter].set (value * 30.0f - 15.0f);
+                else if (type == FxType::DualGEQ && parameter >= 32 && parameter < 63)
+                    fx.geqGainsR[(size_t) (parameter - 32)].set (value * 30.0f - 15.0f);
+                else if (parameter >= 0 && parameter < FxSlotParams::kNumParameters)
+                    fx.parameter (parameter).set (value);
+                changed = true;
+            }
+
+            if (changed)
+                juce::MessageManager::callAsync ([this] {
+                    if (onFxStateChanged) onFxStateChanged();
+                });
+            return;
+        }
+    }
+
+    // 4. Channels (/ch/XX/...)
     if (address.startsWith ("/ch/") && address.length() >= 7)
     {
         const int ch = address.substring (4, 6).getIntValue() - 1;

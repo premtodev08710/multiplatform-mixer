@@ -1,4 +1,5 @@
 #include "HomeScreen.h"
+#include "../Core/AppEdition.h"
 
 namespace mps
 {
@@ -9,6 +10,22 @@ HomeScreen::HomeScreen (AudioEngine& eng, ProjectModel& proj)
     // 1. Top Bank Selector Bar (with miniature 8-column LED meters)
     bankSelectorBar.setMeters (&engine.getMixerMeters());
     bankSelectorBar.onBankSelected = [this] (int bank) {
+        if (! AppEdition::isPro() && bank >= 1 && bank <= 3)
+        {
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::InfoIcon,
+                "PRO FEATURE: 32 Channels",
+                juce::CharPointer_UTF8 (
+                    "\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\x88\xe0\xb8\xb3\xe0\xb8\x81\xe0\xb8\xb1\xe0\xb8\x94\xe0\xb9\x84\xe0\xb8\xa7\xe0\xb9\x89\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88 8 \xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x81 (CH 01-08)\n"
+                    "\xe0\xb8\xad\xe0\xb8\xb1\xe0\xb8\x9b\xe0\xb9\x80\xe0\xb8\x81\xe0\xb8\xa3\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb9\x87\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99 Pro \xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\x95\xe0\xb9\x87\xe0\xb8\xa1 32 \xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x81!"
+                )
+            );
+            bankSelectorBar.setSelectedBank (0, false);
+            currentBank = 0;
+            rebuildStrips();
+            return;
+        }
+
         currentBank = bank;
         rebuildStrips();
     };
@@ -380,7 +397,8 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
     const double targetSr = engine.getSampleRate();
 
     int startSlot = -1;
-    for (int s = 0; s < kMaxTracks; ++s)
+    const int maxTracksAllowed = AppEdition::getMaxTracks();
+    for (int s = 0; s < maxTracksAllowed; ++s)
     {
         if (engine.getTrackSlot (s) == nullptr)
         {
@@ -391,7 +409,7 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
     if (startSlot < 0)
         startSlot = 0;
 
-    for (int i = 0; i < audioFiles.size() && (startSlot + i) < kMaxTracks; ++i)
+    for (int i = 0; i < audioFiles.size() && (startSlot + i) < maxTracksAllowed; ++i)
     {
         const int slot = startSlot + i;
         const auto& file = audioFiles[i];

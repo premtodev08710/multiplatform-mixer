@@ -427,6 +427,58 @@
       gap: 18px;
     }
 
+    /* Pro Showcase / Preview Card */
+    .card-pro-preview {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.75) 0%, rgba(21, 28, 43, 0.95) 50%, rgba(30, 41, 59, 0.85) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.7), 0 0 35px rgba(168, 85, 247, 0.18);
+      margin-bottom: 28px;
+    }
+
+    .card-pro-preview::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #f59e0b, #ec4899, #a855f7, #00e5ff);
+    }
+
+    .pro-badge-upcoming {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      color: #fbbf24;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .free-tier-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
     /* Featured Hero Card */
     .card-featured {
       background: linear-gradient(135deg, rgba(21, 28, 43, 0.9) 0%, rgba(15, 20, 31, 0.95) 100%);
@@ -1377,7 +1429,10 @@
     <header class="navbar">
       <a href="/" class="nav-brand">
         <div class="nav-logo">
-          <img src="assets/app_icon.png" alt="Multiplatform Mixer App Icon" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%2300e5ff\'/><text x=\'50\' y=\'65\' font-size=\'45\' font-weight=\'bold\' fill=\'%230b0f19\' text-anchor=\'middle\'>🎚️</text></svg>';" />
+          <picture>
+            <source srcset="assets/app_icon.webp" type="image/webp" />
+            <img src="assets/app_icon.png" alt="Multiplatform Mixer App Icon" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%2300e5ff\'/><text x=\'50\' y=\'65\' font-size=\'45\' font-weight=\'bold\' fill=\'%230b0f19\' text-anchor=\'middle\'>🎚️</text></svg>';" />
+          </picture>
         </div>
         <div>
           <div class="nav-brand-title">Multiplatform Mixer</div>
@@ -1407,12 +1462,12 @@
       </h1>
 
       <p class="hero-desc">
-        สำหรับคนที่อยากฝึกมิกซ์เสียง สามารถดาวน์โหลดแอปและดูวิธีใช้งานได้ตามลิงก์ด้านล่างครับ 😊
-        ฝึกปรับ Balance, EQ, Pan, Compressor, Noise Gate และ Reverb/Delay ระดับสตูดิโอได้ทันทีบนคอมพิวเตอร์และมือถือของคุณ
+        สำหรับคนที่อยากฝึกมิกซ์เสียง สามารถดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตามลิงก์ด้านล่างไปฝึกซ้อมได้ทันทีครับ 😊
+        ฝึกปรับ Balance, EQ, Pan, Compressor, Noise Gate และ Reverb/Delay ระดับสตูดิโอได้อย่างอิสระบนคอมพิวเตอร์และมือถือของคุณ
       </p>
 
       <div class="direct-notice">
-        <span>⚡ ดาวน์โหลดตรงจากเว็บไซต์ได้ทันทีทุกระบบปฏิบัติการ (Direct Downloads)</span>
+        <span>⚡ ดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตรงจากเว็บได้ทันทีทุกระบบปฏิบัติการ</span>
       </div>
 
       <!-- Real-time Download KPI Showcase -->
@@ -1446,9 +1501,56 @@
     <!-- Section 1: Main Direct Downloads -->
     <section id="downloads">
       <div class="section-header">
-        <div class="section-tag">📥 1. ลิงก์ดาวน์โหลดแอปตรงจากเว็บ (Direct Downloads)</div>
+        <div class="section-tag">📥 1. ลิงก์ดาวน์โหลดแอปฟรี (Free Community Edition)</div>
         <h2 class="section-title">ดาวน์โหลดตัวแอปพลิเคชัน Multiplatform Mixer</h2>
-        <p class="section-subtitle">คลิกดาวน์โหลดไฟล์ติดตั้งตรงลงเครื่องของคุณได้ทันที หรือรับผ่านคลังซอร์สโค้ด GitHub</p>
+        <p class="section-subtitle">คลิกดาวน์โหลดเวอร์ชันฟรีติดตั้งตรงลงเครื่องของคุณได้ทันที หรือเตรียมพบกับเวอร์ชัน Pro ในอนาคต</p>
+      </div>
+
+      <!-- Pro Edition Launch & 14-Day Free Trial Announcement Box -->
+      <div class="card-pro-preview" style="background: linear-gradient(135deg, rgba(20, 24, 33, 0.95), rgba(16, 28, 48, 0.95)); border: 1.5px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0, 229, 255, 0.12);">
+        <div class="featured-inner">
+          <div class="featured-info">
+            <span class="pro-badge-upcoming" style="background: linear-gradient(135deg, #00e5ff, #00e676); color: #0a0e17; font-weight: 800;">🎉 โปรโมชั่นเปิดตัว • รับสิทธิ์ทดลองใช้ PRO 14 วันฟรี!</span>
+            <h3 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+              🚀 ดาวน์โหลดวันนี้ ปลดล็อก Pro Edition 32 แทร็กเต็มฟรีทันที 14 วันแรก!
+            </h3>
+            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+              เปิดโอกาสให้ทุกคนได้ทดลองใช้งานคอนโซลมิกซ์เสียงดิจิทัลเต็มรูปแบบ <strong>32 ช่องสัญญาณ, 8 Virtual FX Rack และฟังก์ชันบันทึกโปรเจกต์ (Save Project) ได้อิสระฟรี 14 วันแรก</strong> เมื่อดาวน์โหลดไปเปิดใช้งานครั้งแรก ระบบจะนับถอยหลังทดลองใช้งานให้อัตโนมัติทันทีโดยไม่ต้องกรอกรหัส!
+              <br><br>
+              เมื่อครบกำหนด 14 วัน ระบบจะปรับเป็น <strong>Free Edition (8 แทร็ก)</strong> ให้ใช้งานต่อได้ฟรีตลอดชีพ หรือสามารถสั่งซื้อ <strong>รหัสต่ออายุ 1 ปี (Prepaid Serial Key)</strong> เพื่อปลดล็อก 32 แทร็กต่อได้ทันที
+            </p>
+            <div class="featured-badges-row" style="margin-bottom: 0;">
+              <span class="tech-pill" style="border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 700;">🎁 Auto Trial: ฟรี 14 วันเต็ม</span>
+              <span class="tech-pill" style="border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">🟢 Free Edition: ใช้งานต่อฟรี 8 แทร็ก</span>
+              <span class="tech-pill" style="border-color: rgba(255, 215, 0, 0.5); color: #ffd700;">👑 Pro Annual: รหัสต่ออายุ 365 วัน</span>
+              <span class="tech-pill">🚫 ไม่มีโฆษณาในตัวโปรแกรม</span>
+              <span class="tech-pill">🌐 ออฟไลน์ 100% ไม่ต้องล็อกอิน</span>
+            </div>
+          </div>
+
+          <div class="featured-actions">
+            <a 
+              href="https://s.shopee.co.th/80DYoxalGQ" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn-main-download"
+              style="background: linear-gradient(135deg, #e65100 0%, #ff9800 100%); color: #fff; font-weight: 700; margin-bottom: 8px; box-shadow: 0 4px 15px rgba(230, 81, 0, 0.4);"
+            >
+              <span>🛒 สั่งซื้อรหัสต่ออายุ Pro 1 ปี (Shopee)</span>
+              <span style="font-size: 18px;">↗</span>
+            </a>
+            <a 
+              href="https://www.facebook.com/premsak.sed" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn-main-download"
+              style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0; font-size: 13px;"
+            >
+              <span>💬 สั่งซื้อผ่าน Facebook ผู้พัฒนา</span>
+              <span style="font-size: 14px;">↗</span>
+            </a>
+          </div>
+        </div>
       </div>
 
       <!-- Multiplatform Direct Download Options Grid -->
@@ -1458,30 +1560,31 @@
           <div>
             <div class="platform-top">
               <div class="platform-icon">🪟</div>
-              <span class="platform-badge-os">Windows 64-bit</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">Windows 64-bit</span>
+                <span class="free-tier-badge" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">ทดลองฟรี 14 วัน</span>
+              </div>
             </div>
             <h4 class="platform-name">Windows PC</h4>
-            <p class="platform-meta">Windows 10 / 11 (ดาวน์โหลดได้ไฟล์ .exe ไปเปิดใช้ได้เลย)</p>
+            <p class="platform-meta">Windows 10 / 11 (ดาวน์โหลดได้ไฟล์ .zip / .exe ไปเปิดใช้ได้เลย)</p>
           </div>
           <div class="platform-btn-group">
             <a 
-              href="downloads/MixPracticeStudio-Windows.bin" 
-              download="MixPracticeStudio.exe"
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip" 
               class="platform-btn track-download" 
-              data-platform="windows" 
-              data-file="MixPracticeStudio.exe"
-            >
-              <span>ดาวน์โหลดไฟล์ .exe ทันที</span>
-              <span class="file-size-tag">7.2 MB</span>
-            </a>
-            <a 
-              href="downloads/MixPracticeStudio-Windows-x64.zip" 
-              download="MixPracticeStudio-Windows-x64.zip"
-              class="platform-sub-link track-download" 
               data-platform="windows" 
               data-file="MixPracticeStudio-Windows-x64.zip"
             >
-              หรือดาวน์โหลดเป็นไฟล์ .zip (3.3 MB) ↓
+              <span>ดาวน์โหลดฟรี .zip ทันที</span>
+              <span class="file-size-tag">3.3 MB</span>
+            </a>
+            <a 
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.exe" 
+              class="platform-sub-link track-download" 
+              data-platform="windows" 
+              data-file="MixPracticeStudio.exe"
+            >
+              หรือดาวน์โหลดไฟล์ตรง .exe (7.2 MB) ↓
             </a>
           </div>
         </div>
@@ -1491,30 +1594,34 @@
           <div>
             <div class="platform-top">
               <div class="platform-icon">🍏</div>
-              <span class="platform-badge-os">macOS</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">macOS</span>
+                <span class="free-tier-badge" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">ทดลองฟรี 14 วัน</span>
+              </div>
             </div>
             <h4 class="platform-name">Apple Mac</h4>
-            <p class="platform-meta">Apple Silicon (M1/M2/M3) และชิป Intel (ตัวติดตั้ง .pkg)</p>
+            <p class="platform-meta">Apple Silicon (M1/M2/M3) และ Intel (ดาวน์โหลด .zip เปิดใช้ได้ทันที)</p>
           </div>
           <div class="platform-btn-group">
             <a 
-              href="downloads/MixPracticeStudio-macOS.bin" 
-              download="MixPracticeStudio.pkg"
+              href="/downloads/MixPracticeStudio-macOS.zip" 
               class="platform-btn track-download" 
               data-platform="macos" 
-              data-file="MixPracticeStudio.pkg"
+              data-file="MixPracticeStudio-macOS.zip"
+              style="background: linear-gradient(135deg, #00bcd4 0%, #00e676 100%); color: #000; font-weight: 700;"
             >
-              <span>ดาวน์โหลดตัวติดตั้ง .pkg</span>
+              <span>ดาวน์โหลดฟรี .zip (ตัวล่าสุด)</span>
               <span class="file-size-tag">4.3 MB</span>
             </a>
             <a 
-              href="downloads/MixPracticeStudio-macOS.zip" 
-              download="MixPracticeStudio-macOS.zip"
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest" 
+              target="_blank"
+              rel="noopener noreferrer"
               class="platform-sub-link track-download" 
               data-platform="macos" 
-              data-file="MixPracticeStudio-macOS.zip"
+              data-file="MixPracticeStudio-macOS.pkg"
             >
-              หรือดาวน์โหลดเป็นไฟล์ .zip (4.3 MB) ↓
+              หรือดาวน์โหลดจาก GitHub Releases ↗
             </a>
           </div>
         </div>
@@ -1524,64 +1631,67 @@
           <div>
             <div class="platform-top">
               <div class="platform-icon">🤖</div>
-              <span class="platform-badge-os">Android APK</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">Android APK</span>
+                <span class="free-tier-badge">ฟรี</span>
+              </div>
             </div>
             <h4 class="platform-name">Android มือถือ/แท็บเล็ต</h4>
             <p class="platform-meta">Android 8.0+ (คลิกแล้วได้ไฟล์ .apk ไปแตะติดตั้งได้ทันที)</p>
           </div>
           <div class="platform-btn-group">
             <a 
-              href="downloads/MixPracticeStudio-Android.bin" 
-              download="MixPracticeStudio.apk"
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.apk" 
               class="platform-btn track-download" 
               data-platform="android" 
               data-file="MixPracticeStudio.apk"
             >
-              <span>ดาวน์โหลดไฟล์ .apk ทันที</span>
-              <span class="file-size-tag">29 MB</span>
+              <span>ดาวน์โหลดฟรี .apk ทันที</span>
+              <span class="file-size-tag">35 MB</span>
             </a>
             <a 
-              href="downloads/MixPracticeStudio-Android-APK.zip" 
-              download="MixPracticeStudio-Android-APK.zip"
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Android-APK.zip" 
               class="platform-sub-link track-download" 
               data-platform="android" 
               data-file="MixPracticeStudio-Android-APK.zip"
             >
-              หรือดาวน์โหลดเป็นไฟล์ .zip (10 MB) ↓
+              หรือดาวน์โหลดเป็นไฟล์ .zip (33 MB) ↓
             </a>
           </div>
         </div>
 
-        <!-- iOS Direct Download -->
+        <!-- iOS Direct Download (IPA) -->
         <div class="card-platform">
           <div>
             <div class="platform-top">
               <div class="platform-icon">📱</div>
-              <span class="platform-badge-os">iOS (IPA)</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">iOS (IPA)</span>
+                <span class="free-tier-badge">ฟรี</span>
+              </div>
             </div>
             <h4 class="platform-name">iPhone / iPad</h4>
             <p class="platform-meta">ไฟล์ .ipa ตรงสำหรับนำไป Sideload / AltStore / TrollStore</p>
           </div>
           <div class="platform-btn-group">
             <a 
-              href="downloads/MixPracticeStudio-iOS.bin" 
-              download="MixPracticeStudio.ipa"
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.ipa" 
               class="platform-btn track-download" 
               data-platform="ios" 
               data-file="MixPracticeStudio.ipa"
             >
-              <span>ดาวน์โหลดไฟล์ .ipa ทันที</span>
+              <span>ดาวน์โหลดฟรี .ipa ทันที</span>
               <span class="file-size-tag">4.4 MB</span>
             </a>
             <a 
-              href="downloads/MixPracticeStudio-iOS-IPA.zip" 
-              download="MixPracticeStudio-iOS-IPA.zip"
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-iOS-IPA.zip" 
               class="platform-sub-link track-download" 
               data-platform="ios" 
               data-file="MixPracticeStudio-iOS-IPA.zip"
             >
               หรือดาวน์โหลดเป็นไฟล์ .zip (4.4 MB) ↓
             </a>
+          </div>
         </div>
       </div>
 
@@ -1638,7 +1748,7 @@
         <!-- Video 1: Basic Usage (TikTok) -->
         <div class="card-video">
           <div class="video-thumb-container">
-            <div class="video-thumb-bg" style="background-image: url('assets/effects_group5to8_1024x642.png');"></div>
+            <div class="video-thumb-bg" style="background-image: url('assets/effects_group5to8_1024x642.webp');"></div>
             <span class="video-badge-platform badge-tiktok">
               <span>🎵</span> TikTok @pjchannel20
             </span>
@@ -1674,7 +1784,7 @@
         <!-- Video 2: Installation Guide (Facebook) -->
         <div class="card-video">
           <div class="video-thumb-container">
-            <div class="video-thumb-bg" style="background-image: url('assets/effects_lexicon_larc_1024x642.png');"></div>
+            <div class="video-thumb-bg" style="background-image: url('assets/effects_lexicon_larc_1024x642.webp');"></div>
             <span class="video-badge-platform badge-facebook">
               <span>📹</span> Facebook Video
             </span>
@@ -1981,7 +2091,10 @@
       increment, 
       onSnapshot, 
       collection, 
-      addDoc 
+      addDoc,
+      getDocs,
+      query,
+      limit
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
     // Firebase Project Configuration
@@ -2252,6 +2365,7 @@
         if (shareStemForm) shareStemForm.reset();
         window.closeShareStemModal();
         window.showToast(`แชร์เพลง "${song}" ของวง ${band} สำเร็จ! ขอบคุณที่ร่วมแบ่งปันครับ`, '🎶');
+        loadCommunityStems(true);
       } catch (err) {
         console.error('Error sharing stem:', err);
         window.showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, '❌');
@@ -2291,6 +2405,33 @@
         .replace(/'/g, '&#39;');
     }
 
+    // =========================================================================
+    // Community Multitracks Logic (Optimized: Cached in sessionStorage + Limit)
+    // =========================================================================
+    const STEMS_CACHE_KEY = 'mps_stems_cache_v1';
+    const STEMS_CACHE_TIME_KEY = 'mps_stems_cache_time_v1';
+    const STEMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+    let inMemoryStems = [];
+
+    function updateLocalStemRating(stemId, starValue) {
+      const stem = inMemoryStems.find(s => s.id === stemId);
+      if (stem) {
+        stem.ratingCount = (Number(stem.ratingCount) || 0) + 1;
+        stem.ratingSum = (Number(stem.ratingSum) || ((stem.ratingCount - 1) * 5)) + starValue;
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        renderCommunityStems(inMemoryStems);
+      }
+    }
+
+    function updateLocalStemReport(stemId) {
+      const stem = inMemoryStems.find(s => s.id === stemId);
+      if (stem) {
+        stem.reportCount = (Number(stem.reportCount) || 0) + 1;
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        renderCommunityStems(inMemoryStems);
+      }
+    }
+
     // Rate stem
     window.rateStem = async function(stemId, starValue) {
       const ratedKey = 'mps_rated_' + stemId;
@@ -2299,17 +2440,17 @@
         return;
       }
 
+      updateLocalStemRating(stemId, starValue);
+      localStorage.setItem(ratedKey, starValue);
+      window.showToast(`ให้คะแนนเพลงนี้ ${starValue} ดาวเรียบร้อยแล้ว ⭐ ขอบคุณครับ!`, '⭐');
+
       try {
         await setDoc(doc(db, 'community_stems', stemId), {
           ratingSum: increment(starValue),
           ratingCount: increment(1)
         }, { merge: true });
-
-        localStorage.setItem(ratedKey, starValue);
-        window.showToast(`ให้คะแนนเพลงนี้ ${starValue} ดาวเรียบร้อยแล้ว ⭐ ขอบคุณครับ!`, '⭐');
       } catch (err) {
         console.error('Rating error:', err);
-        window.showToast('ไม่สามารถส่งคะแนนได้: ' + err.message, '❌');
       }
     };
 
@@ -2324,26 +2465,24 @@
       const confirmMsg = `ต้องการแจ้งรายงานว่าลิงก์ดาวน์โหลดของวง "${bandName}" ใช้งานไม่ได้ หรือเปิดไม่ได้ใช่หรือไม่?\n\nแอดมินจะได้รับแจ้งและดำเนินการตรวจสอบหรือลบลิงก์ออก`;
       if (!confirm(confirmMsg)) return;
 
+      localStorage.setItem(reportKey, 'true');
+      updateLocalStemReport(stemId);
+      window.showToast('ส่งรายงานแจ้งลิงก์เสียให้แอดมินเรียบร้อยแล้ว ขอบคุณครับ!', '🚨');
+
       try {
         await setDoc(doc(db, 'community_stems', stemId), {
           reportCount: increment(1),
           lastReportedAt: new Date().toISOString()
         }, { merge: true });
-
-        localStorage.setItem(reportKey, 'true');
-        window.showToast('ส่งรายงานแจ้งลิงก์เสียให้แอดมินเรียบร้อยแล้ว ขอบคุณครับ!', '🚨');
       } catch (err) {
         console.error('Report error:', err);
-        window.showToast('ส่งรายงานไม่สำเร็จ: ' + err.message, '❌');
       }
     };
 
-    // Real-time listener for community stems
-    const communityStemsRef = collection(db, 'community_stems');
-    onSnapshot(communityStemsRef, (snapshot) => {
+    function renderCommunityStems(stems) {
       if (!communityStemsGrid) return;
 
-      if (snapshot.empty) {
+      if (!stems || stems.length === 0) {
         communityStemsGrid.innerHTML = `
           <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
             <div style="font-size: 38px; margin-bottom: 10px;">🎸</div>
@@ -2358,11 +2497,6 @@
         `;
         return;
       }
-
-      const stems = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      }));
 
       // Sort newest first
       stems.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -2432,16 +2566,56 @@
           </div>
         `;
       }).join('');
-    }, (err) => {
-      console.warn('Community stems subscription error:', err);
-      if (communityStemsGrid) {
-        communityStemsGrid.innerHTML = `
-          <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted);">
-            ไม่สามารถเชื่อมต่อคลังมัลติแทร็กได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง
-          </div>
-        `;
+    }
+
+    async function loadCommunityStems(forceRefresh = false) {
+      if (!communityStemsGrid) return;
+
+      const cached = sessionStorage.getItem(STEMS_CACHE_KEY);
+      const cacheTime = Number(sessionStorage.getItem(STEMS_CACHE_TIME_KEY) || 0);
+      const isFresh = (Date.now() - cacheTime) < STEMS_CACHE_TTL_MS;
+
+      if (!forceRefresh && cached && isFresh) {
+        try {
+          inMemoryStems = JSON.parse(cached);
+          renderCommunityStems(inMemoryStems);
+          return;
+        } catch (e) {
+          sessionStorage.removeItem(STEMS_CACHE_KEY);
+        }
       }
-    });
+
+      try {
+        const q = query(collection(db, 'community_stems'), limit(50));
+        const snapshot = await getDocs(q);
+        inMemoryStems = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        }));
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        sessionStorage.setItem(STEMS_CACHE_TIME_KEY, Date.now().toString());
+        renderCommunityStems(inMemoryStems);
+      } catch (err) {
+        console.warn('Community stems fetch notice:', err);
+        if (cached) {
+          try {
+            inMemoryStems = JSON.parse(cached);
+            renderCommunityStems(inMemoryStems);
+            return;
+          } catch (_) {}
+        }
+        if (communityStemsGrid && (!inMemoryStems || inMemoryStems.length === 0)) {
+          communityStemsGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted);">
+              ไม่สามารถเชื่อมต่อคลังมัลติแทร็กได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Initial load of community stems (0 reads on reload within 5 min)
+    loadCommunityStems();
   </script>
 </body>
 </html>

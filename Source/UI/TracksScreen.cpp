@@ -1,6 +1,7 @@
 // Mix Practice Studio - Multitrack Management & File Import Screen
 #include "TracksScreen.h"
 #include "ConsoleLookAndFeel.h"
+#include "../Core/AppEdition.h"
 #include <algorithm>
 
 #if JUCE_ANDROID
@@ -26,7 +27,7 @@ public:
 
         downButton.setTooltip ("Move track down");
         downButton.onClick = [this] {
-            if (rowNumber < kMaxTracks - 1)
+            if (rowNumber < AppEdition::getMaxTracks() - 1)
                 screen.moveTrackRow (rowNumber, rowNumber + 1);
         };
         addAndMakeVisible (downButton);
@@ -248,7 +249,7 @@ void TracksScreen::timerCallback()
 
 int TracksScreen::getNumRows()
 {
-    return kMaxTracks;
+    return AppEdition::getMaxTracks();
 }
 
 void TracksScreen::paintRowBackground (juce::Graphics& g, int rowNumber, int /*width*/, int /*height*/, bool rowIsSelected)
@@ -923,7 +924,8 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
     };
     std::vector<LoadedTrack> readyTracks;
 
-    for (int i = 0; i < files.size() && (startSlot + i) < kMaxTracks; ++i)
+    const int maxTracks = AppEdition::getMaxTracks();
+    for (int i = 0; i < files.size() && (startSlot + i) < maxTracks; ++i)
     {
         const int slot = startSlot + i;
         const auto& file = files[i];
@@ -935,10 +937,24 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
         }
     }
 
-    juce::MessageManager::callAsync ([this, readyTracks = std::move (readyTracks), totalFiles = files.size(), startSlot] {
+    const bool exceededFreeLimit = (! AppEdition::isPro() && (startSlot + files.size() > maxTracks));
+
+    juce::MessageManager::callAsync ([this, readyTracks = std::move (readyTracks), totalFiles = files.size(), startSlot, exceededFreeLimit] {
         importButton.setEnabled (true);
         importFolderButton.setEnabled (true);
         dragHintLabel.setText ("Tip: Drag & Drop audio files here or drag rows to reorder tracks", juce::dontSendNotification);
+
+        if (exceededFreeLimit)
+        {
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::InfoIcon,
+                "PRO FEATURE: 32 Tracks",
+                juce::CharPointer_UTF8 (
+                    "\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\x88\xe0\xb8\xb3\xe0\xb8\x81\xe0\xb8\xb1\xe0\xb8\x94\xe0\xb9\x84\xe0\xb8\xa7\xe0\xb9\x89\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88 8 \xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x81\n"
+                    "\xe0\xb9\x82\xe0\xb8\xab\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x89\xe0\xb8\x9e\xe0\xb8\xb2\xe0\xb8\xb0 8 \xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x81\xe0\xb9\x81\xe0\xb8\xa3\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\xa2\xe0\xb8\x9a\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa2\xe0\xb9\x81\xe0\xb8\xa5\xe0\xb9\x89\xe0\xb8\xa7 \xe0\xb8\xad\xe0\xb8\xb1\xe0\xb8\x9b\xe0\xb9\x80\xe0\xb8\x81\xe0\xb8\xa3\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb9\x87\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99 Pro \xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\x95\xe0\xb9\x87\xe0\xb8\xa1 32 \xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb9\x87\xe0\xb8\x81!"
+                )
+            );
+        }
 
         for (const auto& item : readyTracks)
         {

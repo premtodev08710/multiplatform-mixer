@@ -1,5 +1,6 @@
 // Mix Practice Studio - Audio Device & Hardware Setup Screen Implementation
 #include "SetupScreen.h"
+#include "../Core/AppEdition.h"
 
 namespace mps
 {
@@ -82,6 +83,39 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
     x32StatusLabel.setText ("Status: OFFLINE (Virtual Practice Mode Active)", juce::dontSendNotification);
     addAndMakeVisible (x32StatusLabel);
 
+    // --- Section 3: Pro Edition Annual Serial Key (Prepaid Card Model) ---
+    licenseTitleLabel.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+    licenseTitleLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffd700)); // Gold
+    licenseTitleLabel.setText (juce::String::fromUTF8 ("👑 Mix Practice Studio Pro (ระบบสิทธิ์รายปี / Serial Key)"), juce::dontSendNotification);
+    addAndMakeVisible (licenseTitleLabel);
+
+    licenseStatusLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    addAndMakeVisible (licenseStatusLabel);
+
+    licenseKeyLabel.setFont (juce::FontOptions (12.0f));
+    licenseKeyLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
+    licenseKeyLabel.setText (juce::String::fromUTF8 ("กรอกรหัสต่ออายุ 1 ปี (Serial Key):"), juce::dontSendNotification);
+    addAndMakeVisible (licenseKeyLabel);
+
+    licenseKeyEditor.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    licenseKeyEditor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff14171c));
+    licenseKeyEditor.setColour (juce::TextEditor::outlineColourId, ConsoleLookAndFeel::borderSubtle);
+    licenseKeyEditor.setColour (juce::TextEditor::textColourId, juce::Colour (0xff00e5ff));
+    licenseKeyEditor.setTextToShowWhenEmpty (juce::String::fromUTF8 ("ตัวอย่าง: MPS-1Y-XXXX-XXXX-XXXX"), juce::Colour (0xff546e7a));
+    addAndMakeVisible (licenseKeyEditor);
+
+    activateKeyButton.setButtonText (juce::String::fromUTF8 ("⚡ เติมวัน Pro 1 ปี (+365 วัน)"));
+    activateKeyButton.addListener (this);
+    activateKeyButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2e7d32)); // Green
+    addAndMakeVisible (activateKeyButton);
+
+    buyKeyButton.setButtonText (juce::String::fromUTF8 ("🛒 สั่งซื้อรหัสต่ออายุ (Shopee / FB)"));
+    buyKeyButton.addListener (this);
+    buyKeyButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffe65100)); // Shopee Orange
+    addAndMakeVisible (buyKeyButton);
+
+    refreshLicenseStatus();
+
     startTimerHz (4);
 }
 
@@ -160,27 +194,79 @@ void SetupScreen::buttonClicked (juce::Button* b)
             juce::AlertWindow::InfoIcon, "X32 Network Discovery",
             "Broadcasting discovery packet (/xinfo) across local network.\nIf X32 is connected to the same Wi-Fi/LAN, it will respond.");
     }
-    else if (b == &useSpeakersButton || b == &useHeadphonesButton)
+    else if (b == &activateKeyButton)
     {
-        auto& dm = engine.getDeviceManager();
-        auto* type = dm.getCurrentDeviceTypeObject();
-        if (type == nullptr) return;
-
-        type->scanForDevices();
-        auto outNames = type->getDeviceNames (false);
-
-        const juce::String keyword = (b == &useSpeakersButton) ? "speaker" : "headphone";
-        for (const auto& name : outNames)
+        const juce::String inputKey = licenseKeyEditor.getText().trim();
+        if (inputKey.isEmpty())
         {
-            if (name.containsIgnoreCase (keyword))
-            {
-                juce::AudioDeviceManager::AudioDeviceSetup setup;
-                dm.getAudioDeviceSetup (setup);
-                setup.outputDeviceName = name;
-                setup.outputChannels.setRange (0, 2, true);
-                dm.setAudioDeviceSetup (setup, true);
-                break;
-            }
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::WarningIcon,
+                juce::String::fromUTF8 ("กรุณากรอกรหัส"),
+                juce::String::fromUTF8 ("กรุณากรอกรหัสต่ออายุ Pro (Serial Key)")
+            );
+            return;
+        }
+
+        auto res = AppEdition::activateYearlyKey (inputKey);
+        if (res.success)
+        {
+            licenseKeyEditor.clear();
+            refreshLicenseStatus();
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::InfoIcon,
+                juce::String::fromUTF8 ("🎉 เติมวันสำเร็จ!"),
+                res.message
+            );
+        }
+        else
+        {
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::WarningIcon,
+                juce::String::fromUTF8 ("รหัสไม่ถูกต้อง"),
+                res.message
+            );
+        }
+    }
+    else if (b == &buyKeyButton)
+    {
+        juce::URL ("https://s.shopee.co.th/80DYoxalGQ").launchInDefaultBrowser();
+    }
+}
+
+void SetupScreen::refreshLicenseStatus()
+{
+    if (AppEdition::isLifetimePro())
+    {
+        licenseStatusLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffd700)); // Gold
+        licenseStatusLabel.setText (juce::String::fromUTF8 ("สถานะ: PRO EDITION (ถาวร / Lifetime)"), juce::dontSendNotification);
+    }
+    else if (AppEdition::isTrialActive())
+    {
+        licenseStatusLabel.setColour (juce::Label::textColourId, juce::Colour (0xff00e5ff)); // Bright Cyan
+        licenseStatusLabel.setText (juce::String::fromUTF8 ("สถานะ: PRO TRIAL (ทดลองใช้งานฟรี) • เหลืออีก ") 
+                                    + juce::String (AppEdition::getDaysRemaining()) 
+                                    + juce::String::fromUTF8 (" วัน (หมดอายุ: ") + AppEdition::getExpiryDateFormatted() + ")", 
+                                    juce::dontSendNotification);
+    }
+    else if (AppEdition::isYearlySubscriptionActive())
+    {
+        licenseStatusLabel.setColour (juce::Label::textColourId, juce::Colour (0xff00e676)); // Bright Green
+        licenseStatusLabel.setText (juce::String::fromUTF8 ("สถานะ: PRO EDITION (รายปี) • เหลืออีก ") 
+                                    + juce::String (AppEdition::getDaysRemaining()) 
+                                    + juce::String::fromUTF8 (" วัน (หมดอายุ: ") + AppEdition::getExpiryDateFormatted() + ")", 
+                                    juce::dontSendNotification);
+    }
+    else
+    {
+        if (AppEdition::isTrial())
+        {
+            licenseStatusLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffa000)); // Amber warning
+            licenseStatusLabel.setText (juce::String::fromUTF8 ("สถานะ: หมดช่วงทดลองใช้ 14 วัน (ปรับเป็น Free 8 แทร็ก) • กรอกรหัสเพื่อต่ออายุ 1 ปี"), juce::dontSendNotification);
+        }
+        else
+        {
+            licenseStatusLabel.setColour (juce::Label::textColourId, juce::Colour (0xff90a4ae)); // Muted Grey
+            licenseStatusLabel.setText (juce::String::fromUTF8 ("สถานะ: FREE EDITION (จำกัด 8 แทร็ก / 2 FX / บันทึกไม่ได้)"), juce::dontSendNotification);
         }
     }
 }
@@ -287,6 +373,22 @@ void SetupScreen::resized()
     x32ConnectButton.setBounds (btnRow.removeFromLeft (btnW));
     btnRow.removeFromLeft (8);
     x32AutoDiscoverButton.setBounds (btnRow);
+
+    // --- Section 3: Pro License & Annual Serial Key ---
+    rightArea.removeFromTop (20);
+    licenseTitleLabel.setBounds (rightArea.removeFromTop (22));
+    licenseStatusLabel.setBounds (rightArea.removeFromTop (20));
+    rightArea.removeFromTop (6);
+
+    licenseKeyLabel.setBounds (rightArea.removeFromTop (18));
+    licenseKeyEditor.setBounds (rightArea.removeFromTop (28));
+    rightArea.removeFromTop (8);
+
+    auto licBtnRow = rightArea.removeFromTop (32);
+    const int licBtnW = (licBtnRow.getWidth() - 8) / 2;
+    activateKeyButton.setBounds (licBtnRow.removeFromLeft (licBtnW));
+    licBtnRow.removeFromLeft (8);
+    buyKeyButton.setBounds (licBtnRow);
 }
 
 } // namespace mps

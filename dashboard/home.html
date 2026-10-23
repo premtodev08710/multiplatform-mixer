@@ -1,0 +1,2621 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiplatform Mixer — ดาวน์โหลดแอปฝึกมิกซ์เสียงเบื้องต้น & ไฟล์มัลติแทร็ก</title>
+  <meta name="description" content="ดาวน์โหลดแอปพลิเคชันฝึกมิกซ์เสียง Multiplatform Mixer (Mix Practice Studio) พร้อมไฟล์ติดตั้งตรง Windows, macOS, Android, iOS และไฟล์มัลติแทร็กสำหรับฝึกมิกซ์" />
+  <link rel="icon" type="image/png" href="assets/app_icon.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Confetti library for download celebration -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #080b11;
+      --bg-surface: #0f141f;
+      --bg-card: #151c2b;
+      --bg-card-hover: #1c2538;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(0, 229, 255, 0.35);
+
+      --cyan-bright: #00e5ff;
+      --cyan-glow: rgba(0, 229, 255, 0.4);
+      --blue-accent: #2563eb;
+      --blue-light: #60a5fa;
+      --green-meter: #10b981;
+      --green-glow: rgba(16, 185, 129, 0.35);
+      --amber-accent: #f59e0b;
+      --rose-accent: #f43f5e;
+      --purple-accent: #8b5cf6;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-faint: #64748b;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --shadow-glow: 0 0 25px rgba(0, 229, 255, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Inter', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Studio Ambient Lighting Background */
+    .ambient-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .ambient-glow-1 {
+      position: absolute;
+      top: -200px;
+      left: 15%;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.12) 0%, rgba(37, 99, 235, 0.05) 50%, transparent 70%);
+      filter: blur(80px);
+    }
+
+    .ambient-glow-2 {
+      position: absolute;
+      top: 35%;
+      right: -100px;
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, rgba(16, 185, 129, 0.04) 50%, transparent 70%);
+      filter: blur(90px);
+    }
+
+    .ambient-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(ellipse at 50% 20%, black 40%, transparent 80%);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navigation Bar */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .nav-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #00e5ff 0%, #2563eb 100%);
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 18px rgba(0, 229, 255, 0.35);
+    }
+
+    .nav-logo img {
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+
+    .nav-brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-brand-tag {
+      font-size: 11px;
+      color: var(--cyan-bright);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .nav-link-btn:hover {
+      color: #fff;
+      border-color: var(--cyan-bright);
+      background: var(--bg-card);
+      transform: translateY(-1px);
+    }
+
+    .nav-link-btn.accent {
+      background: rgba(0, 229, 255, 0.1);
+      color: var(--cyan-bright);
+      border-color: rgba(0, 229, 255, 0.3);
+    }
+
+    .nav-link-btn.accent:hover {
+      background: rgba(0, 229, 255, 0.2);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.25);
+    }
+
+    /* Live Counter Hero Bar */
+    .hero {
+      padding: 50px 0 30px;
+      text-align: center;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(0, 229, 255, 0.08);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--cyan-bright);
+      margin-bottom: 22px;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green-meter);
+      box-shadow: 0 0 10px var(--green-meter);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .hero-title {
+      font-size: clamp(30px, 4.8vw, 52px);
+      font-weight: 900;
+      line-height: 1.18;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+
+    .hero-title span.gradient {
+      background: linear-gradient(135deg, #00e5ff 10%, #60a5fa 60%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto 30px;
+      font-weight: 400;
+    }
+
+    /* Direct Download Fast Alert */
+    .direct-notice {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: var(--radius-full);
+      color: #34d399;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 30px;
+    }
+
+    /* Real-time Download KPI Box */
+    .live-counter-showcase {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(21, 28, 43, 0.85) 0%, rgba(15, 20, 31, 0.95) 100%);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 22px 36px;
+      margin-bottom: 40px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.6), 0 0 35px rgba(0, 229, 255, 0.15);
+      position: relative;
+    }
+
+    .counter-label {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--cyan-bright);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .counter-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .counter-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(44px, 6vw, 68px);
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+      text-shadow: 0 0 25px rgba(0, 229, 255, 0.5);
+      letter-spacing: -0.04em;
+    }
+
+    .counter-unit {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .counter-sub {
+      font-size: 12px;
+      color: var(--text-faint);
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .counter-sub-tag {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Sound Bars Animation */
+    .sound-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 18px;
+    }
+
+    .sound-bar {
+      width: 3px;
+      background: var(--cyan-bright);
+      border-radius: 2px;
+      animation: soundDance 1.2s ease-in-out infinite alternate;
+    }
+
+    .sound-bar:nth-child(1) { height: 30%; animation-delay: 0.1s; }
+    .sound-bar:nth-child(2) { height: 80%; animation-delay: 0.3s; }
+    .sound-bar:nth-child(3) { height: 50%; animation-delay: 0.5s; }
+    .sound-bar:nth-child(4) { height: 100%; animation-delay: 0.2s; }
+    .sound-bar:nth-child(5) { height: 60%; animation-delay: 0.4s; }
+
+    @keyframes soundDance {
+      0% { height: 20%; }
+      100% { height: 100%; }
+    }
+
+    /* Section Styling */
+    section {
+      padding: 36px 0;
+    }
+
+    .section-header {
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--cyan-bright);
+    }
+
+    .section-title {
+      font-size: clamp(22px, 3.2vw, 32px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .section-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+    }
+
+    /* Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    /* Pro Showcase / Preview Card */
+    .card-pro-preview {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.75) 0%, rgba(21, 28, 43, 0.95) 50%, rgba(30, 41, 59, 0.85) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.7), 0 0 35px rgba(168, 85, 247, 0.18);
+      margin-bottom: 28px;
+    }
+
+    .card-pro-preview::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #f59e0b, #ec4899, #a855f7, #00e5ff);
+    }
+
+    .pro-badge-upcoming {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      color: #fbbf24;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .free-tier-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    /* Featured Hero Card */
+    .card-featured {
+      background: linear-gradient(135deg, rgba(21, 28, 43, 0.9) 0%, rgba(15, 20, 31, 0.95) 100%);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 229, 255, 0.12);
+      margin-bottom: 24px;
+    }
+
+    .card-featured::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #00e5ff, #2563eb, #8b5cf6);
+    }
+
+    .featured-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .featured-info {
+      flex: 1;
+      min-width: 300px;
+    }
+
+    .featured-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(37, 99, 235, 0.2);
+      border: 1px solid rgba(37, 99, 235, 0.4);
+      color: #93c5fd;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .featured-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .featured-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .featured-badges-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .tech-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .featured-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 250px;
+    }
+
+    /* Buttons */
+    .btn-main-download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #00e5ff 0%, #2563eb 100%);
+      color: #06090e;
+      font-size: 15px;
+      font-weight: 800;
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 8px 24px rgba(0, 229, 255, 0.4);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-main-download:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 12px 32px rgba(0, 229, 255, 0.55);
+      color: #000;
+    }
+
+    .btn-ghost-copy {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-ghost-copy:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--cyan-bright);
+    }
+
+    /* Direct Download Platform Cards */
+    .card-platform {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .card-platform:hover {
+      transform: translateY(-4px);
+      border-color: var(--cyan-bright);
+      box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.15);
+      background: var(--bg-card-hover);
+    }
+
+    .platform-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .platform-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .platform-badge-os {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(0, 229, 255, 0.1);
+      color: var(--cyan-bright);
+    }
+
+    .platform-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .platform-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .platform-btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .platform-btn {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .platform-btn:hover {
+      background: var(--cyan-bright);
+      border-color: var(--cyan-bright);
+      color: #06090e;
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.4);
+    }
+
+    .platform-sub-link {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      text-decoration: none;
+      padding: 4px;
+      display: block;
+      transition: color 0.2s;
+    }
+
+    .platform-sub-link:hover {
+      color: var(--cyan-bright);
+      text-decoration: underline;
+    }
+
+    .file-size-tag {
+      font-size: 11px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Video Cards */
+    .card-video {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .card-video:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-4px);
+      box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.7);
+    }
+
+    .video-thumb-container {
+      position: relative;
+      height: 190px;
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .video-thumb-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.35;
+      background-size: cover;
+      background-position: center;
+      filter: blur(2px);
+      transition: transform 0.4s ease;
+    }
+
+    .card-video:hover .video-thumb-bg {
+      transform: scale(1.05);
+    }
+
+    .video-play-btn {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.65);
+      border: 2px solid #fff;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      transition: all 0.25s ease;
+    }
+
+    .card-video:hover .video-play-btn {
+      transform: scale(1.15);
+      background: var(--cyan-bright);
+      border-color: var(--cyan-bright);
+      color: #000;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+    }
+
+    .video-badge-platform {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 3;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(6px);
+    }
+
+    .badge-tiktok {
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      border: 1px solid rgba(255, 0, 79, 0.5);
+    }
+
+    .badge-facebook {
+      background: rgba(24, 119, 242, 0.85);
+      color: #fff;
+    }
+
+    .video-content {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      justify-content: space-between;
+    }
+
+    .video-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .video-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .video-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .video-action-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Multitracks & Password */
+    .stems-container {
+      background: linear-gradient(135deg, rgba(21, 28, 43, 0.9) 0%, rgba(13, 17, 26, 0.95) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .stems-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Interactive Password Box */
+    .password-card {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.04) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .password-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .key-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: var(--amber-accent);
+    }
+
+    .password-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      color: #fbbf24;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 4px 14px;
+      border-radius: 6px;
+      border: 1px dashed rgba(245, 158, 11, 0.4);
+    }
+
+    .btn-copy-pwd {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: var(--amber-accent);
+      color: #0b0e14;
+      font-weight: 700;
+      font-size: 13px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-copy-pwd:hover {
+      background: #fcd34d;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Steps */
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: var(--cyan-bright);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #111827;
+      border: 1px solid var(--cyan-bright);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 40px 0 60px;
+      margin-top: 60px;
+      text-align: center;
+      color: var(--text-faint);
+      font-size: 13px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .footer-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover {
+      color: var(--cyan-bright);
+    }
+
+    @media (max-width: 768px) {
+      .navbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+      }
+      .nav-links {
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .featured-inner {
+        flex-direction: column;
+      }
+      .featured-actions {
+        width: 100%;
+      }
+      .btn-main-download {
+        width: 100%;
+      }
+      .live-counter-showcase {
+        padding: 20px;
+        width: 100%;
+      }
+    }
+
+    /* =========================================================================
+       Community Multitrack Sharing Styles
+       ========================================================================= */
+    .community-stems-box {
+      margin-top: 36px;
+      padding-top: 32px;
+      border-top: 1px dashed var(--border-subtle);
+    }
+
+    .community-stems-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .community-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: var(--cyan-bright);
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      padding: 3px 10px;
+      border-radius: 999px;
+      margin-bottom: 6px;
+    }
+
+    .btn-share-stem {
+      background: linear-gradient(135deg, #00e5ff 0%, #0077ff 100%);
+      color: #040914;
+      border: none;
+      padding: 12px 22px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.3);
+      transition: all 0.2s;
+    }
+
+    .btn-share-stem:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0, 229, 255, 0.45);
+    }
+
+    .community-stems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+
+    .stem-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .stem-card:hover {
+      border-color: rgba(0, 229, 255, 0.35);
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .stem-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .stem-band-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    .stem-song-title {
+      font-size: 13.5px;
+      color: var(--cyan-bright);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .stem-genre-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .stem-meta {
+      font-size: 11.5px;
+      color: var(--text-faint);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Rating Stars */
+    .stem-rating-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .stem-stars {
+      display: flex;
+      gap: 4px;
+    }
+
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #475569;
+      cursor: pointer;
+      transition: transform 0.15s, color 0.15s;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .star-btn.active {
+      color: #f59e0b;
+      filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.4));
+    }
+
+    .star-btn:hover {
+      transform: scale(1.25);
+      color: #fbbf24;
+    }
+
+    .stem-score-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fbbf24;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stem-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-stem-download {
+      flex: 1;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: var(--cyan-bright);
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-stem-download:hover {
+      background: var(--cyan-bright);
+      color: #040914;
+    }
+
+    .btn-stem-report {
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      color: #fb7185;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-stem-report:hover {
+      background: rgba(244, 63, 94, 0.2);
+      border-color: #f43f5e;
+      color: #fff;
+    }
+
+    .btn-stem-report.reported {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: #f43f5e;
+      color: #fca5a5;
+      cursor: default;
+    }
+
+    /* Modal Form */
+    .stem-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 11, 17, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .stem-modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-glow);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 480px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 229, 255, 0.1);
+    }
+
+    .stem-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .btn-close-modal:hover { color: #fff; }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--cyan-bright);
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+    }
+
+    .btn-submit-stem {
+      flex: 1;
+      background: linear-gradient(135deg, #00e5ff 0%, #0077ff 100%);
+      color: #040914;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.3);
+      transition: all 0.2s;
+    }
+    .btn-submit-stem:hover {
+      box-shadow: 0 6px 20px rgba(0, 229, 255, 0.45);
+    }
+
+    .btn-cancel {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      padding: 12px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-cancel:hover {
+      color: #fff;
+      border-color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <!-- Ambient Studio Lighting -->
+  <div class="ambient-bg">
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+    <div class="ambient-grid"></div>
+  </div>
+
+  <div class="container">
+    <!-- Navbar -->
+    <header class="navbar">
+      <a href="/" class="nav-brand">
+        <div class="nav-logo">
+          <picture>
+            <source srcset="assets/app_icon.webp" type="image/webp" />
+            <img src="assets/app_icon.png" alt="Multiplatform Mixer App Icon" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%2300e5ff\'/><text x=\'50\' y=\'65\' font-size=\'45\' font-weight=\'bold\' fill=\'%230b0f19\' text-anchor=\'middle\'>🎚️</text></svg>';" />
+          </picture>
+        </div>
+        <div>
+          <div class="nav-brand-title">Multiplatform Mixer</div>
+          <div class="nav-brand-tag">Mix Practice Studio</div>
+        </div>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#downloads" class="nav-link-btn">📥 ดาวน์โหลดตรง</a>
+        <a href="#tutorials" class="nav-link-btn">🎬 วิดีโอสอน</a>
+        <a href="#multitracks" class="nav-link-btn">🎛️ มัลติแทร็ก</a>
+        <a href="#workflow" class="nav-link-btn">💡 แนะนำการฝึก</a>
+        <a href="/admin" class="nav-link-btn accent">⚙️ หน้า Admin (สถิติ)</a>
+      </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="badge-pill">
+        <span class="badge-dot"></span>
+        <span>ระบบเสียง True In-Engine DSP • Zero-Drift Multitrack • Offline 100%</span>
+      </div>
+
+      <h1 class="hero-title">
+        🎚️ แอปฝึกมิกซ์เสียงเบื้องต้น<br/>
+        <span class="gradient">Multiplatform Mixer</span>
+      </h1>
+
+      <p class="hero-desc">
+        สำหรับคนที่อยากฝึกมิกซ์เสียง สามารถดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตามลิงก์ด้านล่างไปฝึกซ้อมได้ทันทีครับ 😊
+        ฝึกปรับ Balance, EQ, Pan, Compressor, Noise Gate และ Reverb/Delay ระดับสตูดิโอได้อย่างอิสระบนคอมพิวเตอร์และมือถือของคุณ
+      </p>
+
+      <div class="direct-notice">
+        <span>⚡ ดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตรงจากเว็บได้ทันทีทุกระบบปฏิบัติการ</span>
+      </div>
+
+      <!-- Real-time Download KPI Showcase -->
+      <div class="live-counter-showcase">
+        <div class="counter-label">
+          <div class="sound-bars">
+            <span class="sound-bar"></span>
+            <span class="sound-bar"></span>
+            <span class="sound-bar"></span>
+            <span class="sound-bar"></span>
+            <span class="sound-bar"></span>
+          </div>
+          <span>ยอดการดาวน์โหลดทั้งหมด (Live Web Downloads)</span>
+        </div>
+
+        <div class="counter-value-row">
+          <div id="liveTotalCount" class="counter-number">--</div>
+          <div class="counter-unit">ครั้ง</div>
+        </div>
+
+        <div class="counter-sub">
+          <span class="counter-sub-tag">🪟 Windows: <b id="subCountWin">--</b></span>
+          <span class="counter-sub-tag">🍏 macOS: <b id="subCountMac">--</b></span>
+          <span class="counter-sub-tag">🤖 Android: <b id="subCountAndroid">--</b></span>
+          <span class="counter-sub-tag">📱 iOS: <b id="subCountIos">--</b></span>
+          <span class="counter-sub-tag">📦 GitHub / Stems: <b id="subCountOther">--</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 1: Main Direct Downloads -->
+    <section id="downloads">
+      <div class="section-header">
+        <div class="section-tag">📥 1. ลิงก์ดาวน์โหลดแอปฟรี (Free Community Edition)</div>
+        <h2 class="section-title">ดาวน์โหลดตัวแอปพลิเคชัน Multiplatform Mixer</h2>
+        <p class="section-subtitle">คลิกดาวน์โหลดเวอร์ชันฟรีติดตั้งตรงลงเครื่องของคุณได้ทันที หรือเตรียมพบกับเวอร์ชัน Pro ในอนาคต</p>
+      </div>
+
+      <!-- Pro Edition Launch & 14-Day Free Trial Announcement Box -->
+      <div class="card-pro-preview" style="background: linear-gradient(135deg, rgba(20, 24, 33, 0.95), rgba(16, 28, 48, 0.95)); border: 1.5px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0, 229, 255, 0.12);">
+        <div class="featured-inner">
+          <div class="featured-info">
+            <span class="pro-badge-upcoming" style="background: linear-gradient(135deg, #00e5ff, #00e676); color: #0a0e17; font-weight: 800;">🎉 โปรโมชั่นเปิดตัว • รับสิทธิ์ทดลองใช้ PRO 14 วันฟรี!</span>
+            <h3 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+              🚀 ดาวน์โหลดวันนี้ ปลดล็อก Pro Edition 32 แทร็กเต็มฟรีทันที 14 วันแรก!
+            </h3>
+            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+              เปิดโอกาสให้ทุกคนได้ทดลองใช้งานคอนโซลมิกซ์เสียงดิจิทัลเต็มรูปแบบ <strong>32 ช่องสัญญาณ, 8 Virtual FX Rack และฟังก์ชันบันทึกโปรเจกต์ (Save Project) ได้อิสระฟรี 14 วันแรก</strong> เมื่อดาวน์โหลดไปเปิดใช้งานครั้งแรก ระบบจะนับถอยหลังทดลองใช้งานให้อัตโนมัติทันทีโดยไม่ต้องกรอกรหัส!
+              <br><br>
+              เมื่อครบกำหนด 14 วัน ระบบจะปรับเป็น <strong>Free Edition (8 แทร็ก)</strong> ให้ใช้งานต่อได้ฟรีตลอดชีพ หรือสามารถสั่งซื้อ <strong>รหัสต่ออายุ 1 ปี (Prepaid Serial Key)</strong> เพื่อปลดล็อก 32 แทร็กต่อได้ทันที
+            </p>
+            <div class="featured-badges-row" style="margin-bottom: 0;">
+              <span class="tech-pill" style="border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 700;">🎁 Auto Trial: ฟรี 14 วันเต็ม</span>
+              <span class="tech-pill" style="border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">🟢 Free Edition: ใช้งานต่อฟรี 8 แทร็ก</span>
+              <span class="tech-pill" style="border-color: rgba(255, 215, 0, 0.5); color: #ffd700;">👑 Pro Annual: รหัสต่ออายุ 365 วัน</span>
+              <span class="tech-pill">🚫 ไม่มีโฆษณาในตัวโปรแกรม</span>
+              <span class="tech-pill">🌐 ออฟไลน์ 100% ไม่ต้องล็อกอิน</span>
+            </div>
+          </div>
+
+          <div class="featured-actions">
+            <a 
+              href="https://s.shopee.co.th/80DYoxalGQ" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn-main-download"
+              style="background: linear-gradient(135deg, #e65100 0%, #ff9800 100%); color: #fff; font-weight: 700; margin-bottom: 8px; box-shadow: 0 4px 15px rgba(230, 81, 0, 0.4);"
+            >
+              <span>🛒 สั่งซื้อรหัสต่ออายุ Pro 1 ปี (Shopee)</span>
+              <span style="font-size: 18px;">↗</span>
+            </a>
+            <a 
+              href="https://www.facebook.com/premsak.sed" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn-main-download"
+              style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0; font-size: 13px;"
+            >
+              <span>💬 สั่งซื้อผ่าน Facebook ผู้พัฒนา</span>
+              <span style="font-size: 14px;">↗</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multiplatform Direct Download Options Grid -->
+      <div class="grid-4" style="margin-bottom: 24px;">
+        <!-- Windows Direct Download -->
+        <div class="card-platform">
+          <div>
+            <div class="platform-top">
+              <div class="platform-icon">🪟</div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">Windows 64-bit</span>
+                <span class="free-tier-badge" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">ทดลองฟรี 14 วัน</span>
+              </div>
+            </div>
+            <h4 class="platform-name">Windows PC</h4>
+            <p class="platform-meta">Windows 10 / 11 (ดาวน์โหลดได้ไฟล์ .zip / .exe ไปเปิดใช้ได้เลย)</p>
+          </div>
+          <div class="platform-btn-group">
+            <a 
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip" 
+              class="platform-btn track-download" 
+              data-platform="windows" 
+              data-file="MixPracticeStudio-Windows-x64.zip"
+            >
+              <span>ดาวน์โหลดฟรี .zip ทันที</span>
+              <span class="file-size-tag">3.3 MB</span>
+            </a>
+            <a 
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.exe" 
+              class="platform-sub-link track-download" 
+              data-platform="windows" 
+              data-file="MixPracticeStudio.exe"
+            >
+              หรือดาวน์โหลดไฟล์ตรง .exe (7.2 MB) ↓
+            </a>
+          </div>
+        </div>
+
+        <!-- macOS Direct Download -->
+        <div class="card-platform">
+          <div>
+            <div class="platform-top">
+              <div class="platform-icon">🍏</div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">macOS</span>
+                <span class="free-tier-badge" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">ทดลองฟรี 14 วัน</span>
+              </div>
+            </div>
+            <h4 class="platform-name">Apple Mac</h4>
+            <p class="platform-meta">Apple Silicon (M1/M2/M3) และ Intel (ดาวน์โหลด .zip เปิดใช้ได้ทันที)</p>
+          </div>
+          <div class="platform-btn-group">
+            <a 
+              href="/downloads/MixPracticeStudio-macOS.zip" 
+              class="platform-btn track-download" 
+              data-platform="macos" 
+              data-file="MixPracticeStudio-macOS.zip"
+              style="background: linear-gradient(135deg, #00bcd4 0%, #00e676 100%); color: #000; font-weight: 700;"
+            >
+              <span>ดาวน์โหลดฟรี .zip (ตัวล่าสุด)</span>
+              <span class="file-size-tag">4.3 MB</span>
+            </a>
+            <a 
+              href="https://github.com/premtodev08710/multiplatform_mixer/releases/latest" 
+              target="_blank"
+              rel="noopener noreferrer"
+              class="platform-sub-link track-download" 
+              data-platform="macos" 
+              data-file="MixPracticeStudio-macOS.pkg"
+            >
+              หรือดาวน์โหลดจาก GitHub Releases ↗
+            </a>
+          </div>
+        </div>
+
+        <!-- Android Direct Download -->
+        <div class="card-platform">
+          <div>
+            <div class="platform-top">
+              <div class="platform-icon">🤖</div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">Android APK</span>
+                <span class="free-tier-badge">ฟรี</span>
+              </div>
+            </div>
+            <h4 class="platform-name">Android มือถือ/แท็บเล็ต</h4>
+            <p class="platform-meta">Android 8.0+ (คลิกแล้วได้ไฟล์ .apk ไปแตะติดตั้งได้ทันที)</p>
+          </div>
+          <div class="platform-btn-group">
+            <a 
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.apk" 
+              class="platform-btn track-download" 
+              data-platform="android" 
+              data-file="MixPracticeStudio.apk"
+            >
+              <span>ดาวน์โหลดฟรี .apk ทันที</span>
+              <span class="file-size-tag">35 MB</span>
+            </a>
+            <a 
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Android-APK.zip" 
+              class="platform-sub-link track-download" 
+              data-platform="android" 
+              data-file="MixPracticeStudio-Android-APK.zip"
+            >
+              หรือดาวน์โหลดเป็นไฟล์ .zip (33 MB) ↓
+            </a>
+          </div>
+        </div>
+
+        <!-- iOS Direct Download (IPA) -->
+        <div class="card-platform">
+          <div>
+            <div class="platform-top">
+              <div class="platform-icon">📱</div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span class="platform-badge-os">iOS (IPA)</span>
+                <span class="free-tier-badge">ฟรี</span>
+              </div>
+            </div>
+            <h4 class="platform-name">iPhone / iPad</h4>
+            <p class="platform-meta">ไฟล์ .ipa ตรงสำหรับนำไป Sideload / AltStore / TrollStore</p>
+          </div>
+          <div class="platform-btn-group">
+            <a 
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.ipa" 
+              class="platform-btn track-download" 
+              data-platform="ios" 
+              data-file="MixPracticeStudio.ipa"
+            >
+              <span>ดาวน์โหลดฟรี .ipa ทันที</span>
+              <span class="file-size-tag">4.4 MB</span>
+            </a>
+            <a 
+              href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-iOS-IPA.zip" 
+              class="platform-sub-link track-download" 
+              data-platform="ios" 
+              data-file="MixPracticeStudio-iOS-IPA.zip"
+            >
+              หรือดาวน์โหลดเป็นไฟล์ .zip (4.4 MB) ↓
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured Card: Official GitHub Repository -->
+      <div class="card-featured">
+        <div class="featured-inner">
+          <div class="featured-info">
+            <span class="featured-badge">⭐ Official Source Repository</span>
+            <h3 class="featured-title">Multiplatform Mixer (GitHub Repository)</h3>
+            <p class="featured-desc">
+              คลังซอร์สโค้ดทางการของแอปพลิเคชัน Multiplatform Mixer รองรับการ Clone และร่วมพัฒนาด้วย C++17 และ JUCE 8
+            </p>
+            <div class="featured-badges-row">
+              <span class="tech-pill">C++17 Engine</span>
+              <span class="tech-pill">JUCE 8 Framework</span>
+              <span class="tech-pill">Free & Open Source</span>
+              <span class="tech-pill">Cross-Platform</span>
+            </div>
+            <div style="font-size: 13px; color: var(--cyan-bright); word-break: break-all; margin-bottom: 8px;">
+              🔗 <code>https://github.com/premtodev08710/multiplatform-mixer.git</code>
+            </div>
+          </div>
+
+          <div class="featured-actions">
+            <a 
+              href="https://github.com/premtodev08710/multiplatform-mixer.git" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn-main-download track-download" 
+              data-platform="github" 
+              data-file="multiplatform-mixer.git"
+            >
+              <span>📥 ไปที่คลัง GitHub Repo</span>
+              <span style="font-size: 18px;">↗</span>
+            </a>
+
+            <button class="btn-ghost-copy" onclick="copyGitClone(this)">
+              <span>📋 git clone repo url</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2 & 3: Video Tutorials -->
+    <section id="tutorials">
+      <div class="section-header">
+        <div class="section-tag">🎬 2. & 📱 3. คลิปสอนใช้งานและสอนติดตั้ง</div>
+        <h2 class="section-title">วิดีโอแนะนำและคู่มือทีละขั้นตอน</h2>
+        <p class="section-subtitle">แนะนำให้ดูคลิปสอนติดตั้งก่อนเริ่มใช้งาน เพื่อความสะดวกและรวดเร็ว</p>
+      </div>
+
+      <div class="grid-2">
+        <!-- Video 1: Basic Usage (TikTok) -->
+        <div class="card-video">
+          <div class="video-thumb-container">
+            <div class="video-thumb-bg" style="background-image: url('assets/effects_group5to8_1024x642.webp');"></div>
+            <span class="video-badge-platform badge-tiktok">
+              <span>🎵</span> TikTok @pjchannel20
+            </span>
+            <a 
+              href="https://www.tiktok.com/@pjchannel20/video/7696916001958513928" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="video-play-btn"
+              title="เปิดดูคลิปบน TikTok"
+            >
+              ▶
+            </a>
+          </div>
+          <div class="video-content">
+            <div>
+              <h3 class="video-title">🎬 คลิปสอนใช้งานแอปเบื้องต้น</h3>
+              <p class="video-desc">
+                เรียนรู้วิธีเปิดไฟล์มัลติแทร็ก การปรับระดับเสียง Volume, การปรับ EQ 4-Band, การปรับ Pan สเตอริโอ, และการใช้ Solo/Mute เพื่อฝึกมิกซ์เสียง
+              </p>
+            </div>
+            <a 
+              href="https://www.tiktok.com/@pjchannel20/video/7696916001958513928" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="video-action-btn"
+            >
+              <span>ชมคลิปสอนใช้งานบน TikTok</span>
+              <span>↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Video 2: Installation Guide (Facebook) -->
+        <div class="card-video">
+          <div class="video-thumb-container">
+            <div class="video-thumb-bg" style="background-image: url('assets/effects_lexicon_larc_1024x642.webp');"></div>
+            <span class="video-badge-platform badge-facebook">
+              <span>📹</span> Facebook Video
+            </span>
+            <a 
+              href="https://www.facebook.com/share/v/1C7qxb6cM1/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="video-play-btn"
+              title="เปิดดูคลิปบน Facebook"
+            >
+              ▶
+            </a>
+          </div>
+          <div class="video-content">
+            <div>
+              <h3 class="video-title">📱 คลิปสอนติดตั้งแอปพลิเคชัน</h3>
+              <p class="video-desc">
+                ขั้นตอนการติดตั้งแอปพลิเคชันอย่างละเอียด การแตกไฟล์ไฟล์ประกอบ และการตั้งค่าเบื้องต้นให้พร้อมใช้งาน
+              </p>
+            </div>
+            <a 
+              href="https://www.facebook.com/share/v/1C7qxb6cM1/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="video-action-btn"
+            >
+              <span>ชมคลิปสอนติดตั้งบน Facebook</span>
+              <span>↗</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4 & 5: Multitrack Files & Password -->
+    <section id="multitracks">
+      <div class="section-header">
+        <div class="section-tag">🎛️ 4. & 📂 5. แหล่งไฟล์สำหรับฝึกมิกซ์</div>
+        <h2 class="section-title">ไฟล์มัลติแทร็ก (Multitrack Stems) & ไฟล์ประกอบ</h2>
+        <p class="section-subtitle">ดาวน์โหลดชุดไฟล์เสียงแยกแทร็ก (กลอง, เบส, กีตาร์, ร้อง) พร้อมฝึกปรับแต่งได้จริง</p>
+      </div>
+
+      <div class="stems-container">
+        <div class="stems-header">
+          <div>
+            <h3 style="font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 6px;">
+              🎛️ โฟลเดอร์มัลติแทร็กสำหรับฝึกมิกซ์เสียง (Google Drive)
+            </h3>
+            <p style="font-size: 14px; color: var(--text-muted);">
+              รวมแทร็กแยกชิ้นดนตรีแบบคมชัด นำเข้าแอปพลิเคชันแล้วกด Play เพื่อเริ่มมิกซ์ได้ทันที
+            </p>
+          </div>
+          <a 
+            href="https://drive.google.com/drive/folders/1gLPhdASEDGX6AFC2y8TQJn7jq5QJJwGi" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            class="btn-main-download track-download" 
+            data-platform="stems" 
+            data-file="GoogleDrive-Multitrack-Folder"
+          >
+            <span>📂 เปิดโฟลเดอร์ Google Drive</span>
+            <span>↗</span>
+          </a>
+        </div>
+
+        <!-- Supporting Files 1 & 2 -->
+        <h4 style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 12px;">
+          📂 ไฟล์ประกอบการใช้งาน (Supporting Files)
+        </h4>
+        <div class="grid-2">
+          <div class="card-platform" style="padding: 18px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">📁</span>
+              <div>
+                <strong style="color: #fff; font-size: 14px;">ไฟล์ประกอบการใช้งาน (ชุดที่ 1)</strong>
+                <div style="font-size: 12px; color: var(--text-muted);">Google Drive File</div>
+              </div>
+            </div>
+            <a 
+              href="https://drive.google.com/file/d/1m-5QbKUnbqG3bCkIEN5ozAJusou8EVvm/view" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="platform-btn track-download" 
+              data-platform="supporting" 
+              data-file="File-1m-5QbKUnbqG3bCkIEN5ozAJusou8EVvm"
+            >
+              <span>ดาวน์โหลดไฟล์ชุดที่ 1</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="card-platform" style="padding: 18px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">📁</span>
+              <div>
+                <strong style="color: #fff; font-size: 14px;">ไฟล์ประกอบการใช้งาน (ชุดที่ 2)</strong>
+                <div style="font-size: 12px; color: var(--text-muted);">Google Drive File</div>
+              </div>
+            </div>
+            <a 
+              href="https://drive.google.com/file/d/1bxyADvNTMkAEqJG2ccOuGvUZNFxrTCav/view" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="platform-btn track-download" 
+              data-platform="supporting" 
+              data-file="File-1bxyADvNTMkAEqJG2ccOuGvUZNFxrTCav"
+            >
+              <span>ดาวน์โหลดไฟล์ชุดที่ 2</span>
+              <span>↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Password Banner (Key: 123456789) -->
+        <div class="password-card">
+          <div class="password-info">
+            <div class="key-icon-box">🔑</div>
+            <div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--amber-accent); text-transform: uppercase; letter-spacing: 0.05em;">
+                รหัสผ่านสำหรับแตกไฟล์ / เข้าใช้งาน (Password)
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+                <span id="passwordText" class="password-code">123456789</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-copy-pwd" onclick="copyPassword()">
+            <span id="copyPwdIcon">📋</span>
+            <span id="copyPwdText">คัดลอกรหัสผ่าน</span>
+          </button>
+        </div>
+
+        <!-- Community Multitracks Sharing -->
+        <div class="community-stems-box">
+          <div class="community-stems-header">
+            <div>
+              <div class="community-pill">🌐 COMMUNITY MULTITRACKS</div>
+              <h3 style="font-size: 20px; font-weight: 800; color: #fff; margin: 4px 0;">
+                คลังมัลติแทร็กจากผู้ใช้งาน & พื้นที่แบ่งปันเพลง
+              </h3>
+              <p style="font-size: 13.5px; color: var(--text-muted);">
+                ร่วมแบ่งปันเพลงโปรดของคุณ หรือดาวน์โหลดไฟล์มัลติแทร็กที่เพื่อนๆ นำมาแชร์เพื่อนำไปฝึกมิกซ์เสียง
+              </p>
+            </div>
+            <button class="btn-share-stem" onclick="openShareStemModal()">
+              <span>➕ แปะลิงก์แบ่งปันเพลงของคุณ</span>
+            </button>
+          </div>
+
+          <!-- Stems Grid -->
+          <div id="communityStemsGrid" class="community-stems-grid">
+            <div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted);">
+              กำลังโหลดรายการมัลติแทร็กจากชุมชน...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal: Share Community Multitrack -->
+    <div id="shareStemModal" class="stem-modal-overlay" style="display: none;">
+      <div class="stem-modal-card">
+        <div class="stem-modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">🎛️</span>
+            <div>
+              <h3 style="font-size: 17px; font-weight: 800; color: #fff;">แบ่งปันลิงก์มัลติแทร็ก (Share Stems)</h3>
+              <p style="font-size: 12px; color: var(--text-muted);">แชร์ไฟล์เสียงให้เพื่อนๆ สมาชิกนำไปฝึกซ้อมมิกซ์</p>
+            </div>
+          </div>
+          <button class="btn-close-modal" onclick="closeShareStemModal()">✕</button>
+        </div>
+
+        <form id="shareStemForm" onsubmit="return handleShareStemSubmit(event)">
+          <div class="form-group">
+            <label>ชื่อวง / ศิลปิน (Band / Artist Name) <span style="color:#f43f5e;">*</span></label>
+            <input type="text" id="stemBand" placeholder="เช่น Bodyslam, Three Man Down, วงดนตรี..." required />
+          </div>
+
+          <div class="form-group">
+            <label>ชื่อเพลง (Song Title) <span style="color:#f43f5e;">*</span></label>
+            <input type="text" id="stemSong" placeholder="เช่น แสงสุดท้าย, ถ้าเธอรักฉันจริง..." required />
+          </div>
+
+          <div class="form-group">
+            <label>แนวเพลง (Genre)</label>
+            <select id="stemGenre">
+              <option value="Rock">🎸 Rock / Metal</option>
+              <option value="Pop">🎹 Pop / R&B</option>
+              <option value="Indie">🎧 Indie / Alternative</option>
+              <option value="Acoustic">🪕 Acoustic / Folk</option>
+              <option value="Country">🎤 ลูกทุ่ง / หมอลำ / เพื่อชีวิต</option>
+              <option value="Electronic">🎚️ Electronic / Dance</option>
+              <option value="Other">🎶 อื่นๆ (Other)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>ลิงก์ดาวน์โหลดไฟล์ (Download URL) <span style="color:#f43f5e;">*</span></label>
+            <input type="url" id="stemUrl" placeholder="https://drive.google.com/... หรือ Dropbox / Mega" required />
+            <div style="font-size: 11px; color: var(--text-faint); margin-top: 4px;">
+              * รองรับลิงก์ Google Drive, Dropbox, Mega, OneDrive หรือ Cloud Storage ทุกค่าย
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>ชื่อผู้แชร์ / เครดิต (Shared by)</label>
+            <input type="text" id="stemUploader" placeholder="เช่น ครูเอ็ม, ปอนด์ ซาวด์แมน (ใส่หรือไม่ใส่ก็ได้)" />
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="button" class="btn-cancel" onclick="closeShareStemModal()">ยกเลิก</button>
+            <button type="submit" class="btn-submit-stem" id="btnSubmitStem">
+              <span>🚀 โพสต์แบ่งปันไฟล์</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Section 6: Workflow & Tips -->
+    <section id="workflow">
+      <div class="section-header">
+        <div class="section-tag">💡 คำแนะนำในการเริ่มต้น</div>
+        <h2 class="section-title">ขั้นตอนการฝึกมิกซ์เสียงทีละสเต็ป</h2>
+        <p class="section-subtitle">
+          💡 แนะนำให้ดูคลิปสอนติดตั้งก่อน จากนั้นลองเปิดไฟล์มัลติแทร็กเพื่อฝึกปรับระดับเสียง (Volume), EQ, Pan และเอฟเฟกต์ต่าง ๆ ได้เลยครับ ขอให้สนุกกับการฝึกมิกซ์เสียงครับ 🎶🎚️
+        </p>
+      </div>
+
+      <div class="workflow-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <h4 class="step-title">ดูคลิปสอนติดตั้ง 📱</h4>
+          <p class="step-desc">
+            คลิกดูคลิปสอนติดตั้งบน Facebook ให้เข้าใจขั้นตอนการนำไฟล์เข้าและเตรียมระบบ
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <h4 class="step-title">ติดตั้งตัวแอป 📥</h4>
+          <p class="step-desc">
+            คลิกดาวน์โหลดไฟล์ติดตั้งตรง Windows (.exe), Mac (.pkg) หรือ Android (.apk) ลงเครื่อง
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <h4 class="step-title">โหลดมัลติแทร็ก 🎛️</h4>
+          <p class="step-desc">
+            โหลดโฟลเดอร์จาก Google Drive แล้วแตกไฟล์โดยใช้รหัสผ่าน <code style="color:#fbbf24;">123456789</code>
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">04</div>
+          <h4 class="step-title">เริ่มฝึกมิกซ์เสียง 🎶</h4>
+          <p class="step-desc">
+            นำเข้าแทร็ก ปรับ Balance ระดับเสียง (Fader), Pan ซ้ายขวา, EQ ปรับย่านความถี่ และใส่ Compressor/FX
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shopee Sponsor Banner on Web -->
+    <div style="background: linear-gradient(135deg, rgba(238, 77, 45, 0.12) 0%, rgba(255, 87, 34, 0.05) 100%); border: 1px solid rgba(238, 77, 45, 0.35); border-radius: var(--radius-md); padding: 20px 24px; margin: 30px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(238, 77, 45, 0.2); border: 1px solid rgba(238, 77, 45, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px;">🛒</div>
+        <div>
+          <div style="font-size: 15px; font-weight: 700; color: #fff;">อุปกรณ์บันทึกเสียงและมิกเซอร์ราคาพิเศษบน Shopee</div>
+          <div style="font-size: 13px; color: var(--text-muted);">สนับสนุนผู้พัฒนาแอป Mix Practice Studio ผ่าน Shopee Official Sponsor</div>
+        </div>
+      </div>
+      <a href="https://s.shopee.co.th/80DYoxalGQ" target="_blank" rel="noopener noreferrer" class="btn track-shopee-web" style="background: #ee4d2d; color: #fff; border: none; font-weight: 700; padding: 10px 20px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+        <span>เลือกดูสินค้าบน Shopee ↗</span>
+      </a>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-links">
+        <a href="https://github.com/premtodev08710/multiplatform-mixer.git" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub Repository</a>
+        <a href="https://www.tiktok.com/@pjchannel20/video/7696916001958513928" target="_blank" rel="noopener noreferrer" class="footer-link">TikTok (@pjchannel20)</a>
+        <a href="https://www.facebook.com/share/v/1C7qxb6cM1/" target="_blank" rel="noopener noreferrer" class="footer-link">Facebook Tutorial</a>
+        <a href="/admin" class="footer-link" style="color: var(--cyan-bright); font-weight: 700;">⚙️ เข้าสู่ระบบ Admin Dashboard</a>
+      </div>
+      <div>
+        Multiplatform Mixer (Mix Practice Studio) • สำหรับการเรียนรู้และฝึกมิกซ์เสียงมัลติแทร็ก
+      </div>
+    </footer>
+  </div>
+
+  <!-- Firebase & Real-time Counting Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { 
+      getFirestore, 
+      doc, 
+      setDoc, 
+      increment, 
+      onSnapshot, 
+      collection, 
+      addDoc,
+      getDocs,
+      query,
+      limit
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    // Firebase Project Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrnDzAK1WLPgdKRUq__zYpHpag6vOFUQ8",
+      authDomain: "pad-mix.firebaseapp.com",
+      projectId: "pad-mix",
+      storageBucket: "pad-mix.firebasestorage.app",
+      messagingSenderId: "804078476904",
+      appId: "1:804078476904:web:f737995ae30b266585a5dd",
+      measurementId: "G-TVQKWH0FVN"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // UI Elements
+    const liveTotalCount = document.getElementById('liveTotalCount');
+    const subCountWin = document.getElementById('subCountWin');
+    const subCountMac = document.getElementById('subCountMac');
+    const subCountAndroid = document.getElementById('subCountAndroid');
+    const subCountIos = document.getElementById('subCountIos');
+    const subCountOther = document.getElementById('subCountOther');
+
+    let currentTotal = 0;
+
+    // Toast notification function
+    window.showToast = function(msg, icon = '🎉') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span style="font-size:20px;">${icon}</span> <span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.add('show'), 20);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 350);
+      }, 4000);
+    };
+
+    // Animated number counter
+    function animateValue(elem, start, end, duration = 800) {
+      if (!elem) return;
+      if (start === end) {
+        elem.textContent = Number(end).toLocaleString();
+        return;
+      }
+      const range = end - start;
+      const startTime = performance.now();
+      function step(currentTime) {
+        const progress = Math.min((currentTime - startTime) / duration, 1);
+        const current = Math.floor(progress * range + start);
+        elem.textContent = current.toLocaleString();
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          elem.textContent = Number(end).toLocaleString();
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Subscribe to Firestore downloads_stats/summary in real time
+    const statsDocRef = doc(db, 'downloads_stats', 'summary');
+
+    onSnapshot(statsDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const total = Number(data.totalDownloads) || 0;
+        const prev = currentTotal;
+        currentTotal = total;
+        animateValue(liveTotalCount, prev, total);
+
+        subCountWin.textContent = (Number(data.platform_windows) || 0).toLocaleString();
+        subCountMac.textContent = (Number(data.platform_macos) || 0).toLocaleString();
+        subCountAndroid.textContent = (Number(data.platform_android) || 0).toLocaleString();
+        subCountIos.textContent = (Number(data.platform_ios) || 0).toLocaleString();
+        const otherCount = (Number(data.platform_github) || 0) + (Number(data.platform_stems) || 0) + (Number(data.platform_supporting) || 0);
+        subCountOther.textContent = otherCount.toLocaleString();
+      } else {
+        liveTotalCount.textContent = '0';
+        subCountWin.textContent = '0';
+        subCountMac.textContent = '0';
+        subCountAndroid.textContent = '0';
+        subCountIos.textContent = '0';
+        subCountOther.textContent = '0';
+      }
+    }, (err) => {
+      console.warn("Firestore downloads_stats subscription notice:", err);
+      if (liveTotalCount.textContent === '--') {
+        const localCached = Number(localStorage.getItem('mps_local_downloads') || 0);
+        liveTotalCount.textContent = localCached > 0 ? localCached.toLocaleString() : '1';
+      }
+    });
+
+    // Record Download Event to Firestore
+    async function recordDownload(platform, fileName, targetUrl) {
+      const prev = currentTotal;
+      currentTotal += 1;
+      animateValue(liveTotalCount, prev, currentTotal, 400);
+
+      // Trigger Confetti Celebration
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 60,
+          spread: 70,
+          origin: { y: 0.8 },
+          colors: ['#00e5ff', '#2563eb', '#10b981', '#fbbf24']
+        });
+      }
+
+      window.showToast(`กำลังเริ่มดาวน์โหลด (${fileName || platform}) ขอบคุณสำหรับการฝึกมิกซ์เสียงครับ!`);
+
+      try {
+        const fieldKey = `platform_${platform || 'other'}`;
+        await setDoc(statsDocRef, {
+          totalDownloads: increment(1),
+          [fieldKey]: increment(1),
+          lastDownloadTime: new Date().toISOString()
+        }, { merge: true });
+
+        await addDoc(collection(db, 'download_events'), {
+          platform: platform || 'unknown',
+          fileName: fileName || 'file',
+          targetUrl: targetUrl || '',
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent || '',
+          language: navigator.language || '',
+          screen: `${window.innerWidth}x${window.innerHeight}`
+        });
+      } catch (err) {
+        console.warn("Could not save download to Firestore:", err);
+        localStorage.setItem('mps_local_downloads', currentTotal);
+      }
+    }
+
+    // Attach tracking to all download buttons
+    document.querySelectorAll('.track-download').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const platform = el.getAttribute('data-platform') || 'web';
+        const file = el.getAttribute('data-file') || 'download';
+        const url = el.getAttribute('href') || '';
+        recordDownload(platform, file, url);
+      });
+    });
+
+    // Copy Password function
+    window.copyPassword = function() {
+      const pwd = document.getElementById('passwordText').textContent.trim();
+      navigator.clipboard.writeText(pwd).then(() => {
+        const btnText = document.getElementById('copyPwdText');
+        const btnIcon = document.getElementById('copyPwdIcon');
+        const origText = btnText.textContent;
+        btnText.textContent = 'คัดลอกรหัสแล้ว!';
+        btnIcon.textContent = '✅';
+        window.showToast('คัดลอกรหัสผ่าน: 123456789 เรียบร้อยแล้ว', '🔑');
+        setTimeout(() => {
+          btnText.textContent = origText;
+          btnIcon.textContent = '📋';
+        }, 2500);
+      }).catch(() => {
+        window.showToast('รหัสผ่านคือ: 123456789', '🔑');
+      });
+    };
+
+    // Copy Git Clone command
+    window.copyGitClone = function(btn) {
+      const cmd = "git clone https://github.com/premtodev08710/multiplatform-mixer.git";
+      navigator.clipboard.writeText(cmd).then(() => {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "<span>✅ คัดลอกคำสั่งแล้ว!</span>";
+        window.showToast("คัดลอกคำสั่ง git clone เรียบร้อยแล้ว", "📋");
+        recordDownload('github', 'git clone command', 'https://github.com/premtodev08710/multiplatform-mixer.git');
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+        }, 2500);
+      });
+    };
+
+    // Track Shopee Web Banner Click
+    document.querySelectorAll('.track-shopee-web').forEach(el => {
+      el.addEventListener('click', async () => {
+        try {
+          await addDoc(collection(db, 'shopee_clicks'), {
+            platform: 'Web',
+            osName: navigator.userAgent || 'Web Browser',
+            deviceModel: 'Website Visitor',
+            appVersion: '1.0.1',
+            targetUrl: el.getAttribute('href') || 'https://s.shopee.co.th/80DYoxalGQ',
+            timestamp: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn('Shopee click log error:', e);
+        }
+      });
+    });
+
+    // =========================================================================
+    // Community Multitracks Logic
+    // =========================================================================
+    const shareStemModal = document.getElementById('shareStemModal');
+    const shareStemForm = document.getElementById('shareStemForm');
+    const communityStemsGrid = document.getElementById('communityStemsGrid');
+    const btnSubmitStem = document.getElementById('btnSubmitStem');
+
+    window.openShareStemModal = function() {
+      if (shareStemModal) {
+        shareStemModal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+    };
+
+    window.closeShareStemModal = function() {
+      if (shareStemModal) {
+        shareStemModal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    };
+
+    // Close on clicking backdrop
+    if (shareStemModal) {
+      shareStemModal.addEventListener('click', (e) => {
+        if (e.target === shareStemModal) {
+          window.closeShareStemModal();
+        }
+      });
+    }
+
+    // Submit new multitrack stem
+    window.handleShareStemSubmit = async function(e) {
+      if (e) e.preventDefault();
+      const band = (document.getElementById('stemBand')?.value || '').trim();
+      const song = (document.getElementById('stemSong')?.value || '').trim();
+      const genre = document.getElementById('stemGenre')?.value || 'Rock';
+      const url = (document.getElementById('stemUrl')?.value || '').trim();
+      const uploader = (document.getElementById('stemUploader')?.value || '').trim() || 'สมาชิกใจดี';
+
+      if (!band || !song || !url) {
+        window.showToast('กรุณากรอกชื่อวง, ชื่อเพลง และลิงก์ดาวน์โหลดให้ครบถ้วนครับ', '⚠️');
+        return false;
+      }
+
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        window.showToast('กรุณาใส่ลิงก์ที่ขึ้นต้นด้วย http:// หรือ https://', '⚠️');
+        return false;
+      }
+
+      if (btnSubmitStem) {
+        btnSubmitStem.disabled = true;
+        btnSubmitStem.innerHTML = '<span>⏳ กำลังบันทึก...</span>';
+      }
+
+      try {
+        await addDoc(collection(db, 'community_stems'), {
+          bandName: band,
+          songTitle: song,
+          genre: genre,
+          downloadUrl: url,
+          sharedBy: uploader,
+          ratingSum: 5,
+          ratingCount: 1,
+          averageRating: 5.0,
+          reportCount: 0,
+          status: 'active',
+          createdAt: new Date().toISOString()
+        });
+
+        if (shareStemForm) shareStemForm.reset();
+        window.closeShareStemModal();
+        window.showToast(`แชร์เพลง "${song}" ของวง ${band} สำเร็จ! ขอบคุณที่ร่วมแบ่งปันครับ`, '🎶');
+        loadCommunityStems(true);
+      } catch (err) {
+        console.error('Error sharing stem:', err);
+        window.showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, '❌');
+      } finally {
+        if (btnSubmitStem) {
+          btnSubmitStem.disabled = false;
+          btnSubmitStem.innerHTML = '<span>🚀 โพสต์แบ่งปันไฟล์</span>';
+        }
+      }
+      return false;
+    };
+
+    // Helper: format relative time
+    function formatCommunityTime(isoStr) {
+      if (!isoStr) return 'เมื่อสักครู่';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return 'เมื่อสักครู่';
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'เมื่อสักครู่';
+      if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr} ชม. ที่แล้ว`;
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay < 30) return `${diffDay} วันที่แล้ว`;
+      return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+    }
+
+    // Helper: escape HTML
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // =========================================================================
+    // Community Multitracks Logic (Optimized: Cached in sessionStorage + Limit)
+    // =========================================================================
+    const STEMS_CACHE_KEY = 'mps_stems_cache_v1';
+    const STEMS_CACHE_TIME_KEY = 'mps_stems_cache_time_v1';
+    const STEMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+    let inMemoryStems = [];
+
+    function updateLocalStemRating(stemId, starValue) {
+      const stem = inMemoryStems.find(s => s.id === stemId);
+      if (stem) {
+        stem.ratingCount = (Number(stem.ratingCount) || 0) + 1;
+        stem.ratingSum = (Number(stem.ratingSum) || ((stem.ratingCount - 1) * 5)) + starValue;
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        renderCommunityStems(inMemoryStems);
+      }
+    }
+
+    function updateLocalStemReport(stemId) {
+      const stem = inMemoryStems.find(s => s.id === stemId);
+      if (stem) {
+        stem.reportCount = (Number(stem.reportCount) || 0) + 1;
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        renderCommunityStems(inMemoryStems);
+      }
+    }
+
+    // Rate stem
+    window.rateStem = async function(stemId, starValue) {
+      const ratedKey = 'mps_rated_' + stemId;
+      if (localStorage.getItem(ratedKey)) {
+        window.showToast(`คุณได้ให้คะแนนเพลงนี้ไปแล้ว (${localStorage.getItem(ratedKey)} ดาว) ขอบคุณครับ!`, '⭐');
+        return;
+      }
+
+      updateLocalStemRating(stemId, starValue);
+      localStorage.setItem(ratedKey, starValue);
+      window.showToast(`ให้คะแนนเพลงนี้ ${starValue} ดาวเรียบร้อยแล้ว ⭐ ขอบคุณครับ!`, '⭐');
+
+      try {
+        await setDoc(doc(db, 'community_stems', stemId), {
+          ratingSum: increment(starValue),
+          ratingCount: increment(1)
+        }, { merge: true });
+      } catch (err) {
+        console.error('Rating error:', err);
+      }
+    };
+
+    // Report broken link
+    window.reportStem = async function(stemId, bandName) {
+      const reportKey = 'mps_reported_' + stemId;
+      if (localStorage.getItem(reportKey)) {
+        window.showToast('คุณได้แจ้งรายงานลิงก์นี้ไปแล้ว แอดมินกำลังตรวจสอบครับ', '⏳');
+        return;
+      }
+
+      const confirmMsg = `ต้องการแจ้งรายงานว่าลิงก์ดาวน์โหลดของวง "${bandName}" ใช้งานไม่ได้ หรือเปิดไม่ได้ใช่หรือไม่?\n\nแอดมินจะได้รับแจ้งและดำเนินการตรวจสอบหรือลบลิงก์ออก`;
+      if (!confirm(confirmMsg)) return;
+
+      localStorage.setItem(reportKey, 'true');
+      updateLocalStemReport(stemId);
+      window.showToast('ส่งรายงานแจ้งลิงก์เสียให้แอดมินเรียบร้อยแล้ว ขอบคุณครับ!', '🚨');
+
+      try {
+        await setDoc(doc(db, 'community_stems', stemId), {
+          reportCount: increment(1),
+          lastReportedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.error('Report error:', err);
+      }
+    };
+
+    function renderCommunityStems(stems) {
+      if (!communityStemsGrid) return;
+
+      if (!stems || stems.length === 0) {
+        communityStemsGrid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);">
+            <div style="font-size: 38px; margin-bottom: 10px;">🎸</div>
+            <div style="font-size: 16px; font-weight: 700; color: #fff;">ยังไม่มีผู้แชร์มัลติแทร็ก</div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px; margin-bottom: 16px;">
+              ร่วมเป็นคนแรกที่แบ่งปันไฟล์เพลงมัลติแทร็กให้เพื่อนๆ สมาชิกฝึกมิกซ์เสียง
+            </p>
+            <button type="button" class="btn-share-stem" onclick="openShareStemModal()" style="font-size: 13px; padding: 8px 18px;">
+              <span>➕ แปะลิงก์แบ่งปันเพลงแรกเลย</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      // Sort newest first
+      stems.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+      communityStemsGrid.innerHTML = stems.map(stem => {
+        const ratingCount = Number(stem.ratingCount) || 0;
+        const ratingSum = Number(stem.ratingSum) || (ratingCount * 5);
+        const avg = ratingCount > 0 ? (ratingSum / ratingCount).toFixed(1) : '5.0';
+        const userRated = localStorage.getItem('mps_rated_' + stem.id);
+        const isReportedByUser = localStorage.getItem('mps_reported_' + stem.id);
+        const reportCount = Number(stem.reportCount) || 0;
+        const bandSafe = escapeHtml(stem.bandName || 'ไม่ระบุชื่อวง');
+        const songSafe = escapeHtml(stem.songTitle || 'ไม่ระบุชื่อเพลง');
+        const genreSafe = escapeHtml(stem.genre || 'Rock');
+        const uploaderSafe = escapeHtml(stem.sharedBy || 'สมาชิก');
+        const urlSafe = escapeHtml(stem.downloadUrl || '#');
+        const dateStr = formatCommunityTime(stem.createdAt);
+
+        return `
+          <div class="stem-card" id="stem-card-${stem.id}">
+            <div>
+              <div class="stem-card-top">
+                <div>
+                  <div class="stem-band-title">🎸 ${bandSafe}</div>
+                  <div class="stem-song-title">🎵 ${songSafe}</div>
+                </div>
+                <span class="stem-genre-badge">${genreSafe}</span>
+              </div>
+
+              <div class="stem-meta">
+                <span>👤 โดย ${uploaderSafe}</span>
+                <span>•</span>
+                <span>🕒 ${dateStr}</span>
+              </div>
+
+              <!-- Rating widget -->
+              <div class="stem-rating-box">
+                <div class="stem-stars" title="คลิกเพื่อให้คะแนนเพลงนี้">
+                  ${[1, 2, 3, 4, 5].map(starNum => {
+                    const activeClass = starNum <= Math.round(Number(avg)) ? 'active' : '';
+                    return `<button type="button" class="star-btn ${activeClass}" onclick="rateStem('${stem.id}', ${starNum})" title="ให้ ${starNum} ดาว">★</button>`;
+                  }).join('')}
+                </div>
+                <div class="stem-score-text">
+                  ★ ${avg} <span style="font-size: 11px; color: var(--text-faint); font-weight: 500;">(${ratingCount} โหวต)</span>
+                  ${userRated ? `<span style="display:block; font-size:10px; color:#10b981;">(คุณให้ ${userRated}★)</span>` : ''}
+                </div>
+              </div>
+
+              ${reportCount > 0 ? `
+                <div style="font-size: 11px; color: #fb7185; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); border-radius: 6px; padding: 4px 8px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                  <span>⚠️ มีการแจ้งว่าลิงก์อาจมีปัญหา (${reportCount} รายงาน) แอดมินกำลังตรวจสอบ</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="stem-actions">
+              <a href="${urlSafe}" target="_blank" rel="noopener noreferrer" class="btn-stem-download" onclick="recordDownload('stems', '${songSafe} (${bandSafe})', '${urlSafe}')">
+                <span>🔗 ดาวน์โหลดไฟล์</span>
+              </a>
+              <button type="button" class="btn-stem-report ${isReportedByUser ? 'reported' : ''}" 
+                      onclick="${isReportedByUser ? "showToast('คุณได้รายงานลิงก์นี้ไปแล้วครับ', '⏳')" : `reportStem('${stem.id}', '${bandSafe}')`}"
+                      title="${isReportedByUser ? 'คุณแจ้งรายงานแล้ว' : 'แจ้งแอดมินกรณีลิงก์เสียหรือโหลดไม่ได้'}">
+                <span>${isReportedByUser ? '🚨 แจ้งแล้ว' : '⚠️ รายงานลิงก์เสีย'}</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadCommunityStems(forceRefresh = false) {
+      if (!communityStemsGrid) return;
+
+      const cached = sessionStorage.getItem(STEMS_CACHE_KEY);
+      const cacheTime = Number(sessionStorage.getItem(STEMS_CACHE_TIME_KEY) || 0);
+      const isFresh = (Date.now() - cacheTime) < STEMS_CACHE_TTL_MS;
+
+      if (!forceRefresh && cached && isFresh) {
+        try {
+          inMemoryStems = JSON.parse(cached);
+          renderCommunityStems(inMemoryStems);
+          return;
+        } catch (e) {
+          sessionStorage.removeItem(STEMS_CACHE_KEY);
+        }
+      }
+
+      try {
+        const q = query(collection(db, 'community_stems'), limit(50));
+        const snapshot = await getDocs(q);
+        inMemoryStems = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        }));
+        sessionStorage.setItem(STEMS_CACHE_KEY, JSON.stringify(inMemoryStems));
+        sessionStorage.setItem(STEMS_CACHE_TIME_KEY, Date.now().toString());
+        renderCommunityStems(inMemoryStems);
+      } catch (err) {
+        console.warn('Community stems fetch notice:', err);
+        if (cached) {
+          try {
+            inMemoryStems = JSON.parse(cached);
+            renderCommunityStems(inMemoryStems);
+            return;
+          } catch (_) {}
+        }
+        if (communityStemsGrid && (!inMemoryStems || inMemoryStems.length === 0)) {
+          communityStemsGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted);">
+              ไม่สามารถเชื่อมต่อคลังมัลติแทร็กได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Initial load of community stems (0 reads on reload within 5 min)
+    loadCommunityStems();
+  </script>
+</body>
+</html>

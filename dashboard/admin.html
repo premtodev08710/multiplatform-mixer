@@ -846,6 +846,10 @@
         <span class="tab-badge" id="tabBadgeCommunity">0</span>
         <span class="tab-badge" id="tabBadgeReported" style="background: rgba(244, 63, 94, 0.25); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); display: none;">🚨 0 ลิงก์เสีย</span>
       </button>
+      <button class="tab-btn" onclick="switchTab('licensesTab', this)" id="btnTabLicenses">
+        <span>🔑 รหัส Pro รายปี (Key Generator)</span>
+        <span class="tab-badge" id="tabBadgeLicenses" style="background: rgba(168, 85, 247, 0.2); color: #c084fc;">0</span>
+      </button>
     </div>
 
     <!-- TAB 1: DOWNLOAD ANALYTICS -->
@@ -1188,6 +1192,136 @@
             <tbody id="communityTableBody">
               <tr>
                 <td colspan="8" class="empty-state">กำลังเชื่อมต่อฐานข้อมูลมัลติแทร็กชุมชน...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: ANNUAL PRO LICENSE KEY GENERATOR -->
+    <div id="licensesTab" class="tab-content">
+      <!-- Summary KPI Row in Licenses Tab -->
+      <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 24px;">
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-purple);">
+          <div class="kpi-label">
+            <span>รหัสต่ออายุทั้งหมดที่สร้าง (Total Keys)</span>
+            <span>🔑</span>
+          </div>
+          <div class="kpi-value" id="kpiLicensesTotal" style="color: var(--accent-purple);">0</div>
+          <div class="kpi-sub">รหัสสิทธิ์ Pro รายปีในระบบทั้งหมด</div>
+        </div>
+
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-green);">
+          <div class="kpi-label">
+            <span>รหัสพร้อมใช้งาน / ยังไม่ได้ส่ง (Available)</span>
+            <span>🟢</span>
+          </div>
+          <div class="kpi-value" id="kpiLicensesAvailable" style="color: var(--accent-green);">0</div>
+          <div class="kpi-sub">พร้อมส่งมอบให้ลูกค้าใหม่ทันที</div>
+        </div>
+
+        <div class="kpi-card" style="border-left: 4px solid var(--accent-amber);">
+          <div class="kpi-label">
+            <span>ส่งให้ลูกค้าแล้ว (Delivered / Active)</span>
+            <span>📦</span>
+          </div>
+          <div class="kpi-value" id="kpiLicensesSent" style="color: var(--accent-amber);">0</div>
+          <div class="kpi-sub">ส่งมอบให้ลูกค้านำไปเติมวันแล้ว</div>
+        </div>
+      </div>
+
+      <!-- Action Box: Generate New License Key -->
+      <div class="panel" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(18, 23, 34, 0.95) 100%); border-color: rgba(168, 85, 247, 0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 style="font-size: 18px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+              <span>⚡ สร้างรหัสต่ออายุ Pro รายปี (365 วัน)</span>
+              <span style="font-size: 11px; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 8px; border-radius: 999px;">Offline Validated</span>
+            </h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+              สร้างรหัส Serial Key 16 หลักสำหรับส่งให้ลูกค้าที่สั่งซื้อทาง Shopee, Facebook หรือ LINE นำไปกรอกในแอปได้ทันที
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 250px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">
+              บันทึกช่วยจำ / ชื่อลูกค้า / ออเดอร์ (Customer Note)
+            </label>
+            <input 
+              type="text" 
+              id="licenseCustomerNote" 
+              class="login-input" 
+              placeholder="เช่น คุณสมชาย (FB), Shopee ออเดอร์ #241022..." 
+              style="width: 100%;"
+            />
+          </div>
+
+          <button type="button" class="btn btn-public" onclick="generateAndSaveKey(1)" style="padding: 10px 20px; font-weight: 700;">
+            <span>⚡ สร้างรหัส 1 ปี (1 Key)</span>
+          </button>
+          <button type="button" class="btn" onclick="generateAndSaveKey(5)" style="padding: 10px 18px; background: rgba(255, 255, 255, 0.06); border-color: var(--border);">
+            <span>📦 สร้างเป็นชุด (5 Keys)</span>
+          </button>
+        </div>
+
+        <!-- Latest Generated Key Showcase (Popup / Preview Box) -->
+        <div id="latestKeyBox" style="display: none; margin-top: 20px; padding: 18px 22px; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <span style="font-size: 11px; font-weight: 800; color: #c084fc; letter-spacing: 0.05em; text-transform: uppercase;">✨ รหัสต่ออายุล่าสุดที่สร้าง</span>
+              <div id="latestKeyText" style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 900; color: #fff; letter-spacing: 0.04em; margin-top: 2px;">
+                MPS-1Y-XXXX-XXXX-XXXX
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-public" onclick="copyLatestKeyOnly()" style="padding: 8px 14px; font-size: 13px;">
+                <span>📋 คัดลอกเฉพาะรหัส</span>
+              </button>
+              <button type="button" class="btn" onclick="copyCustomerMessage()" style="padding: 8px 14px; font-size: 13px; background: #22c55e; border-color: #16a34a; color: #fff;">
+                <span>💬 คัดลอกข้อความส่งลูกค้า</span>
+              </button>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary); background: rgba(0, 0, 0, 0.25); padding: 8px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap;" id="customerMessagePreview"></div>
+        </div>
+      </div>
+
+      <!-- License Keys Table List -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📋 รายการรหัสต่ออายุ Pro ทั้งหมด (License Key Database)</span>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input 
+              type="text" 
+              id="searchLicenseInput" 
+              placeholder="🔍 ค้นหารหัส หรือชื่อลูกค้า..." 
+              class="login-input" 
+              style="padding: 6px 14px; font-size: 13px; width: 220px;" 
+              oninput="renderLicensesTable()"
+            />
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="licensesTable">
+            <thead>
+              <tr>
+                <th style="width: 230px;">รหัสต่ออายุ (Serial Key)</th>
+                <th>อายุการใช้งาน</th>
+                <th>วันที่สร้าง</th>
+                <th>บันทึกช่วยจำ / ชื่อลูกค้า</th>
+                <th>สถานะ</th>
+                <th style="text-align: right;">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="licensesTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">ยังไม่มีรายการรหัสในระบบ</td>
               </tr>
             </tbody>
           </table>
@@ -2141,6 +2275,255 @@
         a.download = `community-multitracks-${new Date().toISOString().slice(0,10)}.csv`;
         a.click();
       });
+    }
+
+    // =========================================================================
+    // SECTION 5: ANNUAL PRO LICENSE KEYS (PREPAID VOUCHER)
+    // =========================================================================
+    const LICENSE_SECRET_SALT = "mps_pro_annual_x32_salt_2026_mixer";
+    let allLicenses = [];
+    let lastGeneratedKey = "";
+
+    function fnv1a64(str) {
+      let hash = 0xcbf29ce484222325n;
+      const prime = 0x100000001b3n;
+      for (let i = 0; i < str.length; i++) {
+        hash ^= BigInt(str.charCodeAt(i));
+        hash = (hash * prime) & 0xffffffffffffffffn;
+      }
+      return hash.toString(16).toUpperCase().padStart(16, "0");
+    }
+
+    function generateSingleYearlyKey() {
+      const hex = "0123456789ABCDEF";
+      let payload = "";
+      for (let i = 0; i < 8; i++) {
+        payload += hex[Math.floor(Math.random() * 16)];
+      }
+      const raw = "MPS-1Y-" + payload + "-" + LICENSE_SECRET_SALT;
+      const checksum = fnv1a64(raw).substring(0, 4);
+      return `MPS-1Y-${payload.substring(0, 4)}-${payload.substring(4, 8)}-${checksum}`;
+    }
+
+    function getCustomerMessageText(key) {
+      return `ขอบคุณที่สนับสนุน Mix Practice Studio Pro ครับ! 🙏\nรหัสเปิดใช้งาน / ต่ออายุ Pro 1 ปีของคุณคือ:\n\n👉  ${key}  👈\n\n📌 วิธีเปิดใช้งานในแอป:\n1. เปิดแอป Mix Practice Studio บนคอมพิวเตอร์หรือมือถือของคุณ\n2. กดเข้าเมนู "Setup" ที่แถบด้านบน\n3. เลื่อนลงมาที่หัวข้อ "Mix Practice Studio Pro (ระบบสิทธิ์รายปี)"\n4. นำรหัสไปวางในช่อง แล้วกดปุ่ม [⚡ เติมวัน Pro 1 ปี]\n\nระบบจะปลดล็อคเต็ม 32 แทร็ก, 8 FX Racks, และเปิดระบบบันทึกโปรเจกต์ทันที ใช้งานแบบออฟไลน์ได้ 100% ครับ! 😊`;
+    }
+
+    window.copyLatestKeyOnly = function() {
+      if (!lastGeneratedKey) return;
+      navigator.clipboard.writeText(lastGeneratedKey).then(() => {
+        alert('คัดลอกรหัสเรียบร้อยแล้ว: ' + lastGeneratedKey);
+      }).catch(err => {
+        prompt('กรุณาคัดลอกรหัสนี้:', lastGeneratedKey);
+      });
+    };
+
+    window.copyCustomerMessage = function() {
+      if (!lastGeneratedKey) return;
+      const msg = getCustomerMessageText(lastGeneratedKey);
+      navigator.clipboard.writeText(msg).then(() => {
+        alert('คัดลอกข้อความสำหรับส่งให้ลูกค้าเรียบร้อยแล้ว สามารถนำไปวางส่งในแชทได้ทันทีครับ!');
+      }).catch(err => {
+        prompt('กรุณาคัดลอกข้อความด้านล่างนี้:', msg);
+      });
+    };
+
+    window.copyKeyFromTable = function(key) {
+      navigator.clipboard.writeText(key).then(() => {
+        alert('คัดลอกรหัสเรียบร้อย: ' + key);
+      }).catch(err => {
+        prompt('กรุณาคัดลอกรหัสนี้:', key);
+      });
+    };
+
+    window.copyMessageFromTable = function(key) {
+      const msg = getCustomerMessageText(key);
+      navigator.clipboard.writeText(msg).then(() => {
+        alert('คัดลอกข้อความส่งลูกค้าเรียบร้อยแล้ว!');
+      }).catch(err => {
+        prompt('กรุณาคัดลอกข้อความด้านล่างนี้:', msg);
+      });
+    };
+
+    function loadLicensesLocal() {
+      try {
+        const stored = localStorage.getItem('mps_admin_licenses');
+        allLicenses = stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        allLicenses = [];
+      }
+      renderLicensesTable();
+      updateLicensesKpi();
+    }
+
+    function saveLicensesLocal() {
+      try {
+        localStorage.setItem('mps_admin_licenses', JSON.stringify(allLicenses));
+      } catch (e) {}
+    }
+
+    try {
+      onSnapshot(collection(db, "pro_licenses"), (snapshot) => {
+        allLicenses = [];
+        snapshot.forEach(docSnap => {
+          allLicenses.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        allLicenses.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        saveLicensesLocal();
+        renderLicensesTable();
+        updateLicensesKpi();
+      }, (err) => {
+        console.warn("Firestore licenses error, using local fallback:", err);
+        loadLicensesLocal();
+      });
+    } catch (e) {
+      loadLicensesLocal();
+    }
+
+    window.generateAndSaveKey = async function(count = 1) {
+      const noteInput = document.getElementById('licenseCustomerNote');
+      const note = noteInput ? noteInput.value.trim() : '';
+
+      let lastKey = '';
+      for (let i = 0; i < count; i++) {
+        const key = generateSingleYearlyKey();
+        lastKey = key;
+        const item = {
+          key: key,
+          durationDays: 365,
+          plan: 'annual',
+          customerNote: note || (count > 1 ? `Batch Key #${i + 1}` : 'สั่งซื้อทั่วไป'),
+          status: 'available',
+          createdAt: new Date().toISOString()
+        };
+
+        try {
+          await addDoc(collection(db, 'pro_licenses'), item);
+        } catch (e) {
+          item.id = 'local_' + Date.now() + '_' + i;
+          allLicenses.unshift(item);
+          saveLicensesLocal();
+        }
+      }
+
+      lastGeneratedKey = lastKey;
+      if (noteInput && count === 1) noteInput.value = '';
+
+      const box = document.getElementById('latestKeyBox');
+      const text = document.getElementById('latestKeyText');
+      const preview = document.getElementById('customerMessagePreview');
+      if (box && text && preview) {
+        box.style.display = 'block';
+        text.textContent = lastKey;
+        preview.textContent = getCustomerMessageText(lastKey);
+      }
+
+      renderLicensesTable();
+      updateLicensesKpi();
+      alert(`สร้างรหัสสำเร็จ ${count} รหัสเรียบร้อยแล้ว!`);
+    };
+
+    window.toggleLicenseStatus = async function(id, currentStatus) {
+      const newStatus = (currentStatus === 'available') ? 'sent' : 'available';
+      try {
+        await setDoc(doc(db, 'pro_licenses', id), { status: newStatus }, { merge: true });
+      } catch (e) {
+        const item = allLicenses.find(x => x.id === id);
+        if (item) {
+          item.status = newStatus;
+          saveLicensesLocal();
+          renderLicensesTable();
+          updateLicensesKpi();
+        }
+      }
+    };
+
+    window.deleteLicenseKey = async function(id, keyStr) {
+      if (!confirm(`คุณต้องการลบรหัส ${keyStr} ออกจากระบบใช่หรือไม่?`)) return;
+      try {
+        await deleteDoc(doc(db, 'pro_licenses', id));
+      } catch (e) {
+        allLicenses = allLicenses.filter(x => x.id !== id);
+        saveLicensesLocal();
+        renderLicensesTable();
+        updateLicensesKpi();
+      }
+    };
+
+    window.renderLicensesTable = function() {
+      const tbody = document.getElementById('licensesTableBody');
+      const search = (document.getElementById('searchLicenseInput')?.value || '').trim().toLowerCase();
+      if (!tbody) return;
+
+      const filtered = allLicenses.filter(lic => {
+        if (!search) return true;
+        const k = (lic.key || '').toLowerCase();
+        const n = (lic.customerNote || '').toLowerCase();
+        return k.includes(search) || n.includes(search);
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">ไม่พบรายการรหัสที่ตรงกับเงื่อนไข</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(lic => {
+        const isSent = (lic.status === 'sent');
+        const statusBadge = isSent 
+          ? `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">📦 ส่งให้ลูกค้าแล้ว</span>`
+          : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">🟢 พร้อมใช้งาน</span>`;
+
+        return `
+          <tr>
+            <td>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 800; color: #fff; letter-spacing: 0.03em;">
+                ${escapeHtml(lic.key)}
+              </span>
+            </td>
+            <td><span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 700;">1 ปี (365 วัน)</span></td>
+            <td style="font-size: 12px; color: var(--text-secondary);">${formatDateTime(lic.createdAt)}</td>
+            <td>
+              <span style="font-size: 13px; color: var(--text-primary); font-weight: 500;">
+                ${escapeHtml(lic.customerNote || '-')}
+              </span>
+            </td>
+            <td>
+              <button type="button" class="btn" onclick="toggleLicenseStatus('${lic.id}', '${lic.status}')" title="คลิกเพื่อสลับสถานะ" style="padding: 2px 8px; font-size: 11px;">
+                ${statusBadge}
+              </button>
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <div style="display: inline-flex; gap: 6px;">
+                <button type="button" class="btn btn-public" onclick="copyKeyFromTable('${escapeAttr(lic.key)}')" style="padding: 4px 10px; font-size: 12px;" title="คัดลอกเฉพาะรหัส">
+                  📋 รหัส
+                </button>
+                <button type="button" class="btn" onclick="copyMessageFromTable('${escapeAttr(lic.key)}')" style="padding: 4px 10px; font-size: 12px; background: #22c55e; border-color: #16a34a; color: #fff;" title="คัดลอกข้อความพร้อมส่ง">
+                  💬 ส่งแชท
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteLicenseKey('${lic.id}', '${escapeAttr(lic.key)}')" style="padding: 4px 8px; font-size: 12px;" title="ลบรหัสนี้">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    };
+
+    function updateLicensesKpi() {
+      const total = allLicenses.length;
+      const sent = allLicenses.filter(x => x.status === 'sent').length;
+      const available = total - sent;
+
+      const elTotal = document.getElementById('kpiLicensesTotal');
+      const elAvailable = document.getElementById('kpiLicensesAvailable');
+      const elSent = document.getElementById('kpiLicensesSent');
+      const badge = document.getElementById('tabBadgeLicenses');
+
+      if (elTotal) elTotal.textContent = total.toLocaleString();
+      if (elAvailable) elAvailable.textContent = available.toLocaleString();
+      if (elSent) elSent.textContent = sent.toLocaleString();
+      if (badge) badge.textContent = available;
     }
   </script>
 </body>
