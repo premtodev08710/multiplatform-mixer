@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+if(APPLE)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 17)
     set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
@@ -115,6 +115,10 @@ set(MPS_COMMON_LIBRARIES
     juce::juce_gui_basics
     juce::juce_gui_extra
 )
+
+if(APPLE)
+    list(APPEND MPS_COMMON_SOURCES Source/Audio/AppleAudioFileStaging.mm)
+endif()
 
 #==============================================================================
 # Main GUI Application (Free Edition)
@@ -237,6 +241,15 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
 
     enable_testing()
     add_test(NAME CoreDspAndTransportTests COMMAND MixPracticeCoreTests)
+
+    if(APPLE)
+        add_executable(AppleAudioStagingTests
+            Tests/AppleAudioStagingTests.mm
+            Source/Audio/AppleAudioFileStaging.mm)
+        target_compile_definitions(AppleAudioStagingTests PRIVATE JUCE_USE_CURL=0)
+        target_link_libraries(AppleAudioStagingTests PRIVATE juce::juce_core)
+        add_test(NAME AppleAudioDocumentImportTests COMMAND AppleAudioStagingTests)
+    endif()
 
     add_executable(UiSnapshotTest
         Tests/UiSnapshotTest.cpp

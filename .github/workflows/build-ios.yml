@@ -3,14 +3,14 @@ name: Build iOS import fix
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/ios-track-import-fix']
+    branches: ['codex/ios-track-import-fix', 'main']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-ios:
-    runs-on: macos-15-intel
+    runs-on: macos-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -49,3 +49,8 @@ jobs:
             MixPracticeStudio.ipa
             MixPracticeStudio-iOS-IPA.zip
           if-no-files-found: error
+      - name: Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio.ipa MixPracticeStudio-iOS-IPA.zip --clobber || true
