@@ -29,12 +29,7 @@
       },
       {
         "source": "/downloads/MixPracticeStudio-Windows.bin",
-        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.exe",
-        "type": 302
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
-        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
         "type": 302
       }
     ],
