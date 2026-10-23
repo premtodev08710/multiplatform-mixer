@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบกำลังอยู่ระหว่างการปรับปรุง — Multiplatform Mixer</title>
+  <meta name="description" content="ระบบ Multiplatform Mixer / Mix Practice Studio กำลังอยู่ระหว่างการปรับปรุงและอัปเกรดระบบเพื่อพัฒนาประสิทธิภาพการใช้งาน จะกลับมาเปิดให้บริการเร็วๆ นี้" />
+  <link rel="icon" type="image/png" href="assets/app_icon.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-base: #080b11;
+      --bg-surface: #0f141f;
+      --bg-card: rgba(21, 28, 43, 0.7);
+      --bg-card-hover: rgba(28, 37, 56, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(0, 229, 255, 0.35);
+
+      --cyan-bright: #00e5ff;
+      --cyan-glow: rgba(0, 229, 255, 0.4);
+      --blue-accent: #2563eb;
+      --blue-light: #60a5fa;
+      --amber-accent: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.35);
+      --green-accent: #10b981;
+      --rose-accent: #f43f5e;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-faint: #64748b;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Inter', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      overflow-x: hidden;
+      padding: 24px 16px;
+    }
+
+    /* Ambient Background Glows */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .ambient-glow-1 {
+      position: absolute;
+      top: -150px;
+      left: 20%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.12) 0%, rgba(37, 99, 235, 0.05) 50%, transparent 70%);
+      filter: blur(80px);
+      animation: pulseGlow 10s ease-in-out infinite alternate;
+    }
+
+    .ambient-glow-2 {
+      position: absolute;
+      bottom: -150px;
+      right: 15%;
+      width: 550px;
+      height: 550px;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.08) 0%, rgba(139, 92, 246, 0.05) 50%, transparent 70%);
+      filter: blur(90px);
+      animation: pulseGlow 12s ease-in-out infinite alternate-reverse;
+    }
+
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes pulseGlow {
+      0% { transform: scale(1) translateY(0); opacity: 0.6; }
+      100% { transform: scale(1.15) translateY(-20px); opacity: 1; }
+    }
+
+    /* Navigation / Header Brand */
+    header {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      z-index: 10;
+      background: rgba(15, 20, 31, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      object-fit: cover;
+      box-shadow: 0 0 15px var(--cyan-glow);
+      border: 1px solid rgba(0, 229, 255, 0.4);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 30%, var(--cyan-bright));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+      animation: blinkDot 1.5s infinite ease-in-out;
+    }
+
+    @keyframes blinkDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+
+    /* Main Container */
+    main {
+      width: 100%;
+      max-width: 840px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      z-index: 10;
+      margin: auto 0;
+    }
+
+    /* Maintenance Hero Box */
+    .maintenance-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 229, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 48px 36px;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .maintenance-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--amber-accent), var(--cyan-bright), transparent);
+    }
+
+    /* Visualizer Animation */
+    .audio-visualizer {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 6px;
+      height: 52px;
+      margin-bottom: 28px;
+    }
+
+    .bar {
+      width: 6px;
+      border-radius: 3px;
+      background: linear-gradient(180deg, var(--cyan-bright), var(--blue-accent));
+      animation: audioWave 1.2s ease-in-out infinite alternate;
+    }
+
+    .bar:nth-child(1) { height: 18px; animation-delay: 0.1s; }
+    .bar:nth-child(2) { height: 32px; animation-delay: 0.3s; }
+    .bar:nth-child(3) { height: 48px; animation-delay: 0.5s; background: linear-gradient(180deg, var(--amber-accent), #d97706); }
+    .bar:nth-child(4) { height: 26px; animation-delay: 0.2s; }
+    .bar:nth-child(5) { height: 44px; animation-delay: 0.4s; background: linear-gradient(180deg, var(--amber-accent), #d97706); }
+    .bar:nth-child(6) { height: 36px; animation-delay: 0.6s; }
+    .bar:nth-child(7) { height: 20px; animation-delay: 0.15s; }
+
+    @keyframes audioWave {
+      0% { transform: scaleY(0.3); opacity: 0.5; }
+      100% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      font-size: 34px;
+      margin-bottom: 24px;
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.2);
+    }
+
+    .headline {
+      font-size: 2.25rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 30%, #e2e8f0 70%, var(--cyan-bright));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sub-headline {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin: 0 auto 28px;
+      line-height: 1.7;
+    }
+
+    /* What are we doing? checklist */
+    .task-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      text-align: left;
+      margin: 32px 0;
+    }
+
+    .task-item {
+      background: rgba(15, 20, 31, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .task-item:hover {
+      border-color: rgba(0, 229, 255, 0.25);
+      background: rgba(15, 20, 31, 0.85);
+      transform: translateY(-2px);
+    }
+
+    .task-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .task-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .task-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Progress bar */
+    .progress-section {
+      margin: 24px 0 32px;
+      background: rgba(15, 20, 31, 0.5);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      width: 78%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue-accent), var(--cyan-bright));
+      border-radius: var(--radius-full);
+      position: relative;
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    .progress-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.4) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Action Buttons */
+    .actions-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-full);
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: 1px solid transparent;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan-bright), var(--blue-accent));
+      color: #040810;
+      font-weight: 700;
+      box-shadow: 0 4px 18px var(--cyan-glow);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 24px rgba(0, 229, 255, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn-outline-subtle {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .btn-outline-subtle:hover {
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Notification / Info notice */
+    .notice-box {
+      margin-top: 28px;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      background: rgba(0, 229, 255, 0.04);
+      border: 1px dashed rgba(0, 229, 255, 0.25);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .notice-box a {
+      color: var(--cyan-bright);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .notice-box a:hover {
+      text-decoration: underline;
+    }
+
+    /* Footer */
+    footer {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 36px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.8rem;
+      color: var(--text-faint);
+      z-index: 10;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--cyan-bright);
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .maintenance-card {
+        padding: 32px 20px;
+      }
+
+      .headline {
+        font-size: 1.7rem;
+      }
+
+      .sub-headline {
+        font-size: 0.95rem;
+      }
+
+      .task-list {
+        grid-template-columns: 1fr;
+      }
+
+      .actions-group {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      footer {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Lighting & Grid -->
+  <div class="ambient-bg">
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+  </div>
+  <div class="grid-overlay"></div>
+
+  <!-- Header Bar -->
+  <header>
+    <a href="#" class="brand">
+      <img src="assets/app_icon.png" alt="Mix Practice Studio" class="brand-icon" onerror="this.style.display='none'" />
+      <div class="brand-text">
+        <span class="brand-title">Multiplatform Mixer</span>
+        <span class="brand-subtitle">Mix Practice Studio</span>
+      </div>
+    </a>
+    <div class="header-status">
+      <span class="status-dot"></span>
+      <span>Under Maintenance</span>
+    </div>
+  </header>
+
+  <!-- Main Maintenance Content -->
+  <main>
+    <div class="maintenance-card">
+      
+      <!-- Audio Visualizer Animation -->
+      <div class="audio-visualizer" aria-hidden="true">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+
+      <div class="icon-badge">
+        🛠️
+      </div>
+
+      <h1 class="headline">ระบบกำลังอยู่ระหว่างการปรับปรุง</h1>
+      <p class="sub-headline">
+        เรากำลังอัปเกรดระบบและปรับปรุงประสิทธิภาพของแพลตฟอร์ม เพื่อมอบประสบการณ์การฝึกมิกซ์เสียงและดาวน์โหลดไฟล์มัลติแทร็กที่ดีที่สุดให้แก่คุณ
+      </p>
+
+      <!-- Checklist of ongoing updates -->
+      <div class="task-list">
+        <div class="task-item">
+          <span class="task-icon">⚡</span>
+          <div>
+            <div class="task-title">Server & Cloud Sync</div>
+            <div class="task-desc">อัปเกรดระบบจัดเก็บไฟล์และเพิ่มความเร็วการดาวน์โหลดมัลติแทร็ก</div>
+          </div>
+        </div>
+
+        <div class="task-item">
+          <span class="task-icon">🎛️</span>
+          <div>
+            <div class="task-title">App Feature Updates</div>
+            <div class="task-desc">ปรับปรุงระบบ Audio DSP, Timeline Scrubber และเอฟเฟกต์มิกเซอร์</div>
+          </div>
+        </div>
+
+        <div class="task-item">
+          <span class="task-icon">🛡️</span>
+          <div>
+            <div class="task-title">Security & Stability</div>
+            <div class="task-desc">เพิ่มความปลอดภัยและความเสถียรในการใช้งานทุกแพลตฟอร์ม</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estimated Progress Bar -->
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>ความคืบหน้าการดำเนินงาน (Progress)</span>
+          <span id="progress-percent">กำลังดำเนินการ...</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions-group">
+        <button class="btn btn-primary" onclick="checkStatus()">
+          <span>🔄 ตรวจสอบสถานะ / รีเฟรช</span>
+        </button>
+        <a href="https://github.com/premtodev08710/multiplatform-mixer/releases" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+          <span>📦 ดูเวอร์ชันล่าสุดบน GitHub</span>
+        </a>
+      </div>
+
+      <!-- Notice Box -->
+      <div class="notice-box">
+        <span>💡 หากต้องการใช้งานเร่งด่วน หรือติดต่อทีมงาน สามารถติดต่อผ่าน 
+          <a href="https://github.com/premtodev08710/multiplatform-mixer" target="_blank" rel="noopener noreferrer">GitHub Project</a> 
+          หรือตรวจสอบหน้า <a href="admin.html">Admin Portal</a>
+        </span>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div>
+      &copy; <span id="year"></span> Multiplatform Mixer (Mix Practice Studio). ขออภัยในความไม่สะดวก
+    </div>
+    <div class="footer-links">
+      <a href="lite.html">Web Lite</a>
+      <a href="admin.html">Admin</a>
+      <a href="https://github.com/premtodev08710/multiplatform-mixer" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    function checkStatus() {
+      const btn = event.currentTarget;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span>⏳ กำลังตรวจสอบสถานะระบบ...</span>';
+      btn.style.opacity = '0.7';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        btn.innerHTML = '<span>✅ ยังอยู่ระหว่างปรับปรุง จะเปิดให้บริการเร็วๆ นี้</span>';
+        setTimeout(() => {
+          location.reload();
+        }, 1200);
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

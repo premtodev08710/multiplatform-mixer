@@ -118,6 +118,21 @@ juce_add_gui_app(MixPracticeStudio
     BUNDLE_ID "com.mixpractice.studio"
     VERSION 1.0.1
     ICON_BIG Resources/app_icon.png
+    FILE_SHARING_ENABLED TRUE
+    DOCUMENT_BROWSER_ENABLED TRUE
+    DOCUMENT_EXTENSIONS wav aif aiff flac mp3 ogg mpsproj scn
+    PLIST_TO_MERGE [[
+        <key>UIFileSharingEnabled</key>
+        <true/>
+        <key>LSSupportsOpeningDocumentsInPlace</key>
+        <true/>
+        <key>UISupportsDocumentBrowser</key>
+        <true/>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Mix Practice Studio requires microphone access for audio monitoring and recording.</string>
+        <key>NSAppleMusicUsageDescription</key>
+        <string>Mix Practice Studio requires access to your audio library to import audio tracks.</string>
+    ]]
 )
 target_sources(MixPracticeStudio PRIVATE ${MPS_COMMON_SOURCES})
 target_compile_definitions(MixPracticeStudio PRIVATE
@@ -156,6 +171,21 @@ juce_add_gui_app(MixPracticeStudioPro
     BUNDLE_ID "com.mixpractice.studio.pro"
     VERSION 1.0.1
     ICON_BIG Resources/app_icon.png
+    FILE_SHARING_ENABLED TRUE
+    DOCUMENT_BROWSER_ENABLED TRUE
+    DOCUMENT_EXTENSIONS wav aif aiff flac mp3 ogg mpsproj scn
+    PLIST_TO_MERGE [[
+        <key>UIFileSharingEnabled</key>
+        <true/>
+        <key>LSSupportsOpeningDocumentsInPlace</key>
+        <true/>
+        <key>UISupportsDocumentBrowser</key>
+        <true/>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Mix Practice Studio requires microphone access for audio monitoring and recording.</string>
+        <key>NSAppleMusicUsageDescription</key>
+        <string>Mix Practice Studio requires access to your audio library to import audio tracks.</string>
+    ]]
 )
 target_sources(MixPracticeStudioPro PRIVATE ${MPS_COMMON_SOURCES})
 target_compile_definitions(MixPracticeStudioPro PRIVATE

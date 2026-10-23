@@ -497,9 +497,13 @@ static juce::File getLastImportDir()
     static juce::File sLastDir;
     if (sLastDir.isDirectory())
         return sLastDir;
+   #if JUCE_IOS
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+   #else
     auto music = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
     if (music.isDirectory()) return music;
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+   #endif
 }
 
 static void setLastImportDir (const juce::File& f)
@@ -777,6 +781,74 @@ void TracksScreen::importAudioFilesInternal()
             }
             processLoadedFilesInBackground (filesToLoad);
         });
+       #elif JUCE_IOS
+        auto urls = chooser.getURLResults();
+        auto rawResults = chooser.getResults();
+
+        if (urls.isEmpty() && rawResults.isEmpty())
+            return;
+
+        dragHintLabel.setText ("Importing audio files in background...", juce::dontSendNotification);
+        importButton.setEnabled (false);
+        importFolderButton.setEnabled (false);
+
+        auto importDirectory = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                                   .getChildFile ("Imported Audio");
+        importDirectory.createDirectory();
+
+        juce::Thread::launch ([this, urls, rawResults, importDirectory] {
+            juce::Array<juce::File> filesToLoad;
+            for (const auto& u : urls)
+            {
+                auto in = u.createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress));
+                if (in != nullptr)
+                {
+                    auto rawName = u.getFileName();
+                    auto safeName = juce::URL::removeEscapeChars (rawName);
+                    if (safeName.isEmpty()) safeName = "track.wav";
+                    auto destFile = importDirectory.getChildFile (safeName);
+                    destFile.deleteFile();
+                    auto out = destFile.createOutputStream();
+                    if (out != nullptr)
+                    {
+                        out->writeFromInputStream (*in, -1);
+                        out->flush();
+                        out.reset();
+                        if (destFile.existsAsFile() && destFile.getSize() > 0)
+                            filesToLoad.add (destFile);
+                    }
+                }
+            }
+
+            if (filesToLoad.isEmpty())
+            {
+                for (const auto& f : rawResults)
+                {
+                    if (f.existsAsFile())
+                    {
+                        auto destFile = importDirectory.getChildFile (f.getFileName());
+                        if (f != destFile)
+                        {
+                            destFile.deleteFile();
+                            f.copyFileTo (destFile);
+                            if (destFile.existsAsFile() && destFile.getSize() > 0)
+                                filesToLoad.add (destFile);
+                            else
+                                filesToLoad.add (f);
+                        }
+                        else
+                        {
+                            filesToLoad.add (f);
+                        }
+                    }
+                }
+            }
+
+            if (! filesToLoad.isEmpty())
+                setLastImportDir (filesToLoad[0]);
+
+            processLoadedFilesInBackground (filesToLoad);
+        });
        #else
         auto filesToLoad = chooser.getResults();
         if (! filesToLoad.isEmpty())
@@ -870,6 +942,46 @@ void TracksScreen::importFolderStemsInternal()
                     }
                 }
             }
+
+            processLoadedFilesInBackground (filesToLoad);
+        });
+       #elif JUCE_IOS
+        const auto folder = chooser.getResult();
+        if (! folder.isDirectory())
+            return;
+
+        dragHintLabel.setText ("Importing multitrack stems in background...", juce::dontSendNotification);
+        importButton.setEnabled (false);
+        importFolderButton.setEnabled (false);
+
+        auto importDirectory = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                                   .getChildFile ("Imported Audio");
+        importDirectory.createDirectory();
+
+        juce::Thread::launch ([this, folder, importDirectory] {
+            juce::Array<juce::File> filesToLoad;
+            juce::Array<juce::File> found;
+            collectAudioFilesRecursively (folder, found);
+            for (const auto& f : found)
+            {
+                auto destFile = importDirectory.getChildFile (f.getFileName());
+                if (f != destFile)
+                {
+                    destFile.deleteFile();
+                    f.copyFileTo (destFile);
+                    if (destFile.existsAsFile() && destFile.getSize() > 0)
+                        filesToLoad.add (destFile);
+                    else if (f.existsAsFile())
+                        filesToLoad.add (f);
+                }
+                else
+                {
+                    filesToLoad.add (f);
+                }
+            }
+
+            if (! filesToLoad.isEmpty())
+                setLastImportDir (filesToLoad[0]);
 
             processLoadedFilesInBackground (filesToLoad);
         });

@@ -36,16 +36,6 @@
         "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
         "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
         "type": 302
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-iOS.bin",
-        "destination": "https://github.com/premtodev08710/multiplatform_mixer/releases/latest/download/MixPracticeStudio.ipa",
-        "type": 302
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-iOS-IPA.zip",
-        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-iOS-IPA.zip",
-        "type": 302
       }
     ],
     "rewrites": [
@@ -118,6 +108,19 @@
             "value": "application/octet-stream"
           }
         ]
+      },
+      {
+        "source": "/downloads/MixPracticeStudio.ipa",
+        "headers": [
+          {
+            "key": "Content-Disposition",
+            "value": "attachment; filename=\"MixPracticeStudio.ipa\""
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/octet-stream"
+          }
+        ]
       }
     ],
     "ignore": [
@@ -125,8 +128,7 @@
       "**/.*",
       "**/node_modules/**",
       "downloads/*.bin",
-      "downloads/*Android*",
-      "downloads/*iOS*"
+      "downloads/*Android*"
     ]
   }
 }
