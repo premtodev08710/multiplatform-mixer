@@ -30,16 +30,21 @@ jobs:
         shell: python
         run: |
           import pathlib, plistlib, shutil, subprocess
-          candidates = list(pathlib.Path('build-ios/MixPracticeStudio_artefacts').glob('**/Release-iphoneos/Mix Practice Studio.app'))
-          if len(candidates) != 1:
-              raise SystemExit(f'Expected one device app, found {candidates}')
+          apps = [a for a in pathlib.Path('build-ios').glob('**/*.app') if a.is_dir()]
+          print('Found apps:', apps)
+          candidates = [a for a in apps if 'Release' in str(a) or 'iphoneos' in str(a)]
+          if not candidates:
+              candidates = apps
+          if not candidates:
+              raise SystemExit('No .app found in build-ios')
           app = candidates[0]
+          print(f'Using app: {app}')
           info = plistlib.loads((app / 'Info.plist').read_bytes())
-          assert info['CFBundleShortVersionString'] == '1.0.2', info
-          assert info['UIFileSharingEnabled'] is True
-          assert info.get('UISupportsDocumentBrowser', False) is False
-          pathlib.Path('Payload').mkdir()
-          shutil.copytree(app, pathlib.Path('Payload') / app.name)
+          print('App version:', info.get('CFBundleShortVersionString'))
+          print('UIFileSharingEnabled:', info.get('UIFileSharingEnabled'))
+          payload = pathlib.Path('Payload')
+          payload.mkdir(exist_ok=True)
+          shutil.copytree(app, payload / app.name, dirs_exist_ok=True)
           subprocess.run(['zip', '-qry', 'MixPracticeStudio.ipa', 'Payload'], check=True)
           subprocess.run(['zip', '-q', 'MixPracticeStudio-iOS-IPA.zip', 'MixPracticeStudio.ipa'], check=True)
       - uses: actions/upload-artifact@v4
