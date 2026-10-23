@@ -190,7 +190,7 @@ static juce::File getTermsAcceptedMarkerFile()
 
 void MainComponent::checkAndShowTermsOfService()
 {
-    if (AppEdition::isPro())
+    if (! AppEdition::hasShopeeAds())
         return;
 
     auto markerFile = getTermsAcceptedMarkerFile();

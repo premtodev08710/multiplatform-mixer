@@ -58,7 +58,11 @@ public:
     /** Whether Shopee affiliate sponsor ads should be displayed. */
     static bool hasShopeeAds() noexcept
     {
-        return ! isPro();
+        if (isLifetimePro())
+            return false;
+        if (isYearlySubscriptionActive() && ! isTrial())
+            return false;
+        return true;
     }
 
     static bool isLifetimePro() noexcept
