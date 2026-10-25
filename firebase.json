@@ -116,6 +116,32 @@
             "value": "application/octet-stream"
           }
         ]
+      },
+      {
+        "source": "/downloads/MixPracticeStudio.exe",
+        "headers": [
+          {
+            "key": "Content-Disposition",
+            "value": "attachment; filename=\"MixPracticeStudio.exe\""
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-msdownload"
+          }
+        ]
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
+        "headers": [
+          {
+            "key": "Content-Disposition",
+            "value": "attachment; filename=\"MixPracticeStudio-Windows-x64.zip\""
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/zip"
+          }
+        ]
       }
     ],
     "ignore": [

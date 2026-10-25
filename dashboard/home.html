@@ -1415,8 +1415,11 @@
       border-color: var(--text-muted);
     }
   </style>
+  <link rel="stylesheet" href="/easy-home.css">
+  <script src="/download-links.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#start">ข้ามไปยังเมนูเริ่มใช้งาน</a>
   <!-- Ambient Studio Lighting -->
   <div class="ambient-bg">
     <div class="ambient-glow-1"></div>
@@ -1440,36 +1443,22 @@
         </div>
       </a>
 
-      <nav class="nav-links">
-        <a href="#downloads" class="nav-link-btn">📥 ดาวน์โหลดตรง</a>
-        <a href="#tutorials" class="nav-link-btn">🎬 วิดีโอสอน</a>
-        <a href="#multitracks" class="nav-link-btn">🎛️ มัลติแทร็ก</a>
-        <a href="#workflow" class="nav-link-btn">💡 แนะนำการฝึก</a>
-        <a href="/admin" class="nav-link-btn accent">⚙️ หน้า Admin (สถิติ)</a>
+      <nav class="nav-links" aria-label="เมนูหลัก">
+        <a href="#downloads" class="nav-link-btn">ติดตั้งแอป</a>
+        <a href="#tutorials" class="nav-link-btn">ดูวิธีใช้งาน</a>
+        <a href="#multitracks" class="nav-link-btn">โหลดเพลงฝึก</a>
       </nav>
     </header>
 
     <!-- Hero Section -->
-    <section class="hero">
-      <div class="badge-pill">
-        <span class="badge-dot"></span>
-        <span>ระบบเสียง True In-Engine DSP • Zero-Drift Multitrack • Offline 100%</span>
-      </div>
-
-      <h1 class="hero-title">
-        🎚️ แอปฝึกมิกซ์เสียงเบื้องต้น<br/>
-        <span class="gradient">Multiplatform Mixer</span>
-      </h1>
-
-      <p class="hero-desc">
-        สำหรับคนที่อยากฝึกมิกซ์เสียง สามารถดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตามลิงก์ด้านล่างไปฝึกซ้อมได้ทันทีครับ 😊
-        ฝึกปรับ Balance, EQ, Pan, Compressor, Noise Gate และ Reverb/Delay ระดับสตูดิโอได้อย่างอิสระบนคอมพิวเตอร์และมือถือของคุณ
-      </p>
-
-      <div class="direct-notice">
-        <span>⚡ ดาวน์โหลดเวอร์ชันฟรี (Community Edition) ตรงจากเว็บได้ทันทีทุกระบบปฏิบัติการ</span>
-      </div>
-
+    <section class="hero easy-hero" id="start" aria-labelledby="start-title">
+      <div class="hero-showcase">
+        <div class="hero-welcome">
+          <p class="easy-eyebrow"><span class="hero-live-dot" aria-hidden="true"></span> MIX PRACTICE STUDIO</p>
+          <h1 id="start-title">แอปฝึกมิกซ์เสียง<br><span>Multiplatform Mixer</span></h1>
+          <p class="easy-intro">ฝึกมิกซ์เสียงได้ด้วยตัวเอง<br>บนมือถือ แท็บเล็ต และคอมพิวเตอร์</p>
+          <div class="hero-feature-pills"><span>ปรับเสียงได้จริง</span><span>มีวิดีโอสอน</span><span>มีเพลงให้ฝึก</span></div>
+        </div>
       <!-- Real-time Download KPI Showcase -->
       <div class="live-counter-showcase">
         <div class="counter-label">
@@ -1480,7 +1469,7 @@
             <span class="sound-bar"></span>
             <span class="sound-bar"></span>
           </div>
-          <span>ยอดการดาวน์โหลดทั้งหมด (Live Web Downloads)</span>
+          <span>ยอดดาวน์โหลดทั้งหมด</span>
         </div>
 
         <div class="counter-value-row">
@@ -1493,64 +1482,26 @@
           <span class="counter-sub-tag">🍏 macOS: <b id="subCountMac">--</b></span>
           <span class="counter-sub-tag">🤖 Android: <b id="subCountAndroid">--</b></span>
           <span class="counter-sub-tag">📱 iOS: <b id="subCountIos">--</b></span>
-          <span class="counter-sub-tag">📦 GitHub / Stems: <b id="subCountOther">--</b></span>
+          <span class="counter-sub-tag">🎵 เพลงฝึกและอื่น ๆ: <b id="subCountOther">--</b></span>
         </div>
       </div>
+      </div>
+      <p class="easy-start-label">เริ่มใช้งานง่าย ๆ เลือกทำตามลำดับ 1 → 2 → 3</p>
+      <div class="easy-actions" aria-label="เริ่มใช้งานทีละขั้นตอน">
+        <a class="easy-action primary" href="#downloads"><span class="easy-number" aria-hidden="true">1</span><strong>ติดตั้งแอป</strong><span>เลือกมือถือหรือคอมพิวเตอร์ที่ใช้</span><b aria-hidden="true">ไปดาวน์โหลด ↓</b></a>
+        <a class="easy-action" href="#tutorials"><span class="easy-number" aria-hidden="true">2</span><strong>ดูวิธีใช้งาน</strong><span>วิดีโอสอนติดตั้งและเริ่มมิกซ์</span><b aria-hidden="true">ดูวิดีโอสอน ↓</b></a>
+        <a class="easy-action" href="#multitracks"><span class="easy-number" aria-hidden="true">3</span><strong>โหลดเพลงฝึกมิกซ์</strong><span>ไฟล์เสียงแยกชิ้นดนตรี (มัลติแทร็ก)</span><b aria-hidden="true">เลือกเพลงฝึก ↓</b></a>
+      </div>
+      <a class="easy-help" href="#workflow">ยังไม่แน่ใจว่าจะเริ่มอย่างไร? อ่านขั้นตอนสำหรับมือใหม่ →</a>
+
     </section>
 
     <!-- Section 1: Main Direct Downloads -->
     <section id="downloads">
       <div class="section-header">
         <div class="section-tag">📥 1. ลิงก์ดาวน์โหลดแอปฟรี (Free Community Edition)</div>
-        <h2 class="section-title">ดาวน์โหลดตัวแอปพลิเคชัน Multiplatform Mixer</h2>
-        <p class="section-subtitle">คลิกดาวน์โหลดเวอร์ชันฟรีติดตั้งตรงลงเครื่องของคุณได้ทันที หรือเตรียมพบกับเวอร์ชัน Pro ในอนาคต</p>
-      </div>
-
-      <!-- Pro Edition Launch & 14-Day Free Trial Announcement Box -->
-      <div class="card-pro-preview" style="background: linear-gradient(135deg, rgba(20, 24, 33, 0.95), rgba(16, 28, 48, 0.95)); border: 1.5px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0, 229, 255, 0.12);">
-        <div class="featured-inner">
-          <div class="featured-info">
-            <span class="pro-badge-upcoming" style="background: linear-gradient(135deg, #00e5ff, #00e676); color: #0a0e17; font-weight: 800;">🎉 โปรโมชั่นเปิดตัว • รับสิทธิ์ทดลองใช้ PRO 14 วันฟรี!</span>
-            <h3 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">
-              🚀 ดาวน์โหลดวันนี้ ปลดล็อก Pro Edition 32 แทร็กเต็มฟรีทันที 14 วันแรก!
-            </h3>
-            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
-              เปิดโอกาสให้ทุกคนได้ทดลองใช้งานคอนโซลมิกซ์เสียงดิจิทัลเต็มรูปแบบ <strong>32 ช่องสัญญาณ, 8 Virtual FX Rack และฟังก์ชันบันทึกโปรเจกต์ (Save Project) ได้อิสระฟรี 14 วันแรก</strong> เมื่อดาวน์โหลดไปเปิดใช้งานครั้งแรก ระบบจะนับถอยหลังทดลองใช้งานให้อัตโนมัติทันทีโดยไม่ต้องกรอกรหัส!
-              <br><br>
-              เมื่อครบกำหนด 14 วัน ระบบจะปรับเป็น <strong>Free Edition (8 แทร็ก)</strong> ให้ใช้งานต่อได้ฟรีตลอดชีพ หรือสามารถสั่งซื้อ <strong>รหัสต่ออายุ Pro 1 ปี (Prepaid Serial Key)</strong> เพื่อปลดล็อก 32 แทร็กเต็ม และ<strong>ปิดโฆษณา Shopee ถาวร</strong> ได้ทันที
-            </p>
-            <div class="featured-badges-row" style="margin-bottom: 0;">
-              <span class="tech-pill" style="border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 700;">🎁 Auto Trial: ฟรี 14 วันเต็ม</span>
-              <span class="tech-pill" style="border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">🟢 Free Edition: ใช้งานต่อฟรี 8 แทร็ก</span>
-              <span class="tech-pill" style="border-color: rgba(255, 215, 0, 0.5); color: #ffd700;">👑 Pro Annual: ปลดล็อก 365 วัน</span>
-              <span class="tech-pill" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">🚫 ปิดโฆษณา Shopee ทันทีเมื่อเติม Pro</span>
-              <span class="tech-pill">🌐 ออฟไลน์ 100% ไม่ต้องล็อกอิน</span>
-            </div>
-          </div>
-
-          <div class="featured-actions">
-            <a 
-              href="https://s.shopee.co.th/80DYoxalGQ" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="btn-main-download"
-              style="background: linear-gradient(135deg, #e65100 0%, #ff9800 100%); color: #fff; font-weight: 700; margin-bottom: 8px; box-shadow: 0 4px 15px rgba(230, 81, 0, 0.4);"
-            >
-              <span>🛒 สั่งซื้อรหัสต่ออายุ Pro 1 ปี (Shopee)</span>
-              <span style="font-size: 18px;">↗</span>
-            </a>
-            <a 
-              href="https://www.facebook.com/premsak.sed" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="btn-main-download"
-              style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0; font-size: 13px;"
-            >
-              <span>💬 สั่งซื้อผ่าน Facebook ผู้พัฒนา</span>
-              <span style="font-size: 14px;">↗</span>
-            </a>
-          </div>
-        </div>
+        <h2 class="section-title">1. ติดตั้งแอปลงเครื่องของคุณ</h2>
+        <p class="section-subtitle">เลือกชนิดเครื่องที่คุณใช้ แล้วกดปุ่มดาวน์โหลดในช่องนั้น หากติดตั้งไม่เป็น ให้เปิดวิดีโอสอนในขั้นตอนที่ 2</p>
       </div>
 
       <!-- Multiplatform Direct Download Options Grid -->
@@ -1566,7 +1517,7 @@
               </div>
             </div>
             <h4 class="platform-name">Windows PC</h4>
-            <p class="platform-meta">Windows 10 / 11 (ดาวน์โหลดได้ไฟล์ .zip / .exe ไปเปิดใช้ได้เลย)</p>
+            <p class="platform-meta">Windows 7 / 8 / 10 / 11 (64-bit ไม่ต้องลง DLL เพิ่ม เปิดใช้ได้ทันที)</p>
           </div>
           <div class="platform-btn-group">
             <a 
@@ -1577,15 +1528,24 @@
               style="background: linear-gradient(135deg, #00bcd4 0%, #00e676 100%); color: #000; font-weight: 700;"
             >
               <span>ดาวน์โหลดฟรี .zip (ตัวล่าสุด)</span>
-              <span class="file-size-tag">3.3 MB</span>
+              <span class="file-size-tag">5.5 MB</span>
+            </a>
+            <a 
+              href="/downloads/MixPracticeStudio.exe" 
+              class="platform-sub-link track-download" 
+              data-platform="windows" 
+              data-file="MixPracticeStudio.exe"
+            >
+              หรือดาวน์โหลดไฟล์ตรง .exe (6.1 MB) ↓
             </a>
             <a 
               href="https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip" 
               class="platform-sub-link track-download" 
               data-platform="windows" 
               data-file="MixPracticeStudio-Windows-x64.zip"
+              style="font-size: 11px; opacity: 0.7; margin-top: 2px;"
             >
-              หรือดาวน์โหลดสำรองจาก GitHub Releases ↓
+              สำรองจาก GitHub Releases ↗
             </a>
           </div>
         </div>
@@ -1730,72 +1690,72 @@
         </div>
       </div>
 
-      <!-- Featured Card: Official GitHub Repository -->
-      <div class="card-featured">
+      <details class="easy-details"><summary>ดูรายละเอียดรุ่น Pro และโปรโมชั่น</summary>
+      <!-- Pro Edition Launch & 14-Day Free Trial Announcement Box -->
+      <div class="card-pro-preview" style="background: linear-gradient(135deg, rgba(20, 24, 33, 0.95), rgba(16, 28, 48, 0.95)); border: 1.5px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0, 229, 255, 0.12);">
         <div class="featured-inner">
           <div class="featured-info">
-            <span class="featured-badge">⭐ Official Source Repository</span>
-            <h3 class="featured-title">Multiplatform Mixer (GitHub Repository)</h3>
-            <p class="featured-desc">
-              คลังซอร์สโค้ดทางการของแอปพลิเคชัน Multiplatform Mixer รองรับการ Clone และร่วมพัฒนาด้วย C++17 และ JUCE 8
+            <span class="pro-badge-upcoming" style="background: linear-gradient(135deg, #00e5ff, #00e676); color: #0a0e17; font-weight: 800;">🎉 โปรโมชั่นเปิดตัว • รับสิทธิ์ทดลองใช้ PRO 14 วันฟรี!</span>
+            <h3 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+              🚀 ดาวน์โหลดวันนี้ ปลดล็อก Pro Edition 32 แทร็กเต็มฟรีทันที 14 วันแรก!
+            </h3>
+            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+              เปิดโอกาสให้ทุกคนได้ทดลองใช้งานคอนโซลมิกซ์เสียงดิจิทัลเต็มรูปแบบ <strong>32 ช่องสัญญาณ, 8 Virtual FX Rack และฟังก์ชันบันทึกโปรเจกต์ (Save Project) ได้อิสระฟรี 14 วันแรก</strong> เมื่อดาวน์โหลดไปเปิดใช้งานครั้งแรก ระบบจะนับถอยหลังทดลองใช้งานให้อัตโนมัติทันทีโดยไม่ต้องกรอกรหัส!
+              <br><br>
+              เมื่อครบกำหนด 14 วัน ระบบจะปรับเป็น <strong>Free Edition (8 แทร็ก)</strong> ให้ใช้งานต่อได้ฟรีตลอดชีพ หรือสามารถสั่งซื้อ <strong>รหัสต่ออายุ Pro 1 ปี (Prepaid Serial Key)</strong> เพื่อปลดล็อก 32 แทร็กเต็ม และ<strong>ปิดโฆษณา Shopee ถาวร</strong> ได้ทันที
             </p>
-            <div class="featured-badges-row">
-              <span class="tech-pill">C++17 Engine</span>
-              <span class="tech-pill">JUCE 8 Framework</span>
-              <span class="tech-pill">Free & Open Source</span>
-              <span class="tech-pill">Cross-Platform</span>
-            </div>
-            <div style="font-size: 13px; color: var(--cyan-bright); word-break: break-all; margin-bottom: 8px;">
-              🔗 <code>https://github.com/premtodev08710/multiplatform-mixer.git</code>
+            <div class="featured-badges-row" style="margin-bottom: 0;">
+              <span class="tech-pill" style="border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 700;">🎁 Auto Trial: ฟรี 14 วันเต็ม</span>
+              <span class="tech-pill" style="border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">🟢 Free Edition: ใช้งานต่อฟรี 8 แทร็ก</span>
+              <span class="tech-pill" style="border-color: rgba(255, 215, 0, 0.5); color: #ffd700;">👑 Pro Annual: ปลดล็อก 365 วัน</span>
+              <span class="tech-pill" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">🚫 ปิดโฆษณา Shopee ทันทีเมื่อเติม Pro</span>
+              <span class="tech-pill">🌐 ออฟไลน์ 100% ไม่ต้องล็อกอิน</span>
             </div>
           </div>
 
           <div class="featured-actions">
-            <a 
-              href="https://github.com/premtodev08710/multiplatform-mixer.git" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="btn-main-download track-download" 
-              data-platform="github" 
-              data-file="multiplatform-mixer.git"
+            <a
+              href="https://s.shopee.co.th/80DYoxalGQ"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-main-download"
+              style="background: linear-gradient(135deg, #e65100 0%, #ff9800 100%); color: #fff; font-weight: 700; margin-bottom: 8px; box-shadow: 0 4px 15px rgba(230, 81, 0, 0.4);"
             >
-              <span>📥 ไปที่คลัง GitHub Repo</span>
+              <span>🛒 สั่งซื้อรหัสต่ออายุ Pro 1 ปี (Shopee)</span>
               <span style="font-size: 18px;">↗</span>
             </a>
-
-            <button class="btn-ghost-copy" onclick="copyGitClone(this)">
-              <span>📋 git clone repo url</span>
-            </button>
+            <a
+              href="https://www.facebook.com/premsak.sed"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-main-download"
+              style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0; font-size: 13px;"
+            >
+              <span>💬 สั่งซื้อผ่าน Facebook ผู้พัฒนา</span>
+              <span style="font-size: 14px;">↗</span>
+            </a>
           </div>
         </div>
       </div>
+
+      </details>
     </section>
 
     <!-- Section 2 & 3: Video Tutorials -->
     <section id="tutorials">
       <div class="section-header">
         <div class="section-tag">🎬 2. & 📱 3. คลิปสอนใช้งานและสอนติดตั้ง</div>
-        <h2 class="section-title">วิดีโอแนะนำและคู่มือทีละขั้นตอน</h2>
-        <p class="section-subtitle">แนะนำให้ดูคลิปสอนติดตั้งก่อนเริ่มใช้งาน เพื่อความสะดวกและรวดเร็ว</p>
+        <h2 class="section-title">2. ดูวิดีโอสอนทีละขั้นตอน</h2>
+        <p class="section-subtitle">กดปุ่มเล่นบนวิดีโอเพื่อดูในหน้านี้ได้เลย แนะนำให้ดูวิธีติดตั้งก่อนเริ่มใช้งาน</p>
       </div>
 
       <div class="grid-2">
         <!-- Video 1: Basic Usage (TikTok) -->
         <div class="card-video">
-          <div class="video-thumb-container">
-            <div class="video-thumb-bg" style="background-image: url('assets/effects_group5to8_1024x642.webp');"></div>
-            <span class="video-badge-platform badge-tiktok">
-              <span>🎵</span> TikTok @pjchannel20
-            </span>
-            <a 
-              href="https://www.tiktok.com/@pjchannel20/video/7696916001958513928" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="video-play-btn"
-              title="เปิดดูคลิปบน TikTok"
-            >
-              ▶
-            </a>
+          <div class="tutorial-player tutorial-player-portrait">
+            <iframe src="https://www.tiktok.com/player/v1/7696916001958513928?autoplay=0&amp;controls=1&amp;description=0&amp;music_info=0&amp;rel=0"
+              title="วิดีโอสอนใช้งาน Mix Practice Studio บน TikTok" loading="lazy"
+              allow="fullscreen; picture-in-picture" allowfullscreen></iframe>
           </div>
           <div class="video-content">
             <div>
@@ -1810,7 +1770,7 @@
               rel="noopener noreferrer" 
               class="video-action-btn"
             >
-              <span>ชมคลิปสอนใช้งานบน TikTok</span>
+              <span>ดูบน TikTok หากวิดีโอไม่เล่น</span>
               <span>↗</span>
             </a>
           </div>
@@ -1818,20 +1778,10 @@
 
         <!-- Video 2: Installation Guide (Facebook) -->
         <div class="card-video">
-          <div class="video-thumb-container">
-            <div class="video-thumb-bg" style="background-image: url('assets/effects_lexicon_larc_1024x642.webp');"></div>
-            <span class="video-badge-platform badge-facebook">
-              <span>📹</span> Facebook Video
-            </span>
-            <a 
-              href="https://www.facebook.com/share/v/1C7qxb6cM1/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="video-play-btn"
-              title="เปิดดูคลิปบน Facebook"
-            >
-              ▶
-            </a>
+          <div class="tutorial-player tutorial-player-portrait">
+            <iframe src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1887110185644838%2F&amp;show_text=false&amp;width=360"
+              title="วิดีโอสอนติดตั้ง Mix Practice Studio บน Facebook" loading="lazy"
+              allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
           </div>
           <div class="video-content">
             <div>
@@ -1846,7 +1796,7 @@
               rel="noopener noreferrer" 
               class="video-action-btn"
             >
-              <span>ชมคลิปสอนติดตั้งบน Facebook</span>
+              <span>ดูบน Facebook หากวิดีโอไม่เล่น</span>
               <span>↗</span>
             </a>
           </div>
@@ -1858,7 +1808,7 @@
     <section id="multitracks">
       <div class="section-header">
         <div class="section-tag">🎛️ 4. & 📂 5. แหล่งไฟล์สำหรับฝึกมิกซ์</div>
-        <h2 class="section-title">ไฟล์มัลติแทร็ก (Multitrack Stems) & ไฟล์ประกอบ</h2>
+        <h2 class="section-title">3. โหลดเพลงสำหรับฝึกมิกซ์</h2>
         <p class="section-subtitle">ดาวน์โหลดชุดไฟล์เสียงแยกแทร็ก (กลอง, เบส, กีตาร์, ร้อง) พร้อมฝึกปรับแต่งได้จริง</p>
       </div>
 
@@ -1880,7 +1830,7 @@
             data-platform="stems" 
             data-file="GoogleDrive-Multitrack-Folder"
           >
-            <span>📂 เปิดโฟลเดอร์ Google Drive</span>
+            <span>เปิดคลังเพลงฝึกมิกซ์</span>
             <span>↗</span>
           </a>
         </div>
@@ -2099,13 +2049,14 @@
       </a>
     </div>
 
+    <a class="easy-back-top" href="#start">↑ กลับเมนูหลัก</a>
+
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Footer -->
     <footer>
       <div class="footer-links">
-        <a href="https://github.com/premtodev08710/multiplatform-mixer.git" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub Repository</a>
         <a href="https://www.tiktok.com/@pjchannel20/video/7696916001958513928" target="_blank" rel="noopener noreferrer" class="footer-link">TikTok (@pjchannel20)</a>
         <a href="https://www.facebook.com/share/v/1C7qxb6cM1/" target="_blank" rel="noopener noreferrer" class="footer-link">Facebook Tutorial</a>
         <a href="/admin" class="footer-link" style="color: var(--cyan-bright); font-weight: 700;">⚙️ เข้าสู่ระบบ Admin Dashboard</a>
@@ -2292,20 +2243,6 @@
         }, 2500);
       }).catch(() => {
         window.showToast('รหัสผ่านคือ: 123456789', '🔑');
-      });
-    };
-
-    // Copy Git Clone command
-    window.copyGitClone = function(btn) {
-      const cmd = "git clone https://github.com/premtodev08710/multiplatform-mixer.git";
-      navigator.clipboard.writeText(cmd).then(() => {
-        const originalText = btn.innerHTML;
-        btn.innerHTML = "<span>✅ คัดลอกคำสั่งแล้ว!</span>";
-        window.showToast("คัดลอกคำสั่ง git clone เรียบร้อยแล้ว", "📋");
-        recordDownload('github', 'git clone command', 'https://github.com/premtodev08710/multiplatform-mixer.git');
-        setTimeout(() => {
-          btn.innerHTML = originalText;
-        }, 2500);
       });
     };
 
