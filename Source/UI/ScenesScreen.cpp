@@ -13,7 +13,12 @@ ScenesScreen::ScenesScreen (AudioEngine& eng, ProjectModel& proj)
     backButton.setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::accentCyan);
     addAndMakeVisible (backButton);
 
-    saveProjectButton.setButtonText (AppEdition::canSaveProject() ? "SAVE PROJECT" : "SAVE PROJECT [PRO]");
+    newSceneButton.addListener (this);
+    newSceneButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff059669)); // Emerald Green
+    newSceneButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    addAndMakeVisible (newSceneButton);
+
+    saveProjectButton.setButtonText ("SAVE PROJECT FILE");
     saveProjectButton.addListener (this);
     addAndMakeVisible (saveProjectButton);
 
@@ -26,11 +31,20 @@ ScenesScreen::ScenesScreen (AudioEngine& eng, ProjectModel& proj)
     sceneNameEditor.setText ("Scene 1 - Rough Mix");
     addAndMakeVisible (sceneNameEditor);
 
+    captureSceneButton.setButtonText ("SAVE SCENE (บันทึกลงเครื่อง)");
+    captureSceneButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff0284c7)); // Sky Blue
     captureSceneButton.addListener (this);
     addAndMakeVisible (captureSceneButton);
 
+    recallSceneButton.setButtonText ("RECALL SCENE (เปิดซีนเดิม)");
+    recallSceneButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffd97706)); // Amber
     recallSceneButton.addListener (this);
     addAndMakeVisible (recallSceneButton);
+
+    deleteSceneButton.setButtonText ("DELETE (ลบ)");
+    deleteSceneButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff991b1b)); // Crimson
+    deleteSceneButton.addListener (this);
+    addAndMakeVisible (deleteSceneButton);
 
     importScnButton.addListener (this);
     importScnButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff00838f));
@@ -39,15 +53,53 @@ ScenesScreen::ScenesScreen (AudioEngine& eng, ProjectModel& proj)
     sceneList.setModel (this);
     addAndMakeVisible (sceneList);
 
-    // Initial default scenes
-    scenes.push_back ({ "01: Default Initial State", project.captureSceneSnapshot ("01: Default Initial State") });
+    loadPersistedScenes();
+}
 
-    auto x32Scn = juce::File::getCurrentWorkingDirectory().getChildFile ("scene.scn");
-    if (x32Scn.existsAsFile())
+void ScenesScreen::persistScenes()
+{
+    juce::Array<juce::var> arr;
+    for (const auto& s : scenes)
     {
-        scenes.push_back ({ "02: X32 scene.scn (Thai Folk Band - Ponglang/Pin/Kan)", {} });
+        auto obj = new juce::DynamicObject();
+        obj->setProperty ("name", s.name);
+        obj->setProperty ("data", s.data);
+        arr.add (juce::var (obj));
+    }
+    project.saveStoredScenes (juce::var (arr));
+}
+
+void ScenesScreen::loadPersistedScenes()
+{
+    scenes.clear();
+    auto jsonVar = project.loadStoredScenes();
+    if (jsonVar.isArray())
+    {
+        if (auto* arr = jsonVar.getArray())
+        {
+            for (const auto& v : *arr)
+            {
+                if (auto* obj = v.getDynamicObject())
+                {
+                    const auto name = obj->getProperty ("name").toString();
+                    auto data = obj->getProperty ("data");
+                    if (name.isNotEmpty())
+                        scenes.push_back ({ name, data });
+                }
+            }
+        }
+    }
+
+    if (scenes.empty())
+    {
+        scenes.push_back ({ "01: Default Initial State", project.captureSceneSnapshot ("01: Default Initial State") });
+        auto x32Scn = juce::File::getCurrentWorkingDirectory().getChildFile ("scene.scn");
+        if (x32Scn.existsAsFile())
+            scenes.push_back ({ "02: X32 scene.scn (Thai Folk Band - Ponglang/Pin/Kan)", {} });
+        persistScenes();
     }
     sceneList.updateContent();
+    sceneList.repaint();
 }
 
 int ScenesScreen::getNumRows()
@@ -81,21 +133,57 @@ void ScenesScreen::buttonClicked (juce::Button* b)
         return;
     }
 
+    if (b == &newSceneButton)
+    {
+        juce::AlertWindow::showOkCancelBox (
+            juce::AlertWindow::QuestionIcon,
+            juce::CharPointer_UTF8 ("\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\x8b\xe0\xb8\xb5\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88 (Create New Scene / Project)"),
+            juce::CharPointer_UTF8 (
+                "\xe0\xb8\x95\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\x87\xe0\xb8\x81\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\x8b\xe0\xb8\xb5\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x88\xe0\xb8\xab\xe0\xb8\xa3\xe0\xb8\xb7\xe0\xb8\xad\xe0\xb9\x84\xe0\xb8\xa1\xe0\xb9\x88?\n\n"
+                "\xe2\x80\xa2 \xe0\xb8\xa3\xe0\xb8\xb0\xe0\xb8\x9a\xe0\xb8\x9a\xe0\xb8\x88\xe0\xb8\xb0\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb9\x80\xe0\xb8\x8b\xe0\xb9\x87\xe0\xb8\x95\xe0\xb8\x81\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb8\x95\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\x84\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\xa1\xe0\xb8\xb4\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\x8b\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb8\x97\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb8\x94\n"
+                "\xe2\x80\xa2 \xe0\xb9\x80\xe0\xb8\x84\xe0\xb8\xa5\xe0\xb8\xb5\xe0\xb8\xa2\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb9\x84\xe0\xb8\x9f\xe0\xb8\xa5\xe0\xb9\x8c\xe0\xb8\xa1\xe0\xb8\xb1\xe0\xb8\xa5\xe0\xb8\x95\xe0\xb8\xb4\xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\x94\xe0\xb8\xb4\xe0\xb8\xa1\xe0\xb8\xad\xe0\xb8\xad\xe0\xb8\x81 \xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x83\xe0\xb8\xab\xe0\xb9\x89\xe0\xb8\x97\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb4\xe0\xb9\x88\xe0\xb8\xa1\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xa5\xe0\xb8\x87\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb9\x84\xe0\xb8\x94\xe0\xb9\x89\xe0\xb8\x97\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb5\n\n"
+                "(All mixer faders, EQs, FX and multitracks will be reset to start a fresh project)"
+            ),
+            juce::CharPointer_UTF8 ("\xe0\xb8\xa2\xe0\xb8\xb7\xe0\xb8\x99\xe0\xb8\xa2\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\x8b\xe0\xb8\xb5\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88"),
+            juce::CharPointer_UTF8 ("\xe0\xb8\xa2\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\xa5\xe0\xb8\xb4\xe0\xb8\x81"),
+            nullptr,
+            juce::ModalCallbackFunction::create ([this] (int res) {
+                if (res != 0)
+                {
+                    project.createNewScene();
+                    juce::AlertWindow::showMessageBoxAsync (
+                        juce::AlertWindow::InfoIcon,
+                        juce::CharPointer_UTF8 ("\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\x8b\xe0\xb8\xb5\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb9\x80\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\xa2\xe0\xb8\x9a\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa2"),
+                        juce::CharPointer_UTF8 ("\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb9\x80\xe0\xb8\x8b\xe0\xb9\x87\xe0\xb8\x95\xe0\xb8\xa1\xe0\xb8\xb4\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\x8b\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb9\x80\xe0\xb8\xa3\xe0\xb8\xb5\xe0\xb8\xa2\xe0\xb8\x9a\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa2\xe0\xb9\x81\xe0\xb8\xa5\xe0\xb9\x89\xe0\xb8\xa7 \xe0\xb8\xaa\xe0\xb8\xb2\xe0\xb8\xa1\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb8\x96\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb4\xe0\xb9\x88\xe0\xb8\xa1\xe0\xb9\x84\xe0\xb8\x9f\xe0\xb8\xa5\xe0\xb9\x8c\xe0\xb8\xa1\xe0\xb8\xb1\xe0\xb8\xa5\xe0\xb8\x95\xe0\xb8\xb4\xe0\xb9\x81\xe0\xb8\x97\xe0\xb8\xa3\xe0\xb8\x81\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xa5\xe0\xb8\x87\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb9\x84\xe0\xb8\x94\xe0\xb9\x89\xe0\xb8\x97\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb8\x84\xe0\xb8\xa3\xe0\xb8\xb1\xe0\xb8\x9a")
+                    );
+                }
+            })
+        );
+        return;
+    }
+
     if (b == &captureSceneButton)
     {
         const auto name = sceneNameEditor.getText().trim();
         if (name.isNotEmpty())
         {
             scenes.push_back ({ name, project.captureSceneSnapshot (name) });
+            persistScenes();
             sceneList.updateContent();
             sceneList.repaint();
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::InfoIcon,
+                juce::String::fromUTF8 ("บันทึกซีนลงเครื่องเรียบร้อย"),
+                juce::String::fromUTF8 ("บันทึกซีน: \"") + name + juce::String::fromUTF8 ("\"\nพร้อมการตั้งค่ามิกเซอร์, EQ, FX และไฟล์เพลงมัลติแทรกเรียบร้อยแล้ว")
+            );
         }
     }
     else if (b == &recallSceneButton)
     {
         if (selectedSceneIndex >= 0 && selectedSceneIndex < (int) scenes.size())
         {
-            if (scenes[(size_t) selectedSceneIndex].data.isVoid())
+            const auto& item = scenes[(size_t) selectedSceneIndex];
+            if (item.data.isVoid())
             {
                 auto x32Scn = juce::File::getCurrentWorkingDirectory().getChildFile ("scene.scn");
                 if (x32Scn.existsAsFile())
@@ -103,8 +191,32 @@ void ScenesScreen::buttonClicked (juce::Button* b)
             }
             else
             {
-                project.recallSceneSnapshot (scenes[(size_t) selectedSceneIndex].data);
+                project.recallSceneSnapshot (item.data);
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::InfoIcon,
+                    juce::String::fromUTF8 ("เปิดซีนเรียบร้อย"),
+                    juce::String::fromUTF8 ("โหลดซีน: \"") + item.name + juce::String::fromUTF8 ("\"\nพร้อมดึงการตั้งค่าและไฟล์มัลติแทรกเดิมกลับมาเรียบร้อย")
+                );
             }
+        }
+        else
+        {
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::WarningIcon,
+                "No Scene Selected",
+                "Please select a scene from the list to recall."
+            );
+        }
+    }
+    else if (b == &deleteSceneButton)
+    {
+        if (selectedSceneIndex >= 0 && selectedSceneIndex < (int) scenes.size())
+        {
+            scenes.erase (scenes.begin() + selectedSceneIndex);
+            selectedSceneIndex = -1;
+            persistScenes();
+            sceneList.updateContent();
+            sceneList.repaint();
         }
     }
     else if (b == &importScnButton)
@@ -123,6 +235,7 @@ void ScenesScreen::buttonClicked (juce::Button* b)
                 if (res.wasOk())
                 {
                     scenes.push_back ({ "X32: " + file.getFileNameWithoutExtension(), project.captureSceneSnapshot (file.getFileNameWithoutExtension()) });
+                    persistScenes();
                     sceneList.updateContent();
                     sceneList.repaint();
                     juce::AlertWindow::showMessageBoxAsync (
@@ -140,20 +253,6 @@ void ScenesScreen::buttonClicked (juce::Button* b)
     }
     else if (b == &saveProjectButton)
     {
-        if (! AppEdition::canSaveProject())
-        {
-            juce::AlertWindow::showMessageBoxAsync (
-                juce::AlertWindow::InfoIcon,
-                "PRO FEATURE: Save Project",
-                juce::CharPointer_UTF8 (
-                    "\xe0\xb8\x9f\xe0\xb8\xb1\xe0\xb8\x87\xe0\xb8\x81\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x9a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb6\xe0\xb8\x81\xe0\xb9\x82\xe0\xb8\x9b\xe0\xb8\xa3\xe0\xb9\x80\xe0\xb8\x88\xe0\xb8\x81\xe0\xb8\x95\xe0\xb9\x8c (Save Project) \xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99 Pro \xe0\xb9\x80\xe0\xb8\x97\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x99\n\n"
-                    "\xe0\xb9\x83\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5 \xe0\xb8\x97\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\xaa\xe0\xb8\xb2\xe0\xb8\xa1\xe0\xb8\xb2\xe0\xb8\xa3\xe0\xb8\x96\xe0\xb8\x9d\xe0\xb8\xb7\xe0\xb8\x81\xe0\xb8\x8b\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa1\xe0\xb8\xa1\xe0\xb8\xb4\xe0\xb8\x81\xe0\xb8\x8b\xe0\xb9\x8c\xe0\xb9\x80\xe0\xb8\xaa\xe0\xb8\xb5\xe0\xb8\xa2\xe0\xb8\x87\xe0\xb9\x84\xe0\xb8\x94\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa2\xe0\xb9\x88\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\xad\xe0\xb8\xb4\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb8\xb0\xe0\xb9\x84\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb8\x88\xe0\xb8\xb3\xe0\xb8\x81\xe0\xb8\xb1\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xa5\xe0\xb8\xb2\n"
-                    "\xe0\xb8\xad\xe0\xb8\xb1\xe0\xb8\x9b\xe0\xb9\x80\xe0\xb8\x81\xe0\xb8\xa3\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb9\x87\xe0\xb8\x99\xe0\xb9\x80\xe0\xb8\xa7\xe0\xb8\xad\xe0\xb8\xa3\xe0\xb9\x8c\xe0\xb8\x8a\xe0\xb8\xb1\xe0\xb8\x99 Pro \xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb6\xe0\xb8\x81\xe0\xb9\x82\xe0\xb8\x9b\xe0\xb8\xa3\xe0\xb9\x80\xe0\xb8\x88\xe0\xb8\x81\xe0\xb8\x95\xe0\xb9\x8c\xe0\xb9\x84\xe0\xb8\x94\xe0\xb9\x89\xe0\xb9\x84\xe0\xb8\xa1\xe0\xb9\x88\xe0\xb8\x88\xe0\xb8\xb3\xe0\xb8\x81\xe0\xb8\xb1\xe0\xb8\x94!"
-                )
-            );
-            return;
-        }
-
         fileChooser = std::make_unique<juce::FileChooser> (
             "Save Mix Practice Project",
             juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
@@ -238,39 +337,47 @@ void ScenesScreen::resized()
 
     if (getWidth() < 900)
     {
-        // Stack project actions above the scene list on phones instead of
-        // squeezing the list into a narrow side column.
+        // Mobile layout: Stack actions neatly
+        auto topActions = bounds.removeFromTop (32);
+        backButton.setBounds (topActions.removeFromLeft (76));
+        topActions.removeFromLeft (6);
+        newSceneButton.setBounds (topActions);
+
+        bounds.removeFromTop (6);
         auto projectRow = bounds.removeFromTop (30);
-        backButton.setBounds (projectRow.removeFromLeft (86));
-        projectRow.removeFromLeft (6);
         const int actionW = (projectRow.getWidth() - 8) / 2;
         saveProjectButton.setBounds (projectRow.removeFromLeft (actionW));
         projectRow.removeFromLeft (8);
         loadProjectButton.setBounds (projectRow);
         bounds.removeFromTop (4);
-        copyAudioToggle.setBounds (bounds.removeFromTop (24));
+        copyAudioToggle.setBounds (bounds.removeFromTop (22));
         bounds.removeFromTop (6);
 
-        auto topRow = bounds.removeFromTop (30);
-        const int gap = 4;
-        const int editorW = std::min (160, topRow.getWidth() / 3);
-        sceneNameEditor.setBounds (topRow.removeFromLeft (editorW));
-        topRow.removeFromLeft (gap);
-        const int buttonW = std::max (70, (topRow.getWidth() - 2 * gap) / 3);
-        captureSceneButton.setBounds (topRow.removeFromLeft (buttonW));
-        topRow.removeFromLeft (gap);
-        recallSceneButton.setBounds (topRow.removeFromLeft (buttonW));
-        topRow.removeFromLeft (gap);
-        importScnButton.setBounds (topRow);
+        auto sceneEditRow = bounds.removeFromTop (30);
+        sceneNameEditor.setBounds (sceneEditRow.removeFromLeft (std::min (200, sceneEditRow.getWidth() / 2)));
+        sceneEditRow.removeFromLeft (6);
+        captureSceneButton.setBounds (sceneEditRow);
+        bounds.removeFromTop (4);
+
+        auto sceneBtnRow = bounds.removeFromTop (30);
+        const int sBtnW = (sceneBtnRow.getWidth() - 8) / 3;
+        recallSceneButton.setBounds (sceneBtnRow.removeFromLeft (sBtnW));
+        sceneBtnRow.removeFromLeft (4);
+        deleteSceneButton.setBounds (sceneBtnRow.removeFromLeft (sBtnW));
+        sceneBtnRow.removeFromLeft (4);
+        importScnButton.setBounds (sceneBtnRow);
+
         bounds.removeFromTop (6);
         sceneList.setBounds (bounds);
         return;
     }
 
-    // Left Box
+    // Left Box (Project file actions)
     auto leftBox = bounds.removeFromLeft (320).reduced (16, 44);
     backButton.setBounds (leftBox.removeFromTop (30));
-    leftBox.removeFromTop (8);
+    leftBox.removeFromTop (12);
+    newSceneButton.setBounds (leftBox.removeFromTop (34));
+    leftBox.removeFromTop (12);
     saveProjectButton.setBounds (leftBox.removeFromTop (30));
     leftBox.removeFromTop (8);
     loadProjectButton.setBounds (leftBox.removeFromTop (30));
@@ -279,16 +386,18 @@ void ScenesScreen::resized()
 
     bounds.removeFromLeft (12);
 
-    // Right Box (Scenes)
+    // Right Box (Scenes & Snapshots)
     auto rightBox = bounds.reduced (16, 44);
     auto topRow = rightBox.removeFromTop (32);
-    sceneNameEditor.setBounds (topRow.removeFromLeft (220));
+    sceneNameEditor.setBounds (topRow.removeFromLeft (200));
     topRow.removeFromLeft (8);
-    captureSceneButton.setBounds (topRow.removeFromLeft (110));
+    captureSceneButton.setBounds (topRow.removeFromLeft (130));
     topRow.removeFromLeft (8);
-    recallSceneButton.setBounds (topRow.removeFromLeft (110));
+    recallSceneButton.setBounds (topRow.removeFromLeft (130));
     topRow.removeFromLeft (8);
-    importScnButton.setBounds (topRow.removeFromLeft (170));
+    deleteSceneButton.setBounds (topRow.removeFromLeft (80));
+    topRow.removeFromLeft (8);
+    importScnButton.setBounds (topRow.removeFromLeft (150));
 
     rightBox.removeFromTop (12);
     sceneList.setBounds (rightBox);

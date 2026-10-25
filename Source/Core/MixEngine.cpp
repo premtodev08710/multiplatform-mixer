@@ -23,6 +23,8 @@ void MixEngine::prepare (double sr, int maxBlockSize)
         s.postL.reset (sampleRate, kGainRampSeconds);
         s.postR.reset (sampleRate, kGainRampSeconds);
         s.route.reset (sampleRate, kGainRampSeconds);
+        s.automix.reset (sampleRate, kGainRampSeconds);
+        s.automix.setImmediate (1.0f);
         s.inGain.setImmediate (1.0f);
         s.srcFade.setImmediate (0.0f);
         s.dsp.prepare (sampleRate);
@@ -30,29 +32,40 @@ void MixEngine::prepare (double sr, int maxBlockSize)
         s.activeWidth = 0;
     }
 
+    monitorL.assign ((size_t) maxBlock, 0.0f);
+    monitorR.assign ((size_t) maxBlock, 0.0f);
+    monitorGain.reset (sampleRate, kGainRampSeconds);
+    monitorGain.setImmediate (faderDbToGain (params.monitorLevelDb.get()));
     mainGain.reset (sampleRate, kGainRampSeconds);
     mainGain.setImmediate (faderDbToGain (params.main.faderDb.get()) * (params.main.mute.getBool() ? 0.0f : 1.0f));
 
-    fxRack.prepare (sampleRate, maxBlockSize);
+    fxRack.prepare (sampleRate, maxBlock);
+    monoBuffer.assign ((size_t) maxBlock, 0.0f);
+    automixLevels.fill (0.0f);
+    for (auto& dsp : auxDsp) dsp.prepare (sampleRate);
+    for (auto& dsp : busDsp) dsp.prepare (sampleRate);
+    for (auto& dsp : matrixDsp) dsp.prepare (sampleRate);
+    for (auto& dsp : fxReturnDsp) dsp.prepare (sampleRate);
+    for (auto& tap : sendTapBuffers) tap.assign ((size_t) maxBlock, 0.0f);
     for (int i = 0; i < 16; ++i)
     {
-        busBufL[i].assign ((size_t) maxBlockSize, 0.0f);
-        busBufR[i].assign ((size_t) maxBlockSize, 0.0f);
+        busBufL[i].assign ((size_t) maxBlock, 0.0f);
+        busBufR[i].assign ((size_t) maxBlock, 0.0f);
     }
     for (int i = 0; i < 6; ++i)
     {
-        mtxBufL[i].assign ((size_t) maxBlockSize, 0.0f);
-        mtxBufR[i].assign ((size_t) maxBlockSize, 0.0f);
+        mtxBufL[i].assign ((size_t) maxBlock, 0.0f);
+        mtxBufR[i].assign ((size_t) maxBlock, 0.0f);
     }
     for (int i = 0; i < 4; ++i)
     {
-        fxSendBufL[i].assign ((size_t) maxBlockSize, 0.0f);
-        fxSendBufR[i].assign ((size_t) maxBlockSize, 0.0f);
-        fxRetBufL[i].assign ((size_t) maxBlockSize, 0.0f);
-        fxRetBufR[i].assign ((size_t) maxBlockSize, 0.0f);
+        fxSendBufL[i].assign ((size_t) maxBlock, 0.0f);
+        fxSendBufR[i].assign ((size_t) maxBlock, 0.0f);
+        fxRetBufL[i].assign ((size_t) maxBlock, 0.0f);
+        fxRetBufR[i].assign ((size_t) maxBlock, 0.0f);
     }
-    insBufL.assign ((size_t) maxBlockSize, 0.0f);
-    insBufR.assign ((size_t) maxBlockSize, 0.0f);
+    insBufL.assign ((size_t) maxBlock, 0.0f);
+    insBufR.assign ((size_t) maxBlock, 0.0f);
 
     for (auto& g : fxReturnGains)
     {
@@ -94,8 +107,16 @@ void MixEngine::initRtaFilters (double sr) noexcept
 
 void MixEngine::processRta (const float* l, const float* r, int width, int n, int ch) noexcept
 {
-    if (ch < 0 || ch >= kMaxInputChannels || n <= 0) return;
-    auto& cm = meters.channels[(size_t) ch];
+    if (ch < 0 || ch >= kMaxInputChannels + 22 || n <= 0) return;
+    auto& cm = ch < kMaxInputChannels ? meters.channels[(size_t) ch]
+             : ch < kMaxInputChannels + 16 ? meters.busDetails[(size_t) (ch - kMaxInputChannels)]
+             : meters.matrixDetails[(size_t) (ch - kMaxInputChannels - 16)];
+    if (activeRtaTarget != ch)
+    {
+        for (auto& filter : rtaFilters) filter.reset();
+        for (auto& band : cm.rtaBands) band.reset();
+        activeRtaTarget = ch;
+    }
 
     for (size_t b = 0; b < 31; ++b)
     {
@@ -145,7 +166,40 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         std::memset (fxSendBufR[(size_t) s].data(), 0, sizeof (float) * (size_t) n);
     }
 
-    const bool anySolo = params.anySolo();
+    const int monitorMode = params.monitorMode.getInt();
+    const bool soloSelected = params.anySolo();
+    const bool anySolo = monitorMode == 0 && soloSelected;
+    std::fill_n (monitorL.data(), n, 0.0f);
+    std::fill_n (monitorR.data(), n, 0.0f);
+
+    std::fill_n (monoBuffer.data(), n, 0.0f);
+    std::array<float, 2> automixTotals {};
+    const float envelope = std::exp (-(float)n / ((float)sampleRate * 0.05f));
+    for (int c = 0; c < kMaxInputChannels; ++c)
+    {
+        auto& p = params.channels[(size_t)c];
+        const int source = p.source.getInt(), group = p.automixGroup.getInt();
+        float energy = 0.0f;
+        bool muted = p.mute.getBool();
+        for (int g = 0; g < 6; ++g)
+            muted = muted || ((p.muteGroups.getInt() & (1 << g)) && params.muteGroupActive[(size_t)g].load());
+        for (int d = 0; d < 8; ++d)
+            muted = muted || ((p.dcaGroups.getInt() & (1 << d)) && params.dcas[(size_t)d].mute.getBool());
+        if (!muted && source >= 0 && source < kMaxTracks && slotChannels[source] > 0 && slotData[source*2])
+            for (int i = 0; i < n; ++i)
+            {
+                const float l = slotData[source*2][i];
+                const float r = slotChannels[source] > 1 && slotData[source*2+1] ? slotData[source*2+1][i] : l;
+                const auto mode = (SourceMode)p.sourceMode.getInt();
+                const float detector = mode == SourceMode::RightOnly ? r : mode == SourceMode::MonoSum ? (l+r)*0.5f
+                    : mode == SourceMode::LeftOnly ? l : std::max(std::abs(l),std::abs(r));
+                energy += detector * detector;
+            }
+        const float level = std::sqrt (energy / (float)n) * dbToGain(p.trimDb.get() + p.automixWeightDb.get());
+        auto& previous = automixLevels[(size_t)c];
+        previous = muted ? 0.0f : level + envelope * (previous - level);
+        if (group > 0) automixTotals[(size_t)(group-1)] += previous;
+    }
 
     for (int c = 0; c < kMaxInputChannels; ++c)
     {
@@ -221,6 +275,10 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         }
 
         const bool muted = p.mute.getBool() || muteGroupMuted || dcaMuted;
+        const int autoGroup = p.automixGroup.getInt();
+        const bool autoEnabled = autoGroup > 0 && params.automixEnabled[(size_t)(autoGroup-1)].getBool();
+        const float autoTarget = autoEnabled ? automixLevels[(size_t)c] / std::max(1.0e-12f, automixTotals[(size_t)(autoGroup-1)]) : 1.0f;
+        st.automix.setTarget (autoTarget);
         const float fader = faderDbToGain (p.faderDb.get()) * dcaGain * (muted ? 0.0f : 1.0f);
         const bool routed = p.mainAssign.getBool() && (! anySolo || p.solo.getBool());
 
@@ -281,7 +339,9 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         }
 
         // ---- Channel DSP: Delay -> HPF -> Gate -> 4-band EQ -> Compressor
-        st.dsp.process (chL.data(), chR.data(), width, n, p.dsp, m.dsp);
+        float* tapPointers[6];
+        for (int t = 0; t < 6; ++t) tapPointers[t] = sendTapBuffers[(size_t) t].data();
+        st.dsp.process (chL.data(), chR.data(), width, n, p.dsp, m.dsp, tapPointers);
 
         // ---- Channel Insert FX (Slots 1..8)
         const int chInsSlot = p.insertFxSlot.getInt();
@@ -340,45 +400,42 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         const float* inR = width == 2 ? chR.data() : chL.data();
         for (int i = 0; i < n; ++i)
         {
-            const float l = chL[(size_t) i] * st.postL.next();
-            const float r = inR[i] * st.postR.next();
+            const float autoGain = st.automix.next();
+            const float l = chL[(size_t) i] * st.postL.next() * autoGain;
+            const float r = inR[i] * st.postR.next() * autoGain;
+            if (p.monoAssign.getBool() && (!anySolo || p.solo.getBool()))
+                monoBuffer[(size_t)i] += 0.5f * (chL[(size_t)i] + inR[i]) * fader * autoGain;
             pkL = std::max (pkL, std::abs (l));
             pkR = std::max (pkR, std::abs (r));
+            if (p.solo.getBool())
+            {
+                monitorL[(size_t) i] += monitorMode == 1 ? chL[(size_t) i] * pg.left : l;
+                monitorR[(size_t) i] += monitorMode == 1 ? inR[i] * pg.right : r;
+            }
             const float rg = st.route.next();
             sumL[(size_t) i] += l * rg;
             sumR[(size_t) i] += r * rg;
 
             if (! muted)
             {
-                // MixBus 1..16 accumulation
                 for (int b = 0; b < 16; ++b)
                 {
-                    if (! p.sendMutes[(size_t) b].getBool())
+                    if (p.sendMutes[(size_t) b].getBool()) continue;
+                    const int tap = p.sendTaps[(size_t) (b / 2)].getInt();
+                    const float level = tap == 5 ? 1.0f : faderDbToGain (p.sends[(size_t) b].get());
+                    float sendL = l, sendR = r;
+                    if (tap < 3)
                     {
-                        const float bDb = p.sends[(size_t) b].get();
-                        if (bDb > -89.0f)
-                        {
-                            const float bGain = dbToGain (bDb);
-                            busBufL[(size_t) b][(size_t) i] += l * bGain;
-                            busBufR[(size_t) b][(size_t) i] += r * bGain;
-                        }
+                        sendL = sendTapBuffers[(size_t) (tap * 2)][(size_t) i] * pg.left;
+                        sendR = sendTapBuffers[(size_t) (tap * 2 + 1)][(size_t) i] * pg.right;
                     }
-                }
-
-                // FX Sends 1..4 accumulation (Buses 13..16 are dedicated FX 1..4 when in Send/Return mode!)
-                for (int s = 0; s < 4; ++s)
-                {
-                    const int fxBusIdx = 12 + s;
-                    if (! p.sendMutes[(size_t) fxBusIdx].getBool())
+                    else if (tap == 3)
                     {
-                        const float sDb = p.sends[(size_t) fxBusIdx].get();
-                        if (sDb > -89.0f)
-                        {
-                            const float sGain = dbToGain (sDb);
-                            fxSendBufL[(size_t) s][(size_t) i] += l * sGain;
-                            fxSendBufR[(size_t) s][(size_t) i] += r * sGain;
-                        }
+                        sendL = chL[(size_t) i] * pg.left;
+                        sendR = inR[i] * pg.right;
                     }
+                    busBufL[(size_t) b][(size_t) i] += sendL * level;
+                    busBufR[(size_t) b][(size_t) i] += sendR * level;
                 }
             }
         }
@@ -386,16 +443,47 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         m.postR.update (pkR);
     }
 
+    // Aux strips consume an explicitly selected file source; disconnected by default.
+    for (int a = 0; a < 8; ++a)
+    {
+        auto& p = params.auxes[(size_t)a]; const int source = p.source.getInt();
+        if (source < 0 || source >= kMaxTracks || slotChannels[source] == 0)
+        { meters.auxes[(size_t)a].update (0); continue; }
+        const int width = slotChannels[source] > 1 ? 2 : 1;
+        const float gain = dbToGain(p.trimDb.get()) * (p.polarity.getBool() ? -1.0f : 1.0f);
+        for (int i = 0; i < n; ++i)
+        {
+            chL[(size_t)i] = slotData[source*2][i] * gain;
+            chR[(size_t)i] = width == 2 && slotData[source*2+1] ? slotData[source*2+1][i]*gain : chL[(size_t)i];
+        }
+        auxDsp[(size_t)a].process(chL.data(), chR.data(), width, n, p.dsp, auxDspMeters[(size_t)a]);
+        bool muted = p.mute.getBool(); float fader = faderDbToGain(p.faderDb.get());
+        for (int g = 0; g < 6; ++g) muted = muted || ((p.muteGroups.getInt() & (1<<g)) && params.muteGroupActive[(size_t)g].load());
+        for (int d = 0; d < 8; ++d) if (p.dcaGroups.getInt() & (1<<d))
+        { muted = muted || params.dcas[(size_t)d].mute.getBool(); fader *= faderDbToGain(params.dcas[(size_t)d].faderDb.get()); }
+        if (muted) fader = 0;
+        const auto pan = width == 2 ? balanceStereo(p.pan.get()) : panMonoConstantPower(p.pan.get());
+        float peak = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            const float dryL = chL[(size_t)i], dryR = width == 2 ? chR[(size_t)i] : dryL;
+            const float l = dryL*fader*pan.left, r = dryR*fader*pan.right;
+            peak = std::max(peak, std::max(std::abs(l),std::abs(r)));
+            if (p.mainAssign.getBool() && (!anySolo || p.solo.getBool())) { sumL[(size_t)i] += l; sumR[(size_t)i] += r; }
+            if (p.monoAssign.getBool() && (!anySolo || p.solo.getBool())) monoBuffer[(size_t)i] += (dryL+dryR)*0.5f*fader;
+            if (p.solo.getBool())
+            {
+                monitorL[(size_t)i] += monitorMode == 1 ? dryL*pan.left : l;
+                monitorR[(size_t)i] += monitorMode == 1 ? dryR*pan.right : r;
+            }
+        }
+        meters.auxes[(size_t)a].update(peak);
+    }
+
     // ---- Process MixBuses 1..16 (Master fader, mute, insert FX, Main LR routing & metering)
     for (int b = 0; b < 16; ++b)
     {
         auto& busParam = params.buses[(size_t) b];
-
-        // When FX 1..4 (Slot 0..3) is in Send/Return mode (insertMode == 0),
-        // Buses 13..16 (b = 12..15) act as dedicated FX Send masters and are processed
-        // in the FX 1..4 loop below so they do not leak dry bus signal into Main LR.
-        if (b >= 12 && params.fxSlots[(size_t) (b - 12)].insertMode.getInt() == 0)
-            continue;
 
         // Check Mute Groups on bus
         bool busMgMuted = false;
@@ -430,9 +518,16 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             }
         }
 
+        busDsp[(size_t) b].process (busBufL[(size_t) b].data(), busBufR[(size_t) b].data(),
+                                    2, n, busParam.dsp, meters.busDetails[(size_t) b].dsp);
+
+        if (rtaChannel.load (std::memory_order_relaxed) == kMaxInputChannels + b)
+            processRta (busBufL[(size_t) b].data(), busBufR[(size_t) b].data(), 2, n, kMaxInputChannels + b);
+
         // ---- Bus Insert FX (Slots 1..8)
         const int busInsSlot = busParam.insertFxSlot.getInt();
-        if (busInsSlot >= 1 && busInsSlot <= 8)
+        if (busInsSlot >= 1 && busInsSlot <= 8
+            && !(b >= 12 && busInsSlot == b - 11 && !params.fxSlots[(size_t) (b - 12)].insertMode.getBool()))
         {
             auto& insSlotParams = params.fxSlots[(size_t) (busInsSlot - 1)];
             const int t0 = insSlotParams.insertTargets[0].getInt();
@@ -467,16 +562,42 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
 
         const bool busMuted = busParam.mute.getBool() || busMgMuted || busDcaMuted;
         const float busGain = busMuted ? 0.0f : (faderDbToGain (busParam.faderDb.get()) * busDcaGain);
-        const bool busRoutedToMain = busParam.mainAssign.getBool() && (! anySolo || busParam.solo.getBool());
+        const bool fxSendBus = b >= 12 && !params.fxSlots[(size_t) (b - 12)].insertMode.getBool();
+        const bool busRoutedToMain = !fxSendBus && busParam.mainAssign.getBool() && (! anySolo || busParam.solo.getBool());
         const auto busBal = balanceStereo (busParam.pan.get());
 
         float busPk = 0.0f;
         for (int i = 0; i < n; ++i)
         {
+            if (busParam.solo.getBool() && monitorMode == 1)
+            {
+                monitorL[(size_t) i] += busBufL[(size_t) b][(size_t) i];
+                monitorR[(size_t) i] += busBufR[(size_t) b][(size_t) i];
+            }
             const float bL = busBufL[(size_t) b][(size_t) i] * busGain;
             const float bR = busBufR[(size_t) b][(size_t) i] * busGain;
             busPk = std::max (busPk, std::max (std::abs (bL), std::abs (bR)));
 
+            busBufL[(size_t) b][(size_t) i] = bL * busBal.left;
+            busBufR[(size_t) b][(size_t) i] = bR * busBal.right;
+            for (int matrix = 0; matrix < 6; ++matrix)
+            {
+                const float send = faderDbToGain (busParam.matrixSends[(size_t) matrix].get());
+                mtxBufL[(size_t) matrix][(size_t) i] += bL * busBal.left * send;
+                mtxBufR[(size_t) matrix][(size_t) i] += bR * busBal.right * send;
+            }
+            if (busParam.solo.getBool() && monitorMode == 2)
+            {
+                monitorL[(size_t) i] += bL * busBal.left;
+                monitorR[(size_t) i] += bR * busBal.right;
+            }
+            if (fxSendBus)
+            {
+                fxSendBufL[(size_t) (b - 12)][(size_t) i] = bL * busBal.left;
+                fxSendBufR[(size_t) (b - 12)][(size_t) i] = bR * busBal.right;
+            }
+            if (busParam.monoAssign.getBool() && (!anySolo || busParam.solo.getBool()))
+                monoBuffer[(size_t)i] += (bL+bR)*0.5f;
             if (busRoutedToMain)
             {
                 sumL[(size_t) i] += bL * busBal.left;
@@ -492,22 +613,6 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         auto& slotParams = params.fxSlots[(size_t) s];
         if (slotParams.insertMode.getInt() == 0) // Send/Return mode
         {
-            // FX Send Master fader & mute (Buses 13..16)
-            auto& sendBus = params.buses[(size_t) (12 + s)];
-            const float sendTarget = sendBus.mute.getBool() ? 0.0f : faderDbToGain (sendBus.faderDb.get());
-            fxSendGains[(size_t) s].setTarget (sendTarget);
-
-            float sendPk = 0.0f;
-            for (int i = 0; i < n; ++i)
-            {
-                const float g = fxSendGains[(size_t) s].next();
-                fxSendBufL[(size_t) s][(size_t) i] *= g;
-                fxSendBufR[(size_t) s][(size_t) i] *= g;
-                sendPk = std::max (sendPk, std::max (std::abs (fxSendBufL[(size_t) s][(size_t) i]),
-                                                     std::abs (fxSendBufR[(size_t) s][(size_t) i])));
-            }
-            meters.buses[(size_t) (12 + s)].update (sendPk);
-
             // Process through FX Rack Processor
             fxRack.processSlot (s, fxSendBufL[(size_t) s].data(), fxSendBufR[(size_t) s].data(),
                                 fxRetBufL[(size_t) s].data(), fxRetBufR[(size_t) s].data(),
@@ -518,6 +623,12 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const int rR = s * 2 + 1;
             auto& retPL = params.fxReturns[(size_t) rL];
             auto& retPR = params.fxReturns[(size_t) rR];
+
+            // Apply FX Return DSP (4-band Parametric EQ, High Pass, Low Pass, Polarity)
+            fxReturnDsp[(size_t) rL].process (fxRetBufL[(size_t) s].data(), nullptr, 1, n,
+                                              retPL.dsp, fxReturnDspMeters[(size_t) rL]);
+            fxReturnDsp[(size_t) rR].process (fxRetBufR[(size_t) s].data(), nullptr, 1, n,
+                                              retPR.dsp, fxReturnDspMeters[(size_t) rR]);
 
             const float retTargetL = retPL.mute.getBool() ? 0.0f : faderDbToGain (retPL.faderDb.get());
             const float retTargetR = retPR.mute.getBool() ? 0.0f : faderDbToGain (retPR.faderDb.get());
@@ -539,6 +650,20 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
                 retPkL = std::max (retPkL, std::abs (retL));
                 retPkR = std::max (retPkR, std::abs (retR));
 
+                if (retPL.solo.getBool())
+                {
+                    const float sample = monitorMode == 1 ? fxRetBufL[(size_t) s][(size_t) i] : retL;
+                    monitorL[(size_t) i] += sample * panL.left;
+                    monitorR[(size_t) i] += sample * panL.right;
+                }
+                if (retPR.solo.getBool())
+                {
+                    const float sample = monitorMode == 1 ? fxRetBufR[(size_t) s][(size_t) i] : retR;
+                    monitorL[(size_t) i] += sample * panR.left;
+                    monitorR[(size_t) i] += sample * panR.right;
+                }
+                if (retPL.monoAssign.getBool() && (!anySolo || retPL.solo.getBool())) monoBuffer[(size_t)i] += retL;
+                if (retPR.monoAssign.getBool() && (!anySolo || retPR.solo.getBool())) monoBuffer[(size_t)i] += retR;
                 if (routeL)
                 {
                     sumL[(size_t) i] += retL * panL.left;
@@ -570,9 +695,18 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
     for (int m = 0; m < 6; ++m)
     {
         auto& mtxParam = params.matrices[(size_t) m];
-        // Feed from Main LR by default
-        std::memcpy (mtxBufL[(size_t) m].data(), sumL.data(), sizeof (float) * (size_t) n);
-        std::memcpy (mtxBufR[(size_t) m].data(), sumR.data(), sizeof (float) * (size_t) n);
+        const float mainSend = faderDbToGain (params.main.matrixSends[(size_t) m].get())
+            * faderDbToGain (params.main.faderDb.get()) * (params.main.mute.getBool() ? 0.0f : 1.0f);
+        for (int i = 0; i < n; ++i)
+        {
+            mtxBufL[(size_t) m][(size_t) i] += sumL[(size_t) i] * mainSend;
+            mtxBufR[(size_t) m][(size_t) i] += sumR[(size_t) i] * mainSend;
+        }
+        matrixDsp[(size_t) m].process (mtxBufL[(size_t) m].data(), mtxBufR[(size_t) m].data(),
+                                      2, n, mtxParam.dsp, meters.matrixDetails[(size_t) m].dsp);
+
+        if (rtaChannel.load (std::memory_order_relaxed) == kMaxInputChannels + 16 + m)
+            processRta (mtxBufL[(size_t) m].data(), mtxBufR[(size_t) m].data(), 2, n, kMaxInputChannels + 16 + m);
 
         const int mtxInsSlot = mtxParam.insertFxSlot.getInt();
         if (mtxInsSlot >= 1 && mtxInsSlot <= 8)
@@ -609,12 +743,24 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
         }
 
         const bool mtxMuted = mtxParam.mute.getBool();
-        const float mtxGain = mtxMuted ? 0.0f : faderDbToGain (mtxParam.faderDb.get());
+        const float mtxGain = mtxMuted ? 0.0f : faderDbToGain (mtxParam.faderDb.get())
+            * (mtxParam.polarity.getBool() ? -1.0f : 1.0f);
+        const auto matrixBalance = balanceStereo (mtxParam.pan.get());
         float mtxPk = 0.0f;
         for (int i = 0; i < n; ++i)
         {
-            const float mL = mtxBufL[(size_t) m][(size_t) i] * mtxGain;
-            const float mR = mtxBufR[(size_t) m][(size_t) i] * mtxGain;
+            if (mtxParam.solo.getBool() && monitorMode == 1)
+            {
+                monitorL[(size_t) i] += mtxBufL[(size_t) m][(size_t) i];
+                monitorR[(size_t) i] += mtxBufR[(size_t) m][(size_t) i];
+            }
+            const float mL = mtxBufL[(size_t) m][(size_t) i] *= mtxGain * matrixBalance.left;
+            const float mR = mtxBufR[(size_t) m][(size_t) i] *= mtxGain * matrixBalance.right;
+            if (mtxParam.solo.getBool() && monitorMode == 2)
+            {
+                monitorL[(size_t) i] += mL;
+                monitorR[(size_t) i] += mR;
+            }
             mtxPk = std::max (mtxPk, std::max (std::abs (mL), std::abs (mR)));
         }
         meters.matrices[(size_t) m].update (mtxPk);
@@ -636,6 +782,37 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
     meters.main.l.update (pkL);
     meters.main.r.update (pkR);
     if (pkL >= 1.0f || pkR >= 1.0f) meters.main.clip.store (true, std::memory_order_relaxed);
+
+    // Route the selected stereo bus to the hardware output pair after metering Main.
+    const int outputSource = params.outputSource.getInt();
+    float monoPeak = 0;
+    const float monoGain = params.monoMute.getBool() ? 0.0f : faderDbToGain(params.monoFaderDb.get());
+    for (int i = 0; i < n; ++i) { monoBuffer[(size_t)i] *= monoGain; monoPeak = std::max(monoPeak,std::abs(monoBuffer[(size_t)i])); }
+    meters.mainC.update(monoPeak);
+    if (outputSource == 23)
+    { std::copy_n(monoBuffer.data(), n, outL); std::copy_n(monoBuffer.data(), n, outR); }
+    else if (outputSource > 0)
+    {
+        const float* selectedL = outputSource <= 16 ? busBufL[(size_t) (outputSource - 1)].data()
+                                                   : mtxBufL[(size_t) (outputSource - 17)].data();
+        const float* selectedR = outputSource <= 16 ? busBufR[(size_t) (outputSource - 1)].data()
+                                                   : mtxBufR[(size_t) (outputSource - 17)].data();
+        std::memcpy (outL, selectedL, sizeof (float) * (size_t) n);
+        std::memcpy (outR, selectedR, sizeof (float) * (size_t) n);
+    }
+
+    const float monitorTarget = params.monitorMute.getBool() ? 0.0f
+        : faderDbToGain (params.monitorLevelDb.get())
+            * (params.monitorDim.getBool() ? dbToGain (params.monitorDimDb.get()) : 1.0f);
+    monitorGain.setTarget (monitorTarget);
+    for (int i = 0; i < n; ++i)
+    {
+        float l = monitorMode > 0 && soloSelected ? monitorL[(size_t) i] : outL[i];
+        float r = monitorMode > 0 && soloSelected ? monitorR[(size_t) i] : outR[i];
+        if (params.monitorMono.getBool()) l = r = (l + r) * 0.5f;
+        const float gain = monitorGain.next();
+        outL[i] = l * gain; outR[i] = r * gain;
+    }
 
     // Update DCA group meters (highest peak among assigned channels)
     for (int d = 0; d < 8; ++d)

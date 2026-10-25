@@ -32,8 +32,22 @@ public:
         mainWindow = nullptr;
     }
 
+    void suspended() override
+    {
+        if (mainWindow != nullptr)
+        {
+            if (auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent()))
+                mc->saveCurrentSession (false);
+        }
+    }
+
     void systemRequestedQuit() override
     {
+        if (mainWindow != nullptr)
+        {
+            if (auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent()))
+                mc->saveCurrentSession (false);
+        }
         quit();
     }
 

@@ -52,7 +52,7 @@ public:
     /** Whether saving project files is permitted. */
     static bool canSaveProject() noexcept
     {
-        return isPro();
+        return true; // Always allow users to save projects and scenes to device
     }
 
     /** Whether Shopee affiliate sponsor ads should be displayed. */

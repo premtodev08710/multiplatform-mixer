@@ -105,6 +105,8 @@ void HomeScreen::visibilityChanged()
 
 void HomeScreen::timerCallback()
 {
+    autoMixXButton.setToggleState(engine.getMixerParams().automixEnabled[0].getBool(), juce::dontSendNotification);
+    autoMixYButton.setToggleState(engine.getMixerParams().automixEnabled[1].getBool(), juce::dontSendNotification);
     if (! isShowing())
     {
         stopTimer();
@@ -242,6 +244,8 @@ void HomeScreen::setSelectedChannel (int ch)
 
 void HomeScreen::buttonClicked (juce::Button* b)
 {
+    if (b == &autoMixXButton) engine.getMixerParams().automixEnabled[0].setBool(autoMixXButton.getToggleState());
+    if (b == &autoMixYButton) engine.getMixerParams().automixEnabled[1].setBool(autoMixYButton.getToggleState());
     if (b == &sendsOnFadersButton)
     {
         sendsOnFaderActive = sendsOnFadersButton.getToggleState();

@@ -947,7 +947,8 @@ TEST (multiStripModelAndParameters)
 
     // 3. Buses (16 channels)
     CHECK_NEAR (params.buses[0].faderDb.get(), 0.0f, 0.01f);
-    CHECK (params.buses[0].mainAssign.getBool());
+    for (const auto& bus : params.buses)
+        CHECK (! bus.mainAssign.getBool());
     params.buses[5].dcaGroups.set (3.0f); // DCA 1 & 2
     CHECK (params.buses[5].dcaGroups.getInt() == 3);
 
@@ -969,6 +970,12 @@ TEST (mainBusAndMainLrRouting)
     ch0.mainAssign.setBool (true);
     rig.run (20);
     CHECK (rig.L() > 0.05f); // Sound comes out to Main LR!
+
+    // Sending to a bus with its default assignment must not boost Main LR.
+    const float directLevel = rig.L();
+    ch0.sends[0].set (0.0f);
+    rig.run (20);
+    CHECK_NEAR (rig.L(), directLevel, 0.001f);
 
     // 2. Disconnect Channel from Main LR:
     ch0.mainAssign.setBool (false);
@@ -1146,6 +1153,194 @@ TEST (all61FxModelsProcessDefaultAndNormalizedParameters)
             CHECK (energy > 0.01f);
         }
     }
+}
+
+TEST (sendTapsRespectFaderAndMute)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.2f, 0.2f, 2);
+    auto& ch = rig.params.channels[0];
+    ch.source.set (0); ch.mainAssign.setBool (false);
+    ch.sends[0].set (0); rig.params.outputSource.set (1);
+    ch.faderDb.set (-90);
+    for (int tap = 0; tap < 4; ++tap)
+    {
+        ch.sendTaps[0].set ((float) tap); rig.run();
+        CHECK_NEAR (rig.L(), 0.2, 1e-5);
+    }
+    ch.sendTaps[0].set (4); rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-6);
+    ch.sendTaps[0].set (0); ch.mute.setBool (true); rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-6);
+    ch.mute.setBool (false); ch.faderDb.set (0); ch.sends[0].set (-90);
+    ch.sendTaps[0].set (5); rig.run(); CHECK_NEAR (rig.L(), 0.2, 1e-5);
+}
+
+TEST (sendTapsCaptureEqAndDynamicsStages)
+{
+    EngineRig rig; rig.setDc (0, 0.2f, 0.2f, 2);
+    auto& ch = rig.params.channels[0]; ch.source.set (0);
+    ch.sends[0].set (0); rig.params.outputSource.set (1);
+    ch.dsp.eqLowGainDb.set (6.0206f);
+    ch.dsp.compBypass.setBool (false); ch.dsp.compRatio.set (1);
+    ch.dsp.compMakeupDb.set (6.0206f);
+    ch.sendTaps[0].set (1); rig.run (60); CHECK_NEAR (rig.L(), 0.2, 0.001);
+    ch.sendTaps[0].set (2); rig.run (60); CHECK_NEAR (rig.L(), 0.4, 0.001);
+    ch.sendTaps[0].set (3); rig.run (60); CHECK_NEAR (rig.L(), 0.8, 0.001);
+}
+
+TEST (busDspAndMatrixRoutingReachDeviceOutput)
+{
+    EngineRig rig; rig.setDc (0, 0.1f, 0.1f, 2);
+    auto& ch = rig.params.channels[0]; ch.source.set (0); ch.mainAssign.setBool (false); ch.sends[0].set (0);
+    auto& bus = rig.params.buses[0]; bus.mainAssign.setBool (false);
+    bus.dsp.eqLowGainDb.set (6.0206f); bus.matrixSends[0].set (0);
+    rig.params.outputSource.set (17);
+    rig.run (60); CHECK_NEAR (rig.L(), 0.2, 0.001);
+    rig.params.matrices[0].dsp.eqLowGainDb.set (6.0206f);
+    rig.run (60); CHECK_NEAR (rig.L(), 0.4, 0.001);
+    rig.params.matrices[0].mute.setBool (true);
+    rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-7);
+    rig.params.matrices[0].mute.setBool (false); bus.mute.setBool (true);
+    rig.run (60); CHECK_NEAR (rig.L(), 0.0, 1e-5);
+}
+
+TEST (busEqSpectrumAndCompressorMetersFollowSelectedBus)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.4f, 0.4f, 2);
+    for (int i = 0; i < EngineRig::kBlock; ++i)
+    {
+        const float sample = 0.4f * std::sin (2.0f * 3.14159265f * i / 48.0f);
+        rig.slotBuf[0][(size_t) i] = sample;
+        rig.slotBuf[1][(size_t) i] = sample;
+    }
+    auto& ch = rig.params.channels[0];
+    ch.source.set (0); ch.mainAssign.setBool (false); ch.sends[0].set (0);
+    auto& bus = rig.params.buses[0];
+    bus.dsp.compBypass.setBool (false); bus.dsp.compThreshDb.set (-30);
+    bus.dsp.compRatio.set (10); bus.dsp.compAttackMs.set (0.1f);
+    rig.engine.setRtaChannel ((int) kMaxInputChannels);
+    rig.run (80);
+    CHECK (rig.meters.busDetails[0].dsp.compGainReductionDb.load() > 5.0f);
+    float peak = 0;
+    for (auto& band : rig.meters.busDetails[0].rtaBands) peak = std::max (peak, band.read());
+    CHECK (peak > 0.001f);
+    CHECK_NEAR (rig.meters.busDetails[1].dsp.compGainReductionDb.load(), 0, 0.001);
+    rig.engine.setRtaChannel ((int) kMaxInputChannels + 1);
+    rig.run (80);
+    for (auto& band : rig.meters.busDetails[1].rtaBands) CHECK_NEAR (band.read(), 0, 1e-7);
+    rig.engine.setRtaChannel ((int) kMaxInputChannels);
+    rig.setDc (0, 0, 0, 2); rig.run (250);
+    for (auto& band : rig.meters.busDetails[0].rtaBands) CHECK (band.read() < 0.0001f);
+}
+
+TEST (matrixHasNoUnassignedMainLeak)
+{
+    EngineRig rig; rig.setDc (0, 0.2f, 0.2f, 2); rig.params.channels[0].source.set (0);
+    rig.params.outputSource.set (17); rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-7);
+    rig.params.main.matrixSends[0].set (0); rig.run(); CHECK_NEAR (rig.L(), 0.2, 1e-4);
+    rig.params.main.mute.setBool (true); rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-6);
+}
+
+TEST (prepareCapacityIncludesBusAndFxBuffers)
+{
+    EngineRig rig; rig.setDc (0, 0.2f, 0.2f, 2); rig.params.channels[0].source.set (0);
+    // prepare promises a minimum capacity of 4096 even when the device asks for 256.
+    std::vector<float> l (4096), r (4096);
+    std::vector<std::vector<float>> slots (64, std::vector<float> (4096, 0.2f));
+    std::array<const float*, 64> pointers;
+    for (int i = 0; i < 64; ++i) pointers[(size_t)i] = slots[(size_t)i].data();
+    rig.params.channels[0].sends[0].set (0);
+    rig.engine.process (pointers.data(), rig.slotCh, 4096, l.data(), r.data());
+    CHECK (std::isfinite (l.back()));
+}
+
+TEST (pflAndAflLeaveMainMixIntact)
+{
+    EngineRig rig; rig.setDc (0, 0.2f, 0.2f, 2); rig.setDc (1, 0.3f, 0.3f, 2);
+    auto& a = rig.params.channels[0]; a.source.set (0); a.solo.setBool (true); a.faderDb.set (-6.0206f);
+    rig.params.channels[1].source.set (1);
+    rig.params.monitorMode.set (1); rig.run();
+    CHECK_NEAR (rig.L(), 0.2, 1e-5);
+    CHECK_NEAR (rig.meters.main.l.read(), 0.4, 1e-4);
+    rig.params.monitorMode.set (2); rig.run(); CHECK_NEAR (rig.L(), 0.1, 1e-5);
+    rig.params.monitorDim.setBool (true); rig.run(); CHECK_NEAR (rig.L(), 0.01, 1e-5);
+    rig.params.monitorMute.setBool (true); rig.run(); CHECK_NEAR (rig.L(), 0.0, 1e-7);
+}
+
+TEST (auxSourceDspAndMonoCenterOutput)
+{
+    EngineRig rig; rig.setDc (0, 0.2f, 0.2f, 2);
+    auto& a = rig.params.auxes[0];
+    rig.run(); CHECK_NEAR(rig.L(), 0, 1e-7);
+    a.source.set (0); a.dsp.eqBypass.setBool(true); rig.run(); CHECK_NEAR(rig.L(),0.2,1e-5);
+    a.mainAssign.setBool(false); a.monoAssign.setBool(true); rig.params.outputSource.set(23);
+    rig.run(); CHECK_NEAR(rig.L(),0.2,1e-5); CHECK_NEAR(rig.R(),0.2,1e-5);
+    rig.params.monoFaderDb.set(-6.0206f); rig.run(); CHECK_NEAR(rig.L(),0.1,1e-5);
+    rig.params.monoMute.setBool(true); rig.run(); CHECK_NEAR(rig.L(),0.0,1e-7);
+    rig.params.monoMute.setBool(false); a.mute.setBool(true); rig.run(); CHECK_NEAR(rig.L(),0.0,1e-7);
+}
+
+TEST (automixGroupsShareGainWithoutAffectingUngroupedChannels)
+{
+    EngineRig rig; rig.setDc(0,0.2f,0.2f,2); rig.setDc(1,0.2f,0.2f,2);
+    for (int c = 0; c < 2; ++c) { auto& p = rig.params.channels[(size_t)c]; p.source.set((float)c); p.automixGroup.set(1); p.dsp.eqBypass.setBool(true); }
+    rig.run(); CHECK_NEAR(rig.L(),0.4,1e-5);
+    rig.params.automixEnabled[0].setBool(true); rig.run(60); CHECK_NEAR(rig.L(),0.2,1e-4);
+    rig.params.channels[1].mute.setBool(true); rig.run(60); CHECK_NEAR(rig.L(),0.2,1e-4);
+    rig.params.automixEnabled[0].setBool(false); rig.run(); CHECK_NEAR(rig.L(),0.2,1e-4);
+}
+
+TEST (fxReturnDspAudibleEqAndFilters)
+{
+    EngineRig rig;
+    rig.setDc (0, 0.2f, 0.2f, 2);
+    auto& ch0 = rig.params.channels[0];
+    ch0.source.set (0);
+    ch0.mainAssign.setBool (false); // Only listen via FX return
+    ch0.sends[12].set (0.0f);        // Send 0 dB to FX 1 (Bus 13)
+    rig.params.fxSlots[0].setDefaultsForType (FxType::Ambience);
+
+    // Warm up reverb (50 blocks = ~0.27s)
+    rig.run (50);
+    const float rawReturn = rig.L();
+    CHECK (rawReturn > 0.01f);
+
+    // Mute FX return Left and Right -> output drops to zero
+    rig.params.fxReturns[0].mute.setBool (true);
+    rig.params.fxReturns[1].mute.setBool (true);
+    rig.run (20);
+    CHECK_NEAR (rig.L(), 0.0f, 0.005f);
+    rig.params.fxReturns[0].mute.setBool (false);
+    rig.params.fxReturns[1].mute.setBool (false);
+    rig.run (20);
+    CHECK (rig.L() > 0.01f);
+
+    // Enable High Pass Filter at 400 Hz on both FX Returns -> modifies audio energy
+    rig.params.fxReturns[0].dsp.hpfBypass.setBool (false);
+    rig.params.fxReturns[0].dsp.hpfFreq.set (400.0f);
+    rig.params.fxReturns[1].dsp.hpfBypass.setBool (false);
+    rig.params.fxReturns[1].dsp.hpfFreq.set (400.0f);
+    rig.run (30);
+    const float filteredReturn = rig.L();
+    CHECK (std::abs (filteredReturn - rawReturn) > 0.0005f);
+}
+
+TEST (mixerParamsResetToDefaults)
+{
+    MixerParams p;
+    p.channels[0].faderDb.set (-25.0f);
+    p.channels[0].mute.setBool (true);
+    p.fxSlots[0].fxType.set ((float) FxType::GuitarAmp);
+    p.buses[0].faderDb.set (-12.0f);
+
+    p.resetToDefaults();
+
+    CHECK_NEAR (p.channels[0].faderDb.get(), 0.0f, 1e-5);
+    CHECK (! p.channels[0].mute.getBool());
+    CHECK (p.fxSlots[0].fxType.getInt() == (int) FxType::HallReverb);
+    CHECK (p.fxSlots[2].fxType.getInt() == (int) FxType::StereoDelay);
+    CHECK (p.fxSlots[3].fxType.getInt() == (int) FxType::StereoChorus);
+    CHECK_NEAR (p.buses[0].faderDb.get(), 0.0f, 1e-5);
 }
 
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }

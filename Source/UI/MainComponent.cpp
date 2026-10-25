@@ -27,7 +27,7 @@ MainComponent::MainComponent()
 
         // Active screens: Home, Detail, Tracks, Effects, Scenes, Setup
         // Roadmap screens: Meters, Recorder, Routing, Monitor
-        if (i != NavHome && i != NavDetail && i != NavTracks && i != NavEffects && i != NavScenes && i != NavSetup)
+        if (i != NavHome && i != NavDetail && i != NavTracks && i != NavEffects && i != NavScenes && i != NavSetup && i != NavMeters && i != NavRouting && i != NavMonitor && i != NavRecorder)
         {
             navButtons[i].setColour (juce::TextButton::textColourOffId, ConsoleLookAndFeel::textMuted);
             navButtons[i].setTooltip ("Phase 4 Roadmap module");
@@ -81,6 +81,7 @@ MainComponent::MainComponent()
     addChildComponent (effectsScreen);
     addChildComponent (scenesScreen);
     addChildComponent (setupScreen);
+    addChildComponent (consoleTools);
 
     // Placeholder
     placeholderLabel.setFont (juce::FontOptions (16.0f, juce::Font::bold));
@@ -98,6 +99,13 @@ MainComponent::MainComponent()
 
     // Auto-restore previous session (audio tracks + mixer configuration)
     restorePreviousSession();
+
+    // Startup policy: bus-to-main routing is always opt-in for this run,
+    // including when an older auto-saved session had every bus assigned.
+    for (auto& bus : engine.getMixerParams().buses)
+        bus.mainAssign.setBool (false);
+    detailScreen.refreshFromModel();
+    homeScreen.repaint();
 
     // Auto-save periodically (every 30 seconds if modified)
     startTimer (30000);
@@ -265,9 +273,14 @@ void MainComponent::showScreen (int screenIdx)
     scenesScreen.setVisible (screenIdx == NavScenes);
     setupScreen.setVisible (screenIdx == NavSetup);
 
+    consoleTools.setVisible (screenIdx == NavMeters || screenIdx == NavRouting || screenIdx == NavMonitor || screenIdx == NavRecorder);
+    if (screenIdx == NavMeters || screenIdx == NavRouting || screenIdx == NavMonitor || screenIdx == NavRecorder)
+        consoleTools.setMode (screenIdx == NavMeters ? 0 : screenIdx == NavRouting ? 1 : screenIdx == NavMonitor ? 2 : 3);
+
     const bool isPlaceholder = (screenIdx != NavHome && screenIdx != NavDetail
                                 && screenIdx != NavTracks && screenIdx != NavEffects
-                                && screenIdx != NavScenes && screenIdx != NavSetup);
+                                && screenIdx != NavScenes && screenIdx != NavSetup
+                                && screenIdx != NavMeters && screenIdx != NavRouting && screenIdx != NavMonitor && screenIdx != NavRecorder);
     placeholderLabel.setVisible (isPlaceholder);
 
     if (isPlaceholder)
@@ -426,6 +439,7 @@ void MainComponent::showSettingsMenu()
     menu.addSeparator();
     menu.addItem (1008, juce::CharPointer_UTF8 ("\x53\x61\x76\x65\x20\x43\x75\x72\x72\x65\x6e\x74\x20\x53\x65\x73\x73\x69\x6f\x6e\x20\x28\xe0\xb8\x9a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb6\xe0\xb8\x81\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\x9b\xe0\xb8\xb1\xe0\xb8\x88\xe0\xb8\x88\xe0\xb8\xb8\xe0\xb8\x9a\xe0\xb8\xb1\xe0\xb8\x99\x29"), true);
     menu.addItem (1009, juce::CharPointer_UTF8 ("\x52\x65\x6c\x6f\x61\x64\x20\x53\x61\x76\x65\x64\x20\x53\x65\x73\x73\x69\x6f\x6e\x20\x28\xe0\xb9\x82\xe0\xb8\xab\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88\xe0\xb8\x9a\xe0\xb8\xb1\xe0\xb8\x99\xe0\xb8\x97\xe0\xb8\xb6\xe0\xb8\x81\xe0\xb9\x84\xe0\xb8\xa7\xe0\xb9\x89\x29"), ProjectModel::hasSavedSession());
+    menu.addItem (1011, juce::CharPointer_UTF8 ("\x2b\x20\x43\x72\x65\x61\x74\x65\x20\x4e\x65\x77\x20\x53\x63\x65\x6e\x65\x20\x2f\x20\x50\x72\x6f\x6a\x65\x63\x74\x20\x28\xe0\xb8\xaa\xe0\xb8\xa3\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\x87\xe0\xb8\x8b\xe0\xb8\xb5\xe0\xb8\x99\xe0\xb9\x83\xe0\xb8\xab\xe0\xb8\xa1\xe0\xb9\x88\x29"), true);
     menu.addSeparator();
     menu.addItem (1010, juce::CharPointer_UTF8 ("\x54\x65\x72\x6d\x73\x20\x26\x20\x44\x65\x76\x65\x6c\x6f\x70\x65\x72\x20\x49\x6e\x66\x6f\x20\x28\xe0\xb9\x80\xe0\xb8\x87\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x99\xe0\xb9\x84\xe0\xb8\x82\xe0\xb9\x81\xe0\xb8\xa5\xe0\xb8\xb0\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xad\xe0\xb8\xa1\xe0\xb8\xb9\xe0\xb8\xa5\xe0\xb8\x9c\xe0\xb8\xb9\xe0\xb9\x89\xe0\xb8\x9e\xe0\xb8\xb1\xe0\xb8\x92\xe0\xb8\x99\xe0\xb8\xb2\x29"), true);
     menu.addItem (1007, showTopNavBar ? juce::CharPointer_UTF8 ("\x48\x69\x64\x65\x20\x54\x6f\x70\x20\x4d\x65\x6e\x75\x20\x42\x61\x72\x20\x28\xe0\xb8\x8b\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x99\xe0\xb9\x81\xe0\xb8\x96\xe0\xb8\x9a\xe0\xb9\x80\xe0\xb8\xa1\xe0\xb8\x99\xe0\xb8\xb9\x29")
@@ -451,6 +465,9 @@ void MainComponent::showSettingsMenu()
                     break;
                 case 1009:
                     restorePreviousSession();
+                    break;
+                case 1011:
+                    showScreen (NavScenes);
                     break;
                 case 1010:
                 {
@@ -548,6 +565,7 @@ void MainComponent::resized()
     effectsScreen.setBounds (area);
     scenesScreen.setBounds (area);
     setupScreen.setBounds (area);
+    consoleTools.setBounds (area);
     placeholderLabel.setBounds (area);
 
     if (sponsorOverlay != nullptr)

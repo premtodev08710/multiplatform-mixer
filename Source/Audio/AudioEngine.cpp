@@ -18,10 +18,44 @@ AudioEngine::AudioEngine()
 AudioEngine::~AudioEngine()
 {
     closeDevice();
+    stopRecording();
+    recordingThread.stopThread (5000);
 
     diskThreadRunning = false;
     if (diskThread.joinable())
         diskThread.join();
+}
+
+juce::Result AudioEngine::startRecording (const juce::File& file)
+{
+    if (recording.load()) return juce::Result::fail ("Recording is already active");
+    if (file.exists()) return juce::Result::fail ("Choose a new file; existing recordings are preserved");
+    auto stream = file.createOutputStream();
+    if (!stream || !stream->openedOk()) return juce::Result::fail ("Cannot create WAV file");
+    juce::WavAudioFormat wav;
+    auto writer = std::unique_ptr<juce::AudioFormatWriter> (wav.createWriterFor (stream.get(), getSampleRate(), 2, 24, {}, 0));
+    if (!writer) return juce::Result::fail ("Cannot create WAV writer");
+    stream.release();
+    recordingThread.startThread();
+    auto threaded = std::make_unique<juce::AudioFormatWriter::ThreadedWriter> (writer.release(), recordingThread, 32768);
+    const juce::SpinLock::ScopedLockType lock (recordingLock);
+    recordingSampleRate = getSampleRate();
+    recordingOverruns.store (0);
+    recordingWriter = std::move (threaded);
+    recording.store (true);
+    return juce::Result::ok();
+}
+
+void AudioEngine::stopRecording()
+{
+    std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> finished;
+    {
+        const juce::SpinLock::ScopedLockType lock (recordingLock);
+        recording.store (false);
+        finished = std::move (recordingWriter);
+    }
+    // Flush queued samples and close the WAV header off the audio thread.
+    finished.reset();
 }
 
 void AudioEngine::initDevice()
@@ -199,9 +233,13 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
 {
     if (device == nullptr) return;
 
-    const double sr = device->getCurrentSampleRate();
-    const int bs = std::max (64, device->getCurrentBufferSizeSamples());
+    preparePlayback (device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples());
+}
 
+void AudioEngine::preparePlayback (double sampleRate, int blockSize)
+{
+    const double sr = sampleRate > 0 ? sampleRate : 48000.0;
+    const int bs = std::max (64, blockSize);
     currentSampleRate.store (sr);
     currentBlockSize.store (bs);
 
@@ -269,6 +307,19 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* /*inputC
     // 2. Mix and process DSP
     mixEngine.process (slotConstPointers.data(), slotChannels.data(), numSamples,
                        engineOutL.data(), engineOutR.data());
+
+    // Queue the monitored stereo output to disk without waiting on the audio thread.
+    if (recording.load (std::memory_order_relaxed))
+    {
+        const juce::SpinLock::ScopedTryLockType lock (recordingLock);
+        if (lock.isLocked() && recordingWriter)
+        {
+            const float* channels[] = { engineOutL.data(), engineOutR.data() };
+            if (getSampleRate() != recordingSampleRate || !recordingWriter->write (channels, numSamples))
+                recordingOverruns.fetch_add (1, std::memory_order_relaxed);
+        }
+        else recordingOverruns.fetch_add (1, std::memory_order_relaxed);
+    }
 
     // 3. Robust write to active hardware outputs (handles arbitrary channel mapping)
     float* outL = nullptr;

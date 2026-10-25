@@ -33,12 +33,14 @@ private:
     AudioEngine& engine;
     ProjectModel& project;
 
-    juce::TextButton saveProjectButton { "SAVE PROJECT" };
-    juce::TextButton loadProjectButton { "LOAD PROJECT" };
+    juce::TextButton newSceneButton { "+ CREATE NEW SCENE (สร้างซีนใหม่)" };
+    juce::TextButton saveProjectButton { "SAVE PROJECT FILE" };
+    juce::TextButton loadProjectButton { "LOAD PROJECT FILE" };
     juce::ToggleButton copyAudioToggle { "Copy audio into project folder" };
 
-    juce::TextButton captureSceneButton { "STORE SCENE" };
-    juce::TextButton recallSceneButton { "RECALL SCENE" };
+    juce::TextButton captureSceneButton { "SAVE SCENE (บันทึกลงเครื่อง)" };
+    juce::TextButton recallSceneButton { "RECALL SCENE (เปิดซีนเดิม)" };
+    juce::TextButton deleteSceneButton { "DELETE (ลบ)" };
     juce::TextButton importScnButton { "IMPORT X32 SCENE (.SCN)" };
     juce::TextEditor sceneNameEditor;
     juce::ListBox sceneList;
@@ -46,6 +48,9 @@ private:
     struct StoredScene { juce::String name; juce::var data; };
     std::vector<StoredScene> scenes;
     int selectedSceneIndex = -1;
+
+    void persistScenes();
+    void loadPersistedScenes();
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 };

@@ -44,6 +44,7 @@ public:
     void visibilityChanged() override;
 
     void refreshFromModel();
+    void refreshLiveMeters();
 
     std::function<void()> onBack;
 

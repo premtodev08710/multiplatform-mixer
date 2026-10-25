@@ -366,10 +366,10 @@ void ChannelStripComponent::updateFromModel()
     {
         scribbleName.setText ("MainC", juce::dontSendNotification);
         scribbleSource.setText ("CENTER", juce::dontSendNotification);
-        muteButton.setToggleState (false, juce::dontSendNotification);
-
-        faderSlider.setValue (faderDbToPos (0.0f), juce::dontSendNotification);
-        faderValueLabel.setText ("0.0 dB", juce::dontSendNotification);
+        muteButton.setToggleState (engine.getMixerParams().monoMute.getBool(), juce::dontSendNotification);
+        const float db = engine.getMixerParams().monoFaderDb.get();
+        faderSlider.setValue (faderDbToPos (db), juce::dontSendNotification);
+        faderValueLabel.setText (db <= -90 ? "-inf" : juce::String(db,1) + " dB", juce::dontSendNotification);
     }
     else // Master
     {
@@ -484,6 +484,8 @@ void ChannelStripComponent::sliderValueChanged (juce::Slider* slider)
             engine.getMixerParams().matrices[(size_t) channelIndex].faderDb.set (db);
         else if (stripType == StripType::Dca)
             engine.getMixerParams().dcas[(size_t) channelIndex].faderDb.set (db);
+        else if (stripType == StripType::MainC)
+            engine.getMixerParams().monoFaderDb.set (db);
         else if (stripType == StripType::Master)
             engine.getMixerParams().main.faderDb.set (db);
     }
@@ -530,6 +532,8 @@ void ChannelStripComponent::buttonClicked (juce::Button* button)
             engine.getMixerParams().matrices[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
         else if (stripType == StripType::Dca)
             engine.getMixerParams().dcas[(size_t) channelIndex].mute.setBool (muteButton.getToggleState());
+        else if (stripType == StripType::MainC)
+            engine.getMixerParams().monoMute.setBool (muteButton.getToggleState());
         else if (stripType == StripType::Master)
             engine.getMixerParams().main.mute.setBool (muteButton.getToggleState());
     }

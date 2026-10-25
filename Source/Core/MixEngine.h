@@ -1,20 +1,9 @@
 // Mix Practice Studio - mixing engine (pure C++, real-time safe process()).
 //
-// Signal flow implemented in Phase 1 (per input channel):
-//
-//   Track slot --> Source mode (native / mono sum / L / R)
-//              --> Source-switch fade (10 ms)
-//              --> Digital Trim x Polarity       (smoothed, 20 ms)
-//              --> [Phase 2: Delay -> HPF -> Gate -> EQ -> Compressor]   (not processed yet)
-//              --> PRE-FADER METER TAP (+ clip detect >= 0 dBFS)
-//              --> Fader x Mute x Pan            (smoothed, 20 ms)
-//              --> POST-FADER METER TAP
-//              --> Main LR assign x Solo-in-place gate (smoothed, 20 ms)
-//              --> Main LR sum --> Main fader x Main mute --> MAIN METER --> output
-//
-// Solo: "solo in place, after fader/pan". If any channel is soloed, only soloed channels
-//       reach the output. Mute always wins (a muted + soloed channel stays silent).
-// Pan:  mono strips use constant-power (-3 dB centre); stereo strips use balance.
+// Input strips: source -> trim/polarity -> delay/HPF/gate/EQ/compressor
+// -> insert -> fader/pan/AutoMix -> Main/Mono and selectable bus-send taps.
+// Buses feed Matrix sends and Main/Mono; output audition and PFL/AFL monitoring
+// are selected after independent Main metering. Scratch buffers allocate in prepare().
 #pragma once
 
 #include "MixerParams.h"
@@ -51,7 +40,8 @@ private:
         LinearSmoother inGain;          // trim * polarity
         LinearSmoother srcFade;         // source switching fade
         LinearSmoother postL, postR;    // fader * mute * pan
-        LinearSmoother route;           // main assign * solo gate
+        LinearSmoother route;
+        LinearSmoother automix;           // main assign * solo gate
         ChannelDspProcessor dsp;
         int activeSource = -1;
         int activeWidth = 0;
@@ -62,9 +52,22 @@ private:
     double sampleRate = 48000.0;
     int maxBlock = 0;
     std::vector<ChannelState> states;
+    std::array<ChannelDspProcessor, 8> auxDsp;
+    std::array<ChannelDspMeters, 8> auxDspMeters;
+    std::array<float, 32> automixLevels {};
+    std::vector<float> monoBuffer;
     std::vector<float> chL, chR, sumL, sumR;
-    LinearSmoother mainGain;
+    LinearSmoother mainGain, monitorGain;
+    std::vector<float> monitorL, monitorR;
 
+    std::array<ChannelDspProcessor, 16> busDsp;
+
+    std::array<ChannelDspProcessor, 6> matrixDsp;
+
+    std::array<ChannelDspProcessor, 8> fxReturnDsp;
+    std::array<ChannelDspMeters, 8> fxReturnDspMeters;
+
+    std::array<std::vector<float>, 6> sendTapBuffers;
     FxRackManager fxRack;
     std::array<std::vector<float>, 16> busBufL, busBufR;
     std::array<std::vector<float>, 6> mtxBufL, mtxBufR;
@@ -74,7 +77,9 @@ private:
     std::array<LinearSmoother, 8> fxReturnGains;
     std::array<LinearSmoother, 4> fxSendGains;
 
+    // RTA targets: inputs 0..31, buses 32..47, matrices 48..53.
     std::atomic<int> rtaChannel { 0 };
+    int activeRtaTarget = -1;
     std::array<Biquad, 31> rtaFilters;
     std::array<BiquadCoeffs, 31> rtaCoeffs;
     void initRtaFilters (double sr) noexcept;

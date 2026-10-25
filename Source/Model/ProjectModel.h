@@ -42,7 +42,7 @@ public:
     juce::Result saveProject (const juce::File& file, bool copyAudioIntoProject = false);
     juce::Result loadProject (const juce::File& file, juce::StringArray& outMissingFiles);
 
-    // Scenes (Snapshots of mixer state)
+    // Scenes (Snapshots of mixer state & multitracks)
     juce::var captureSceneSnapshot (const juce::String& sceneName) const;
     void recallSceneSnapshot (const juce::var& sceneData);
 
@@ -50,6 +50,14 @@ public:
     juce::Result loadSceneFromFile (const juce::File& file);
     juce::Result loadX32SceneText (const juce::String& scnText);
     juce::Result loadX32SceneFile (const juce::File& file);
+
+    // Persistent Scenes Management (scenes.json stored on device)
+    static juce::File getScenesStorageFile();
+    juce::var loadStoredScenes() const;
+    juce::Result saveStoredScenes (const juce::var& scenesArray);
+
+    // Create New Scene / Project (clears multitracks & resets mixer)
+    void createNewScene();
 
     // Default Session Auto-Save / Restore
     static juce::File getDefaultProjectFile();

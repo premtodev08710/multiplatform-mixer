@@ -1,4 +1,5 @@
 #include "ProjectModel.h"
+#include "ConsoleStateFields.h"
 
 namespace mps
 {
@@ -290,6 +291,14 @@ juce::var ProjectModel::serializeMixerState() const
     }
     mixerObj->setProperty ("dcas", dcaArray);
 
+    auto* console = new juce::DynamicObject();
+    visitConsoleState (params, [&] (const juce::String& key, Param& value) {
+        console->setProperty (juce::Identifier (key), value.get());
+    });
+    mixerObj->setProperty ("consoleState", juce::var (console));
+    juce::Array<juce::var> activeMutes;
+    for (auto& active : params.muteGroupActive) activeMutes.add (active.load());
+    mixerObj->setProperty ("muteGroupActive", activeMutes);
     return juce::var (mixerObj);
 }
 
@@ -533,6 +542,16 @@ void ProjectModel::deserializeMixerState (const juce::var& root)
             }
         }
     }
+    // Optional extension: older projects retain their legacy restore behavior.
+    if (auto* console = rootObj->getProperty ("consoleState").getDynamicObject())
+        visitConsoleState (params, [&] (const juce::String& key, Param& value) {
+            const juce::Identifier id (key);
+            if (console->hasProperty (id)) value.set ((float) (double) console->getProperty (id));
+        });
+    if (auto* active = rootObj->getProperty ("muteGroupActive").getArray())
+        for (int i = 0; i < 6 && i < active->size(); ++i)
+            params.muteGroupActive[(size_t) i].store ((bool) (*active)[i]);
+
 }
 
 juce::Result ProjectModel::saveProject (const juce::File& file, bool copyAudio)
@@ -709,6 +728,21 @@ juce::var ProjectModel::captureSceneSnapshot (const juce::String& sceneName) con
     obj->setProperty ("name", sceneName);
     obj->setProperty ("date", juce::Time::getCurrentTime().toISO8601 (true));
     obj->setProperty ("mixer", serializeMixerState());
+
+    // Also store multitrack audio file paths
+    juce::Array<juce::var> tracksArray;
+    for (int s = 0; s < kMaxTracks; ++s)
+    {
+        auto srcFile = trackFiles[(size_t) s];
+        if (srcFile.existsAsFile())
+        {
+            auto trackObj = new juce::DynamicObject();
+            trackObj->setProperty ("slot", s);
+            trackObj->setProperty ("absolutePath", srcFile.getFullPathName());
+            tracksArray.add (juce::var (trackObj));
+        }
+    }
+    obj->setProperty ("tracks", tracksArray);
     return juce::var (obj);
 }
 
@@ -719,7 +753,78 @@ void ProjectModel::recallSceneSnapshot (const juce::var& sceneData)
     if (obj == nullptr) return;
     if (obj->hasProperty ("mixer"))
         deserializeMixerState (obj->getProperty ("mixer"));
+
+    // Reload multitrack audio if stored in this scene
+    if (obj->hasProperty ("tracks"))
+    {
+        auto* tracksArr = obj->getProperty ("tracks").getArray();
+        if (tracksArr != nullptr && ! tracksArr->isEmpty())
+        {
+            engine.clearAllTracks();
+            for (auto& tf : trackFiles) tf = juce::File();
+
+            const double targetSr = engine.getSampleRate();
+            for (auto& tVar : *tracksArr)
+            {
+                auto* tObj = tVar.getDynamicObject();
+                if (tObj == nullptr) continue;
+                const int slot = tObj->getProperty ("slot");
+                if (slot < 0 || slot >= kMaxTracks) continue;
+
+                if (tObj->hasProperty ("absolutePath"))
+                {
+                    juce::File audioFile (tObj->getProperty ("absolutePath").toString());
+                    if (audioFile.existsAsFile())
+                    {
+                        trackFiles[(size_t) slot] = audioFile;
+                        auto track = AudioFileTrack::open (audioFile, targetSr, engine.getFormatManager());
+                        if (track != nullptr)
+                            engine.setTrackSlot (slot, std::move (track));
+                    }
+                }
+            }
+            if (onTracksChanged) onTracksChanged();
+        }
+    }
+
     modified = true;
+}
+
+void ProjectModel::createNewScene()
+{
+    engine.clearAllTracks();
+    for (auto& tf : trackFiles) tf = juce::File();
+    setupDefaults();
+    engine.getMixerParams().resetToDefaults();
+    projectFile = juce::File();
+    modified = true;
+    if (onTracksChanged) onTracksChanged();
+}
+
+juce::File ProjectModel::getScenesStorageFile()
+{
+    auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                          .getChildFile ("MixPracticeStudio");
+    if (! appDataDir.exists())
+        appDataDir.createDirectory();
+    return appDataDir.getChildFile ("scenes.json");
+}
+
+juce::var ProjectModel::loadStoredScenes() const
+{
+    auto file = getScenesStorageFile();
+    if (! file.existsAsFile())
+        return juce::var();
+    return juce::JSON::parse (file);
+}
+
+juce::Result ProjectModel::saveStoredScenes (const juce::var& scenesArray)
+{
+    auto file = getScenesStorageFile();
+    auto jsonString = juce::JSON::toString (scenesArray, true);
+    if (! file.replaceWithText (jsonString))
+        return juce::Result::fail ("Could not save scenes to device");
+    return juce::Result::ok();
 }
 
 juce::Result ProjectModel::saveSceneToFile (const juce::File& file, const juce::String& sceneName) const

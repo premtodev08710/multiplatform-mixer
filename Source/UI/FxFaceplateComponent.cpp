@@ -245,6 +245,7 @@ void FxFaceplateComponent::refreshFromSlot()
     }
 
     unitCanvas.updateAllControlStatuses();
+    syncMixerEntityInserts();
     ignoreCallbacks = false;
     repaint();
 }

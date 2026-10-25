@@ -37,6 +37,7 @@ struct ChannelParams
     Param solo;
     Param mainAssign;  // routed to Main LR
     Param monoAssign;  // routed to Mono/Center
+    Param automixGroup, automixWeightDb;
     Param phantom48v;  // +48V phantom power simulation
 
     // Full DSP chain (Delay, HPF, Gate, EQ, Compressor)
@@ -68,6 +69,8 @@ struct ChannelParams
         solo.init       ({ 0.0f, 1.0f, 0.0f });
         mainAssign.init ({ 0.0f, 1.0f, 1.0f });
         monoAssign.init ({ 0.0f, 1.0f, 0.0f });
+        automixGroup.init ({ 0.0f, 2.0f, 0.0f });
+        automixWeightDb.init ({ -12.0f, 12.0f, 0.0f });
         phantom48v.init ({ 0.0f, 1.0f, 0.0f });
 
         for (auto& s : sends)
@@ -89,7 +92,7 @@ struct ChannelParams
         sourceMode.resetToDefault(); trimDb.resetToDefault(); polarity.resetToDefault();
         faderDb.resetToDefault(); pan.resetToDefault(); mute.resetToDefault();
         solo.resetToDefault(); mainAssign.resetToDefault(); monoAssign.resetToDefault();
-        phantom48v.resetToDefault();
+        phantom48v.resetToDefault(); automixGroup.resetToDefault(); automixWeightDb.resetToDefault();
         for (auto& s : sends) s.resetToDefault();
         for (auto& sm : sendMutes) sm.resetToDefault();
         for (auto& st : sendTaps) st.resetToDefault();
@@ -99,12 +102,14 @@ struct ChannelParams
 
 struct MainParams
 {
+    std::array<Param, 6> matrixSends;
     Param faderDb;
     Param mute;
     Param insertFxSlot; // 0 = None, 1..8 = FX 1..8
 
     MainParams()
     {
+        for (auto& send : matrixSends) send.init ({ -90.0f, 10.0f, -90.0f });
         // Standard console startup: Main sits at 0.0 dB (Unity Gain)
         faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f });
         mute.init    ({ 0.0f, 1.0f, 0.0f });
@@ -139,6 +144,7 @@ struct FxReturnParams
 
 struct BusParams
 {
+    std::array<Param, 6> matrixSends;
     Param faderDb;
     Param mute;
     Param pan;
@@ -152,11 +158,13 @@ struct BusParams
 
     BusParams()
     {
+        for (auto& send : matrixSends) send.init ({ -90.0f, 10.0f, -90.0f });
         faderDb.init ({ kFaderMinDb, kFaderMaxDb, 0.0f }); // 0 dB unity gain
         mute.init    ({ 0.0f, 1.0f, 0.0f });
         pan.init     ({ -1.0f, 1.0f, 0.0f });
         solo.init    ({ 0.0f, 1.0f, 0.0f });
-        mainAssign.init ({ 0.0f, 1.0f, 1.0f });
+        // Bus sends must not duplicate the direct channel mix until explicitly assigned.
+        mainAssign.init ({ 0.0f, 1.0f, 0.0f });
         monoAssign.init ({ 0.0f, 1.0f, 0.0f });
         insertFxSlot.init ({ 0.0f, 8.0f, 0.0f });
         dcaGroups.init  ({ 0.0f, 255.0f, 0.0f });
@@ -189,7 +197,7 @@ struct AuxParams
         trimDb.init  ({ -12.0f, 60.0f, 0.0f });
         polarity.init({ 0.0f, 1.0f, 0.0f });
         phantom48v.init({ 0.0f, 1.0f, 0.0f });
-        source.init  ({ 0.0f, 8.0f, 0.0f });
+        source.init  ({ -1.0f, 31.0f, -1.0f });
         mainAssign.init ({ 0.0f, 1.0f, 1.0f });
         monoAssign.init ({ 0.0f, 1.0f, 0.0f });
         dcaGroups.init  ({ 0.0f, 255.0f, 0.0f });
@@ -234,6 +242,12 @@ struct MixerParams
 {
     std::array<ChannelParams, kMaxInputChannels> channels;
     MainParams main;
+    // Audition/output pair: 0 Main LR, 1..16 Bus, 17..22 Matrix.
+    Param outputSource;
+    Param monoFaderDb, monoMute;
+    std::array<Param, 2> automixEnabled;
+    // Main monitoring, solo PFL, or solo AFL; monitoring never changes Main meters.
+    Param monitorMode, monitorLevelDb, monitorDim, monitorDimDb, monitorMute, monitorMono;
     std::array<FxSlotParams, 8> fxSlots;
     std::array<FxReturnParams, 8> fxReturns;
     std::array<BusParams, 16> buses;
@@ -245,22 +259,32 @@ struct MixerParams
 
     MixerParams()
     {
+        outputSource.init ({ 0.0f, 23.0f, 0.0f });
+        monoFaderDb.init ({ -90.0f, 10.0f, 0.0f });
+        monoMute.init ({ 0.0f, 1.0f, 0.0f });
+        for (auto& enabled : automixEnabled) enabled.init ({ 0.0f, 1.0f, 0.0f });
+        monitorMode.init ({ 0.0f, 2.0f, 0.0f });
+        monitorLevelDb.init ({ -90.0f, 10.0f, 0.0f });
+        monitorDim.init ({ 0.0f, 1.0f, 0.0f });
+        monitorDimDb.init ({ -40.0f, 0.0f, -20.0f });
+        monitorMute.init ({ 0.0f, 1.0f, 0.0f });
+        monitorMono.init ({ 0.0f, 1.0f, 0.0f });
         for (auto& l : channelPairLinked) l.store (false, std::memory_order_relaxed);
         for (auto& m : muteGroupActive)    m.store (false, std::memory_order_relaxed);
 
-        // Match the FX assignments shown by the installed X32-Mix demo rack.
-        fxSlots[0].setDefaultsForType (FxType::HallReverb);             // FX 1
-        fxSlots[1].setDefaultsForType (FxType::AmbienceReverb);         // FX 2
-        fxSlots[2].setDefaultsForType (FxType::VintageRoomReverb);      // FX 3
-        fxSlots[3].setDefaultsForType (FxType::AmbienceReverb);         // FX 4
-        fxSlots[4].setDefaultsForType (FxType::StereoEnhancer);         // FX 5
-        fxSlots[5].setDefaultsForType (FxType::StereoXtecEQ1);          // FX 6
-        fxSlots[6].setDefaultsForType (FxType::StereoLeisureCompressor); // FX 7
-        fxSlots[7].setDefaultsForType (FxType::MsFairCompressor);       // FX 8
+        // Match standard X32 console default FX assignments (Reverbs, Delays, Modulation, Insert Dynamics)
+        fxSlots[0].setDefaultsForType (FxType::HallReverb);             // FX 1: Hall Reverb (Bus 13)
+        fxSlots[1].setDefaultsForType (FxType::RichPlateReverb);        // FX 2: Plate Reverb (Bus 14)
+        fxSlots[2].setDefaultsForType (FxType::StereoDelay);            // FX 3: Stereo Delay (Bus 15)
+        fxSlots[3].setDefaultsForType (FxType::StereoChorus);           // FX 4: Stereo Chorus (Bus 16)
+        fxSlots[4].setDefaultsForType (FxType::StereoEnhancer);         // FX 5: Stereo Enhancer (Insert)
+        fxSlots[5].setDefaultsForType (FxType::StereoXtecEQ1);          // FX 6: Pultec Tube EQ (Insert)
+        fxSlots[6].setDefaultsForType (FxType::StereoLeisureCompressor); // FX 7: LA-2A Optical Comp (Insert)
+        fxSlots[7].setDefaultsForType (FxType::MsFairCompressor);       // FX 8: Fairchild 670 Comp (Insert)
         for (int i = 4; i < 8; ++i)
             fxSlots[(size_t) i].insertMode.setBool (true); // FX 5-8 are insert-only
 
-        // Defaults: FX 1-4 insert on Bus 13-16; FX 5-8 insert on Ch 1-2, Bus 1-2, Mtx 1-2, Main LR
+        // Defaults: FX 1-4 on Bus 13-16; FX 5-8 insert on Ch 1-2, Bus 1-2, Mtx 1-2, Main LR
         fxSlots[0].insertTargets[0].set (113.0f); fxSlots[0].insertTargets[1].set (113.0f);
         fxSlots[1].insertTargets[0].set (114.0f); fxSlots[1].insertTargets[1].set (114.0f);
         fxSlots[2].insertTargets[0].set (115.0f); fxSlots[2].insertTargets[1].set (115.0f);
@@ -280,12 +304,65 @@ struct MixerParams
         }
     }
 
+    void resetToDefaults()
+    {
+        for (auto& c : channels) c.resetMixValues();
+        for (auto& r : fxReturns)
+        {
+            r.faderDb.resetToDefault();
+            r.mute.resetToDefault();
+            r.solo.resetToDefault();
+            r.mainAssign.resetToDefault();
+        }
+        for (auto& b : buses)
+        {
+            b.faderDb.resetToDefault();
+            b.mute.resetToDefault();
+            b.solo.resetToDefault();
+            b.mainAssign.resetToDefault();
+            b.insertFxSlot.resetToDefault();
+        }
+        for (auto& m : matrices)
+        {
+            m.faderDb.resetToDefault();
+            m.mute.resetToDefault();
+            m.solo.resetToDefault();
+            m.insertFxSlot.resetToDefault();
+        }
+        main.faderDb.resetToDefault();
+        main.mute.resetToDefault();
+        main.insertFxSlot.resetToDefault();
+
+        fxSlots[0].setDefaultsForType (FxType::HallReverb);
+        fxSlots[1].setDefaultsForType (FxType::RichPlateReverb);
+        fxSlots[2].setDefaultsForType (FxType::StereoDelay);
+        fxSlots[3].setDefaultsForType (FxType::StereoChorus);
+        fxSlots[4].setDefaultsForType (FxType::StereoEnhancer);
+        fxSlots[5].setDefaultsForType (FxType::StereoXtecEQ1);
+        fxSlots[6].setDefaultsForType (FxType::StereoLeisureCompressor);
+        fxSlots[7].setDefaultsForType (FxType::MsFairCompressor);
+        for (int i = 4; i < 8; ++i)
+            fxSlots[(size_t) i].insertMode.setBool (true);
+
+        for (int s = 0; s < 4; ++s)
+        {
+            fxReturns[(size_t) (s * 2)].pan.set (-1.0f);
+            fxReturns[(size_t) (s * 2 + 1)].pan.set (1.0f);
+        }
+    }
+
     bool anySolo() const noexcept
     {
         for (auto& c : channels)
             if (c.solo.getBool()) return true;
         for (auto& r : fxReturns)
             if (r.solo.getBool()) return true;
+        for (auto& b : buses)
+            if (b.solo.getBool()) return true;
+        for (auto& a : auxes)
+            if (a.solo.getBool()) return true;
+        for (auto& m : matrices)
+            if (m.solo.getBool()) return true;
         return false;
     }
 
@@ -322,6 +399,8 @@ struct MainMeters
 struct MixerMeters
 {
     std::array<ChannelMeters, kMaxInputChannels> channels;
+    std::array<ChannelMeters, 16> busDetails;
+    std::array<ChannelMeters, 6> matrixDetails;
     MainMeters main;
     std::array<AtomicPeak, 8> fxReturns;
     std::array<AtomicPeak, 16> buses;

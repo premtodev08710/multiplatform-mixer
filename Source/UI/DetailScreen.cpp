@@ -175,8 +175,8 @@ void DetailScreen::setupConfigTab()
     });
     delayDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.delayMs.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->delayMs.set ((float) val);
     };
     addChildComponent (delayDial);
 
@@ -192,8 +192,8 @@ void DetailScreen::setupConfigTab()
     });
     lowCutDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.hpfFreq.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->hpfFreq.set ((float) val);
         eqGraph.repaint();
     };
     addChildComponent (lowCutDial);
@@ -254,6 +254,19 @@ void DetailScreen::setupConfigTab()
     automixYButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffa000));
     addChildComponent (automixYButton);
 
+    for (int group = 0; group < 3; ++group)
+    {
+        auto* button = group == 0 ? &automixOffButton : group == 1 ? &automixXButton : &automixYButton;
+        button->setRadioGroupId (7091);
+        button->onClick = [this, group] {
+            if (currentStripType == ChannelStripComponent::StripType::InputChannel)
+                engine.getMixerParams().channels[(size_t)currentStripIndex].automixGroup.set ((float)group);
+        };
+    }
+    weightingDial.onValueChanged = [this] (double value) {
+        if (!ignoreCallbacks && currentStripType == ChannelStripComponent::StripType::InputChannel)
+            engine.getMixerParams().channels[(size_t)currentStripIndex].automixWeightDb.set ((float)value);
+    };
     weightingDial.setTickLabels ({ { -12.0, "-12" }, { 0.0, "0" }, { 12.0, "+12" } });
     addChildComponent (weightingDial);
 
@@ -317,8 +330,8 @@ void DetailScreen::setupGateTab()
     });
     gateThreshDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.gateThreshDb.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->gateThreshDb.set ((float) val);
         gateGraph.setGateParams ((float) val, (float) gateRangeDial.getValue());
     };
     addChildComponent (gateThreshDial);
@@ -329,8 +342,8 @@ void DetailScreen::setupGateTab()
     });
     gateRangeDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.gateRangeDb.set ((float) -val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->gateRangeDb.set ((float) -val);
         gateGraph.setGateParams ((float) gateThreshDial.getValue(), (float) val);
     };
     addChildComponent (gateRangeDial);
@@ -339,8 +352,8 @@ void DetailScreen::setupGateTab()
     gateAttackDial.setTickLabels ({ { 0.0, "0" }, { 30.0, "30" }, { 60.0, "60" }, { 90.0, "90" }, { 120.0, "120" } });
     gateAttackDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.gateAttackMs.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->gateAttackMs.set ((float) val);
     };
     addChildComponent (gateAttackDial);
 
@@ -350,8 +363,8 @@ void DetailScreen::setupGateTab()
     });
     gateHoldDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.gateHoldMs.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->gateHoldMs.set ((float) val);
     };
     addChildComponent (gateHoldDial);
 
@@ -361,8 +374,8 @@ void DetailScreen::setupGateTab()
     });
     gateReleaseDial.onValueChanged = [this] (double val) {
         if (ignoreCallbacks) return;
-        auto& cp = engine.getMixerParams().channels[(size_t) selectedChannel];
-        cp.dsp.gateReleaseMs.set ((float) val);
+        if (auto* dsp = getCurrentDspParams())
+            dsp->gateReleaseMs.set ((float) val);
     };
     addChildComponent (gateReleaseDial);
 
@@ -674,6 +687,7 @@ void DetailScreen::setupSendsTab()
         sendValueLabels[i].setText ("-oo", juce::dontSendNotification);
         addChildComponent (sendValueLabels[i]);
 
+        sendFaders[i].setName ("Send " + juce::String (i + 1));
         sendFaders[i].setSliderStyle (juce::Slider::LinearVertical);
         sendFaders[i].setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         sendFaders[i].setRange (0.0, 1.0, 0.001);
@@ -1069,13 +1083,34 @@ int DetailScreen::getInsertSlotForCurrentStrip() const noexcept
 void DetailScreen::setInsertSlotForCurrentStrip (int slot)
 {
     auto& mp = engine.getMixerParams();
+    int myCode = 0;
     switch (currentStripType)
     {
-        case ChannelStripComponent::StripType::InputChannel: mp.channels[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
-        case ChannelStripComponent::StripType::Bus:          mp.buses[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
-        case ChannelStripComponent::StripType::Matrix:       mp.matrices[(size_t) currentStripIndex].insertFxSlot.set ((float) slot); break;
-        case ChannelStripComponent::StripType::Master:       mp.main.insertFxSlot.set ((float) slot); break;
+        case ChannelStripComponent::StripType::InputChannel:
+            mp.channels[(size_t) currentStripIndex].insertFxSlot.set ((float) slot);
+            myCode = currentStripIndex + 1;
+            break;
+        case ChannelStripComponent::StripType::Bus:
+            mp.buses[(size_t) currentStripIndex].insertFxSlot.set ((float) slot);
+            myCode = 101 + currentStripIndex;
+            break;
+        case ChannelStripComponent::StripType::Matrix:
+            mp.matrices[(size_t) currentStripIndex].insertFxSlot.set ((float) slot);
+            myCode = 201 + currentStripIndex;
+            break;
+        case ChannelStripComponent::StripType::Master:
+            mp.main.insertFxSlot.set ((float) slot);
+            myCode = 301;
+            break;
         default: break;
+    }
+
+    if (slot >= 1 && slot <= 8 && myCode > 0)
+    {
+        auto& sp = mp.fxSlots[(size_t) (slot - 1)];
+        sp.insertTargets[0].set ((float) myCode);
+        sp.insertTargets[1].set ((float) myCode);
+        sp.insertMode.setBool (true);
     }
 }
 
@@ -1141,6 +1176,15 @@ void DetailScreen::setSelectedStrip (ChannelStripComponent::StripType type, int 
             signalFlow.setStripMode (SignalFlowDiagram::StripMode::Input);
             break;
     }
+
+    // Select the spectrum source for this strip, never leave the previous input selected.
+    engine.getMixEngine().setRtaChannel (
+        type == ChannelStripComponent::StripType::InputChannel ? clamped :
+        type == ChannelStripComponent::StripType::Bus ? (int) kMaxInputChannels + clamped :
+        type == ChannelStripComponent::StripType::Matrix ? (int) kMaxInputChannels + 16 + clamped : -1);
+    eqGraph.setRtaEnabled (false);
+    eqGraph.setRtaEnabled (eqRtaButton.getToggleState());
+    compGrMeter.setReductionDb (0.0f);
 
     // 3. Connect Meters
     auto& mm = engine.getMixerMeters();
@@ -1223,7 +1267,7 @@ void DetailScreen::refreshFromModel()
         channelNumLabel.setText ("Aux" + juce::String (currentStripIndex + 1), juce::dontSendNotification);
 
         const int src = ap.source.getInt();
-        sourceButton.setButtonText (src < 6 ? "Aux " + juce::String (src + 1) : (src == 6 ? "USB L" : "USB R"));
+        sourceButton.setButtonText (src < 0 ? "OFF" : "Track " + juce::String(src+1));
         phaseButton.setToggleState (ap.polarity.getBool(), juce::dontSendNotification);
         gainDial.setValue (ap.trimDb.get(), juce::dontSendNotification);
         phantom48vButton.setToggleState (ap.phantom48v.getBool(), juce::dontSendNotification);
@@ -1319,6 +1363,25 @@ void DetailScreen::refreshFromModel()
         }
     }
 
+    if (currentStripType == ChannelStripComponent::StripType::InputChannel)
+    {
+        auto& p = engine.getMixerParams().channels[(size_t)currentStripIndex];
+        automixOffButton.setToggleState (p.automixGroup.getInt() == 0, juce::dontSendNotification);
+        automixXButton.setToggleState (p.automixGroup.getInt() == 1, juce::dontSendNotification);
+        automixYButton.setToggleState (p.automixGroup.getInt() == 2, juce::dontSendNotification);
+        weightingDial.setValue (p.automixWeightDb.get(), juce::dontSendNotification);
+    }
+    if (currentStripType == ChannelStripComponent::StripType::Bus)
+    {
+        auto& bus = engine.getMixerParams().buses[(size_t) currentStripIndex];
+        for (int i = 0; i < 6; ++i)
+        {
+            sendBusBadges[i].setBus (i + 1, "Matrix " + juce::String (i + 1), false);
+            const float db = bus.matrixSends[(size_t) i].get();
+            sendFaders[i].setValue (faderDbToPos (db), juce::dontSendNotification);
+            sendValueLabels[i].setText (db <= -89.0f ? "-oo" : juce::String (db, 1), juce::dontSendNotification);
+        }
+    }
     // DSP (Gate, Comp, EQ)
     if (auto* dsp = getCurrentDspParams())
     {
@@ -1384,6 +1447,11 @@ void DetailScreen::timerCallback()
         }
     }
 
+    refreshLiveMeters();
+}
+
+void DetailScreen::refreshLiveMeters()
+{
     auto& mm = engine.getMixerMeters();
 
     if (currentTab == TabGate)
@@ -1396,36 +1464,33 @@ void DetailScreen::timerCallback()
     }
     else if (currentTab == TabDyn)
     {
+        const ChannelDspMeters* dspMeters = nullptr;
         if (currentStripType == ChannelStripComponent::StripType::InputChannel)
-        {
-            const float gr = mm.channels[(size_t) currentStripIndex].dsp.compGainReductionDb.load (std::memory_order_relaxed);
-            compGrMeter.setReductionDb (gr);
-        }
+            dspMeters = &mm.channels[(size_t) currentStripIndex].dsp;
+        else if (currentStripType == ChannelStripComponent::StripType::Bus)
+            dspMeters = &mm.busDetails[(size_t) currentStripIndex].dsp;
+        else if (currentStripType == ChannelStripComponent::StripType::Matrix)
+            dspMeters = &mm.matrixDetails[(size_t) currentStripIndex].dsp;
+        compGrMeter.setReductionDb (dspMeters ? dspMeters->compGainReductionDb.load (std::memory_order_relaxed) : 0.0f);
+        if (auto* dsp = getCurrentDspParams())
+            compGraph.setCompParams (dsp->compThreshDb.get(), dsp->compRatio.get(), dsp->compKneeDb.get());
     }
-    else if (currentTab == TabEq && eqGraph.isRtaEnabled())
+    else if (currentTab == TabEq)
     {
-        if (currentStripType == ChannelStripComponent::StripType::InputChannel)
+        eqGraph.repaint();
+        if (eqGraph.isRtaEnabled())
         {
-            auto& cm = mm.channels[(size_t) currentStripIndex];
-            float rtaBands[InteractiveEqGraph::kNumRtaBands];
-            const float peak = std::max (cm.preL.read(), cm.preR.read());
-
-            if (peak > 0.0001f)
-            {
-                for (int i = 0; i < InteractiveEqGraph::kNumRtaBands; ++i)
-                {
-                    const float bandPeak = cm.rtaBands[(size_t) i].read();
-                    const float db = gainToDb (bandPeak);
-                    rtaBands[i] = std::clamp (db, -60.0f, 15.0f);
-                }
-            }
-            else
-            {
-                for (int i = 0; i < InteractiveEqGraph::kNumRtaBands; ++i)
-                    rtaBands[i] = -60.0f;
-            }
-
-            eqGraph.updateRtaSpectrum (rtaBands, InteractiveEqGraph::kNumRtaBands);
+            const ChannelMeters* cm = nullptr;
+            if (currentStripType == ChannelStripComponent::StripType::InputChannel)
+                cm = &mm.channels[(size_t) currentStripIndex];
+            else if (currentStripType == ChannelStripComponent::StripType::Bus)
+                cm = &mm.busDetails[(size_t) currentStripIndex];
+            else if (currentStripType == ChannelStripComponent::StripType::Matrix)
+                cm = &mm.matrixDetails[(size_t) currentStripIndex];
+            float bands[InteractiveEqGraph::kNumRtaBands];
+            for (int i = 0; i < InteractiveEqGraph::kNumRtaBands; ++i)
+                bands[i] = cm ? std::clamp (gainToDb (cm->rtaBands[(size_t) i].read()), -60.0f, 15.0f) : -60.0f;
+            eqGraph.updateRtaSpectrum (bands, InteractiveEqGraph::kNumRtaBands);
         }
     }
 }
@@ -1440,7 +1505,7 @@ void DetailScreen::updateTabVisibility()
 
     const bool gateAvail = isInput;
     const bool dynAvail  = (isInput || isBus || isMtx);
-    const bool sendsAvail = ! isMtx;
+    const bool sendsAvail = isInput || isBus;
 
     tabButtons[TabGate].setEnabled (gateAvail);
     tabButtons[TabDyn].setEnabled (dynAvail);
@@ -1552,11 +1617,15 @@ void DetailScreen::updateTabVisibility()
     for (auto& b : eqBandButtons) b.setVisible (isEq);
 
     const bool isSends = (currentTab == TabSends);
-    for (auto& b : sendBusBadges)   b.setVisible (isSends);
-    for (auto& l : sendValueLabels) l.setVisible (isSends);
-    for (auto& f : sendFaders)      f.setVisible (isSends);
-    for (auto& m : sendMuteButtons) m.setVisible (isSends);
-    for (auto& t : sendTapButtons)  t.setVisible (isSends);
+    for (int i = 0; i < 16; ++i)
+    {
+        const bool visible = isSends && (isInput || (isBus && i < 6));
+        sendBusBadges[i].setVisible (visible);
+        sendValueLabels[i].setVisible (visible);
+        sendFaders[i].setVisible (visible);
+        sendMuteButtons[i].setVisible (isSends && isInput);
+    }
+    for (auto& t : sendTapButtons) t.setVisible (isSends && isInput);
 
     const bool isNaming = (currentTab == TabNaming);
     nameEditor.setVisible (isNaming);
@@ -1676,14 +1745,13 @@ void DetailScreen::buttonClicked (juce::Button* b)
             juce::PopupMenu m;
             auto& ap = engine.getMixerParams().auxes[(size_t) currentStripIndex];
             const int curSrc = ap.source.getInt();
-            for (int i = 0; i < 6; ++i)
-                m.addItem (i + 1, "Aux " + juce::String (i + 1), true, curSrc == i);
-            m.addItem (7, "USB L", true, curSrc == 6);
-            m.addItem (8, "USB R", true, curSrc == 7);
+            m.addItem (1, "OFF", true, curSrc < 0);
+            for (int i = 0; i < 32; ++i)
+                m.addItem (i + 2, "Track " + juce::String (i + 1), true, curSrc == i);
             m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&sourceButton),
                 [this] (int res) {
-                    if (res >= 1 && res <= 8) {
-                        engine.getMixerParams().auxes[(size_t) currentStripIndex].source.set ((float) (res - 1));
+                    if (res >= 1 && res <= 33) {
+                        engine.getMixerParams().auxes[(size_t) currentStripIndex].source.set ((float) (res - 2));
                         refreshFromModel();
                     }
                 });
@@ -1913,6 +1981,12 @@ void DetailScreen::sliderValueChanged (juce::Slider* s)
                 const float db = faderPosToDb ((float) sendFaders[i].getValue());
                 auto& ch = engine.getMixerParams().channels[(size_t) currentStripIndex];
                 ch.sends[(size_t) i].set (db);
+                sendValueLabels[i].setText (db <= -89.0f ? "-oo" : juce::String (db, 1), juce::dontSendNotification);
+            }
+            else if (currentStripType == ChannelStripComponent::StripType::Bus && i < 6)
+            {
+                const float db = faderPosToDb ((float) sendFaders[i].getValue());
+                engine.getMixerParams().buses[(size_t) currentStripIndex].matrixSends[(size_t) i].set (db);
                 sendValueLabels[i].setText (db <= -89.0f ? "-oo" : juce::String (db, 1), juce::dontSendNotification);
             }
             return;
@@ -2251,7 +2325,7 @@ void DetailScreen::paint (juce::Graphics& g)
     }
     else if (currentTab == TabSends)
     {
-        const int numCols = 16;
+        const int numCols = currentStripType == ChannelStripComponent::StripType::Bus ? 6 : 16;
         const float faderTopY = (float) sendFaders[0].getY() + 8.0f;
         const float faderBottomY = (float) sendFaders[0].getBottom() - 8.0f;
         const float faderRangeH = std::max (10.0f, faderBottomY - faderTopY);
@@ -2676,7 +2750,7 @@ void DetailScreen::resized()
     }
     else if (currentTab == TabSends)
     {
-        const int numCols = 16;
+        const int numCols = currentStripType == ChannelStripComponent::StripType::Bus ? 6 : 16;
         const int availW = contentW - 20;
         const int colW = std::clamp (availW / numCols, 44, 76);
         const int colStartX = contentX + 10 + (availW - colW * numCols) / 2;

@@ -7,6 +7,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   # =========================================================================
   # 1. Build Windows (.exe)
@@ -43,6 +46,7 @@ jobs:
           if ($null -ne $exe) {
             Write-Host "Found target app: $($exe.FullName)"
             Copy-Item -Path $exe.FullName -Destination dist-windows/
+            Copy-Item -Path $exe.FullName -Destination "dist-windows/MixPracticeStudio.exe"
           } else {
             Write-Error "Could not find Mix Practice Studio.exe"
             exit 1
@@ -54,6 +58,14 @@ jobs:
         with:
           name: MixPracticeStudio-Windows-x64
           path: MixPracticeStudio-Windows-x64.zip
+
+      - name: Update GitHub Release
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio-Windows-x64.zip dist-windows/MixPracticeStudio.exe --clobber || true
 
   # =========================================================================
   # 2. Build macOS (.app / .zip)
@@ -94,6 +106,13 @@ jobs:
         with:
           name: MixPracticeStudio-macOS
           path: MixPracticeStudio-macOS.zip
+
+      - name: Update GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio-macOS.zip --clobber || true
 
   # =========================================================================
   # 3. Build Android (.apk)
@@ -163,12 +182,27 @@ jobs:
         run: |
           cd android
           gradle assembleDebug --stacktrace
+          APK_FILE=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            cp "$APK_FILE" ../MixPracticeStudio.apk
+          fi
+          cd ..
+          if [ -f "MixPracticeStudio.apk" ]; then
+            zip -q MixPracticeStudio-Android-APK.zip MixPracticeStudio.apk
+          fi
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MixPracticeStudio-Android-APK
           path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Update GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio.apk MixPracticeStudio-Android-APK.zip --clobber || true
 
   # =========================================================================
   # 4. Build iOS (.ipa)
@@ -214,10 +248,20 @@ jobs:
           echo "Found app at: $APP_PATH"
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -r MixPracticeStudio-iOS.ipa Payload
+          zip -qry MixPracticeStudio.ipa Payload
+          zip -q MixPracticeStudio-iOS-IPA.zip MixPracticeStudio.ipa
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MixPracticeStudio-iOS-IPA
-          path: MixPracticeStudio-iOS.ipa
+          path: |
+            MixPracticeStudio.ipa
+            MixPracticeStudio-iOS-IPA.zip
+
+      - name: Update GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio.ipa MixPracticeStudio-iOS-IPA.zip --clobber || true

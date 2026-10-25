@@ -25,6 +25,7 @@ public:
     ~AudioEngine() override;
 
     void initDevice();
+    void preparePlayback (double sampleRate, int blockSize);
     void closeDevice();
 
     void saveAudioDeviceSettings();
@@ -55,6 +56,11 @@ public:
     void seekToNormalized (float norm01);
     void setLoop (bool enabled, int64_t startSample, int64_t endSample);
 
+    juce::Result startRecording (const juce::File& file);
+    void stopRecording();
+    bool isRecording() const noexcept { return recording.load(); }
+    int64_t getRecordingOverruns() const noexcept { return recordingOverruns.load(); }
+
     // Audio device callback
     void audioDeviceAboutToStart (juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
@@ -67,6 +73,12 @@ public:
 
 private:
     void diskThreadLoop();
+    juce::TimeSliceThread recordingThread { "Stereo WAV writer" };
+    juce::SpinLock recordingLock;
+    std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> recordingWriter;
+    std::atomic<bool> recording { false };
+    std::atomic<int64_t> recordingOverruns { 0 };
+    double recordingSampleRate = 0.0;
 
     juce::AudioDeviceManager deviceManager;
     juce::AudioFormatManager formatManager;

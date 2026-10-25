@@ -15,6 +15,7 @@
 #include "TracksScreen.h"
 #include "TransportBar.h"
 #include "SponsorOverlay.h"
+#include "ConsoleToolsScreen.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -84,6 +85,8 @@ private:
     EffectsScreen effectsScreen { engine, project };
     ScenesScreen scenesScreen { engine, project };
     SetupScreen setupScreen { engine, oscClient };
+
+    ConsoleToolsScreen consoleTools { engine };
 
     // Placeholder view for roadmap tabs (Effects, Meters, etc.)
     juce::Label placeholderLabel;

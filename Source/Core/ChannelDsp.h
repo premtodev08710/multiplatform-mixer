@@ -479,7 +479,8 @@ public:
 
     // Process in-place on float buffers chL and chR (or chL only if width == 1)
     void process (float* chL, float* chR, int width, int numSamples,
-                  const ChannelDspParams& p, ChannelDspMeters& m) noexcept
+                  const ChannelDspParams& p, ChannelDspMeters& m,
+                  float* const* taps = nullptr) noexcept
     {
         if (numSamples <= 0) return;
 
@@ -507,6 +508,14 @@ public:
             }
         }
 
+        // Optional preallocated send taps: input/low cut, pre EQ, post EQ.
+        if (taps != nullptr)
+            for (int i = 0; i < numSamples; ++i)
+            {
+                taps[0][i] = chL[i];
+                taps[1][i] = width == 2 ? chR[i] : chL[i];
+            }
+
         // 3. Gate
         const bool gateActive = ! p.gateBypass.getBool();
         float maxGateGr = 0.0f;
@@ -529,6 +538,14 @@ public:
             }
         }
         m.gateGainReductionDb.store (maxGateGr, std::memory_order_relaxed);
+
+        // Optional preallocated send taps: input/low cut, pre EQ, post EQ.
+        if (taps != nullptr)
+            for (int i = 0; i < numSamples; ++i)
+            {
+                taps[2][i] = chL[i];
+                taps[3][i] = width == 2 ? chR[i] : chL[i];
+            }
 
         // 4. 4-Band Parametric EQ
         const bool eqActive = ! p.eqBypass.getBool();
@@ -558,6 +575,14 @@ public:
                 }
             }
         }
+
+        // Optional preallocated send taps: input/low cut, pre EQ, post EQ.
+        if (taps != nullptr)
+            for (int i = 0; i < numSamples; ++i)
+            {
+                taps[4][i] = chL[i];
+                taps[5][i] = width == 2 ? chR[i] : chL[i];
+            }
 
         // 5. Dynamics / Compressor
         const bool compActive = ! p.compBypass.getBool();
