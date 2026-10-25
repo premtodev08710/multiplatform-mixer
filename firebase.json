@@ -18,6 +18,41 @@
         "type": 301
       },
       {
+        "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio.exe",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.exe",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-Windows.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-macOS.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-macOS.zip",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio.pkg",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.pkg",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-macOS.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.pkg",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio.apk",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.apk",
+        "type": 302
+      },
+      {
         "source": "/downloads/MixPracticeStudio-Android.bin",
         "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.apk",
         "type": 302
@@ -28,8 +63,18 @@
         "type": 302
       },
       {
-        "source": "/downloads/MixPracticeStudio-Windows.bin",
-        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-Windows-x64.zip",
+        "source": "/downloads/MixPracticeStudio.ipa",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.ipa",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-iOS.bin",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio.ipa",
+        "type": 302
+      },
+      {
+        "source": "/downloads/MixPracticeStudio-iOS-IPA.zip",
+        "destination": "https://github.com/premtodev08710/multiplatform-mixer/releases/latest/download/MixPracticeStudio-iOS-IPA.zip",
         "type": 302
       }
     ],
@@ -51,105 +96,11 @@
         "destination": "/lite.html"
       }
     ],
-    "headers": [
-      {
-        "source": "/downloads/MixPracticeStudio-Android.bin",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.apk\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/vnd.android.package-archive"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-Windows.bin",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.exe\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/x-msdownload"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-macOS.bin",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.pkg\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/octet-stream"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-iOS.bin",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.ipa\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/octet-stream"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio.ipa",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.ipa\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/octet-stream"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio.exe",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio.exe\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/x-msdownload"
-          }
-        ]
-      },
-      {
-        "source": "/downloads/MixPracticeStudio-Windows-x64.zip",
-        "headers": [
-          {
-            "key": "Content-Disposition",
-            "value": "attachment; filename=\"MixPracticeStudio-Windows-x64.zip\""
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/zip"
-          }
-        ]
-      }
-    ],
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "downloads/*.bin",
-      "downloads/*Android*"
+      "downloads/**"
     ]
   }
 }
