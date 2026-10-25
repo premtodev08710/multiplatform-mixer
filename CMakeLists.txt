@@ -11,14 +11,6 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-if(WIN32)
-    add_compile_definitions(
-        _WIN32_WINNT=0x0601
-        WINVER=0x0601
-        NTDDI_VERSION=0x06010000
-    )
-endif()
-
 if(APPLE)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 17)
