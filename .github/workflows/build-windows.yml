@@ -1,0 +1,63 @@
+name: Build Windows (.exe)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'master', 'codex/**']
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JUCE Framework
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -Path "external/JUCE/CMakeLists.txt")) {
+            git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
+          }
+
+      - name: Setup MSVC Compiler Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake for Windows
+        run: cmake -B build-win -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Windows Standalone App
+        run: cmake --build build-win --config Release --target MixPracticeStudio
+
+      - name: Package Windows Binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist-windows
+          $exe = Get-ChildItem -Path build-win -Filter "*Mix Practice Studio*.exe" -Recurse | Select-Object -First 1
+          if ($null -ne $exe) {
+            Write-Host "Found target app: $($exe.FullName)"
+            Copy-Item -Path $exe.FullName -Destination dist-windows/
+            Copy-Item -Path $exe.FullName -Destination "dist-windows/MixPracticeStudio.exe"
+          } else {
+            Write-Error "Could not find Mix Practice Studio.exe"
+            exit 1
+          }
+          Compress-Archive -Path dist-windows/* -DestinationPath MixPracticeStudio-Windows-x64.zip -Force
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-Windows-x64
+          path: MixPracticeStudio-Windows-x64.zip
+
+      - name: Update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.1 MixPracticeStudio-Windows-x64.zip dist-windows/MixPracticeStudio.exe --clobber

@@ -6,6 +6,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable Static C/C++ Runtime on MSVC (/MT) for standalone portability and Windows 7+ compatibility
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+if(WIN32)
+    add_compile_definitions(
+        _WIN32_WINNT=0x0601
+        WINVER=0x0601
+        NTDDI_VERSION=0x06010000
+    )
+endif()
+
 if(APPLE)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 17)
@@ -173,6 +186,7 @@ endif()
 
 if(MSVC)
     target_compile_options(MixPracticeStudio PRIVATE /utf-8)
+    set_property(TARGET MixPracticeStudio PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 #==============================================================================
@@ -220,6 +234,7 @@ endif()
 
 if(MSVC)
     target_compile_options(MixPracticeStudioPro PRIVATE /utf-8)
+    set_property(TARGET MixPracticeStudioPro PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 endif()
 
@@ -286,6 +301,7 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         Source/Core/SincResampler.cpp
     )
     target_compile_definitions(UiSnapshotTest PRIVATE
+        JUCE_USE_MP3AUDIOFORMAT=1
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_APPLICATION_VERSION_STRING="1.0.2"
