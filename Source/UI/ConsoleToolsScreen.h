@@ -57,8 +57,9 @@ public:
         record.setButtonText ("RECORD STEREO WAV..."); stop.setButtonText ("STOP & SAVE");
         record.onClick = [this] {
             chooser = std::make_unique<juce::FileChooser> ("New stereo WAV recording", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Mix.wav"), "*.wav");
+            juce::Component::SafePointer<ConsoleToolsScreen> safe (this);
             chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-                [safe = juce::Component::SafePointer<ConsoleToolsScreen> (this)] (const juce::FileChooser& selected) {
+                [safe] (const juce::FileChooser& selected) {
                     if (!safe || selected.getResult() == juce::File()) return;
                     auto result = safe->engine.startRecording (selected.getResult().withFileExtension ("wav"));
                     safe->recordStatus = result.wasOk() ? "Recording: " + selected.getResult().getFileName() : result.getErrorMessage();
@@ -85,8 +86,9 @@ public:
             if (mp3 && !MixdownExporter::findMp3Encoder().existsAsFile())
             { exportStatus = "MP3 requires LAME on this device. WAV export is available."; repaint(); return; }
             chooser = std::make_unique<juce::FileChooser> ("Export full Main LR mix", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile (mp3 ? "Mix.mp3" : "Mix.wav"), mp3 ? "*.mp3" : "*.wav");
+            juce::Component::SafePointer<ConsoleToolsScreen> safe (this);
             chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-                [safe = juce::Component::SafePointer<ConsoleToolsScreen> (this), mp3] (const juce::FileChooser& selected) {
+                [safe, mp3] (const juce::FileChooser& selected) {
                     if (!safe || selected.getResult() == juce::File()) return;
                     safe->exporter = std::make_unique<MixdownExporter> (safe->engine, selected.getResult().withFileExtension(mp3 ? "mp3" : "wav"), mp3, safe->tailSeconds.getValue());
                     safe->exportStatus = "Exporting full mix...";
