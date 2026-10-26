@@ -70,11 +70,15 @@ void LedMeter::timerCallback()
     if (peakL != nullptr) rawPeakL = peakL->readAndReset();
     if (peakR != nullptr) rawPeakR = peakR->readAndReset();
 
+    const bool prevClip = clipLatched;
     if (clip != nullptr && clip->load (std::memory_order_relaxed))
         clipLatched = true;
 
     const float dbL = gainToDb (rawPeakL);
     const float dbR = gainToDb (rawPeakR);
+
+    const float oldDbL = currentDbL, oldDbR = currentDbR;
+    const float oldHoldL = peakHoldDbL, oldHoldR = peakHoldDbR;
 
     // Instant attack, smooth standard console decay (-1.5 dB per frame @ 30 FPS = ~45 dB/sec)
     const float decayStep = 1.5f;
@@ -92,7 +96,15 @@ void LedMeter::timerCallback()
     if (currentDbR >= peakHoldDbR) { peakHoldDbR = currentDbR; peakHoldTimeR = 45; }
     else if (--peakHoldTimeR <= 0) { peakHoldDbR = std::max (-90.0f, peakHoldDbR - decayStep * 0.7f); }
 
-    repaint();
+    // Only repaint if visual level or clip state actually changed, preventing CPU hogging from silent/static meters
+    const bool changed = (std::abs (currentDbL - oldDbL) > 0.1f)
+                      || (std::abs (currentDbR - oldDbR) > 0.1f)
+                      || (std::abs (peakHoldDbL - oldHoldL) > 0.1f)
+                      || (std::abs (peakHoldDbR - oldHoldR) > 0.1f)
+                      || (clipLatched != prevClip);
+
+    if (changed)
+        repaint();
 }
 
 void LedMeter::drawSegmentedMeter (juce::Graphics& g, juce::Rectangle<float> area, float levelDb, float peakHoldDb)

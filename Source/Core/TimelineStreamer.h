@@ -44,9 +44,9 @@ class TimelineStreamer
 public:
     struct Config
     {
-        int ringFrames = 1 << 16;           // must be power of two (~1.4 s @ 48 kHz)
-        int chunkFrames = 2048;             // producer read size
-        int startThresholdFrames = 4096;    // frames buffered before (re)starting playback
+        int ringFrames = 1 << 18;           // must be power of two (~5.5 s @ 48 kHz, rock-solid headroom against dropouts)
+        int chunkFrames = 4096;             // producer read size (minimizes disk seek overhead)
+        int startThresholdFrames = 16384;   // frames buffered before starting playback (~340 ms @ 48 kHz)
         int fadeFrames = 256;               // transport fade in/out length
     };
 
