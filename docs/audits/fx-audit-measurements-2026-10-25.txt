@@ -1,0 +1,68 @@
+Hall/Room identical settings max difference: 0
+Hall/Chamber max difference: 0
+SoundMaxer versus dry max difference: 7.0778432e-09
+Hall impulse block64 versus block1024 max difference: 0.00982157793
+Phaser feedback UI p4 min/max max difference: 0
+Limiter attack UI p5 min/max max difference: 0
+MODEL 00 Hall Reverb finite=1 peak=0.710858
+MODEL 01 Ambience Reverb finite=1 peak=0.710858
+MODEL 02 Rich Plate Reverb finite=1 peak=0.710086
+MODEL 03 Room Reverb finite=1 peak=0.710858
+MODEL 04 Chamber Reverb finite=1 peak=0.710858
+MODEL 05 Plate Reverb finite=1 peak=0.710086
+MODEL 06 Vintage Reverb finite=1 peak=0.712931
+MODEL 07 Vintage Room Reverb finite=1 peak=0.712931
+MODEL 08 Gated Reverb finite=1 peak=0.710858
+MODEL 09 Reverse Reverb finite=1 peak=0.319594
+MODEL 10 Stereo Delay finite=1 peak=0.219046
+MODEL 11 Tap Delay finite=1 peak=0.318308
+MODEL 12 Rhythm Delay finite=1 peak=0.111862
+MODEL 13 Stereo Chorus finite=1 peak=0.209471
+MODEL 14 Stereo Flanger finite=1 peak=0.225812
+MODEL 15 Stereo Phaser finite=1 peak=0.43211
+MODEL 16 Dimension-C finite=1 peak=0.269962
+MODEL 17 Mood Filter finite=1 peak=0.7496
+MODEL 18 Rotary Speaker finite=1 peak=0.31166
+MODEL 19 Tremolo Panner finite=1 peak=0.199995
+MODEL 20 Suboctaver finite=1 peak=0.227405
+MODEL 21 Delay & Chamber finite=1 peak=0.122407
+MODEL 22 Chorus & Chamber finite=1 peak=0.148561
+MODEL 23 Flanger & Chamber finite=1 peak=0.128521
+MODEL 24 Delay & Chorus finite=1 peak=0.16522
+MODEL 25 Delay & Flanger finite=1 peak=0.130013
+MODEL 26 Modulation Delay finite=1 peak=0.201641
+MODEL 27 Dual GEQ finite=1 peak=0.2
+MODEL 28 Stereo GEQ finite=1 peak=0.2
+MODEL 29 Dual Tru EQ finite=1 peak=0.2
+MODEL 30 Stereo Tru EQ finite=1 peak=0.2
+MODEL 31 Dual DeEsser finite=1 peak=0.151246
+MODEL 32 Stereo DeEsser finite=1 peak=0.151246
+MODEL 33 Stereo Xtec EQ1 finite=1 peak=0.205004
+MODEL 34 Dual Xtec EQ1 finite=1 peak=0.205004
+MODEL 35 Stereo Xtec EQ5 finite=1 peak=0.311546
+MODEL 36 Dual Xtec EQ5 finite=1 peak=0.311546
+MODEL 37 Wave Designer finite=1 peak=0.2
+MODEL 38 Stereo Precision Limiter finite=1 peak=0.227162
+MODEL 39 Combinator finite=1 peak=0.251434
+MODEL 40 Dual Combinator finite=1 peak=0.251434
+MODEL 41 Fair Comp finite=1 peak=0.185225
+MODEL 42 M/S Fair Comp finite=1 peak=0.185225
+MODEL 43 Dual Fair Comp finite=1 peak=0.185225
+MODEL 44 Leisure Comp finite=1 peak=0.321152
+MODEL 45 Dual Leisure Comp finite=1 peak=0.321152
+MODEL 46 Ultimo Comp finite=1 peak=0.931427
+MODEL 47 Dual Ultimo Comp finite=1 peak=0.931427
+MODEL 48 Dual Enhancer finite=1 peak=0.256118
+MODEL 49 Stereo Enhancer finite=1 peak=0.256118
+MODEL 50 Dual Exciter finite=1 peak=0.198683
+MODEL 51 Stereo Exciter finite=1 peak=0.198683
+MODEL 52 Stereo Imager finite=1 peak=0.2
+MODEL 53 Edison EX1 finite=1 peak=0.2
+MODEL 54 Sound Maxer finite=1 peak=0.2
+MODEL 55 Dual GuitarAmp finite=1 peak=0.861084
+MODEL 56 Stereo GuitarAmp finite=1 peak=0.861084
+MODEL 57 Dual Tube Stage finite=1 peak=0.818956
+MODEL 58 Stereo Tube Stage finite=1 peak=0.818956
+MODEL 59 Dual Pitch finite=1 peak=0.160394
+MODEL 60 Stereo Pitch finite=1 peak=0.2
+Suboctaver -1 positive crossings in last 1s, 200Hz input: 50 (expected 100)
