@@ -146,12 +146,16 @@ void TransportBar::timerCallback()
         rangeLabel.setText ("No Tracks Loaded", juce::dontSendNotification);
     }
 
-    // Buffer, device and status text
+    // Buffer, device, sample rate and buffer size readout
     const float bufFill = s.getBufferFill();
     auto* dev = engine.getDeviceManager().getCurrentAudioDevice();
-    const juce::String devName = dev != nullptr ? dev->getName() : "No Output";
-    statusLabel.setText ("Out: " + devName + "  Buf: " + juce::String ((int) (bufFill * 100.0f)) + "%",
+    const double curSr = engine.getSampleRate();
+    const int curBs = dev != nullptr ? dev->getCurrentBufferSizeSamples() : engine.getBufferSize();
+    const juce::String srTxt = curSr > 1000.0 ? (juce::String (curSr * 0.001, 1) + " kHz") : (juce::String ((int) curSr) + " Hz");
+    statusLabel.setText (srTxt + " | " + juce::String (curBs) + " spl | Buf: " + juce::String ((int) (bufFill * 100.0f)) + "%",
                          juce::dontSendNotification);
+    if (dev != nullptr)
+        statusLabel.setTooltip ("Device: " + dev->getName() + " | Sample Rate: " + juce::String ((int) curSr) + " Hz | Buffer Size: " + juce::String (curBs) + " samples");
 
     const double cpu = engine.getDeviceManager().getCpuUsage();
     cpuLabel.setText ("CPU: " + juce::String ((int) std::lround (cpu * 100.0)) + "%", juce::dontSendNotification);
@@ -324,11 +328,11 @@ void TransportBar::resized()
     saveButton.setBounds (row2.removeFromLeft (compact ? 44 : 54));
     row2.removeFromLeft (compact ? 4 : 12);
 
-    // Right-aligned status
-    cpuLabel.setBounds (row2.removeFromRight (compact ? 42 : 60));
+    // Right-aligned status (CPU %, Sample Rate, Buffer Size, Ring Buffer Fill %)
+    cpuLabel.setBounds (row2.removeFromRight (compact ? 42 : 55));
     row2.removeFromRight (3);
-    statusLabel.setBounds (row2.removeFromRight (compact ? 86 : 140));
-    row2.removeFromRight (compact ? 4 : 12);
+    statusLabel.setBounds (row2.removeFromRight (compact ? 130 : 180));
+    row2.removeFromRight (compact ? 4 : 8);
 
     // Middle time & range labels
     const int timeW = compact ? 112 : 150;

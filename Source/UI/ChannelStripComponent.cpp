@@ -400,7 +400,7 @@ void ChannelStripComponent::timerCallback()
             ? cp.sends[(size_t) sendsOnFaderTarget].get()
             : cp.faderDb.get();
         const float modelFaderPos = faderDbToPos (targetDb);
-        if (std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
+        if (! faderSlider.isMouseButtonDown() && std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
             updateFromModel();
 
         const float gDb = cp.trimDb.get();
@@ -419,14 +419,14 @@ void ChannelStripComponent::timerCallback()
     {
         auto& rp = engine.getMixerParams().fxReturns[(size_t) channelIndex];
         const float modelFaderPos = faderDbToPos (rp.faderDb.get());
-        if (std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
+        if (! faderSlider.isMouseButtonDown() && std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
             updateFromModel();
     }
     else if (stripType == StripType::Master)
     {
         auto& mp = engine.getMixerParams().main;
         const float modelFaderPos = faderDbToPos (mp.faderDb.get());
-        if (std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
+        if (! faderSlider.isMouseButtonDown() && std::abs ((float) faderSlider.getValue() - modelFaderPos) > 0.005f)
             updateFromModel();
     }
 }
