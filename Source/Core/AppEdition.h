@@ -351,7 +351,7 @@ private:
         if (obj == nullptr)
             return 0;
 
-        const int64_t expiry = (int64_t) obj->getProperty ("expiresAt");
+        const int64_t expiry = static_cast<int64_t> (static_cast<juce::int64> (obj->getProperty ("expiresAt")));
         const juce::String lastKey = obj->getProperty ("lastKey").toString();
         const juce::String sig = obj->getProperty ("signature").toString();
 

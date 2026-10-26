@@ -171,4 +171,3 @@ TEST(fxChangingAlgorithmClearsPreviousTail)
     dsp.process(l.data(),r.data(),out.data(),other.data(),4096,p);
     CHECK_NEAR(rms(out,0),0,1e-8);
 }
-
