@@ -107,10 +107,11 @@ void MixEngine::initRtaFilters (double sr) noexcept
 
 void MixEngine::processRta (const float* l, const float* r, int width, int n, int ch) noexcept
 {
-    if (ch < 0 || ch >= kMaxInputChannels + 22 || n <= 0) return;
+    if (ch < 0 || ch >= kMaxInputChannels + 30 || n <= 0) return;
     auto& cm = ch < kMaxInputChannels ? meters.channels[(size_t) ch]
              : ch < kMaxInputChannels + 16 ? meters.busDetails[(size_t) (ch - kMaxInputChannels)]
-             : meters.matrixDetails[(size_t) (ch - kMaxInputChannels - 16)];
+             : ch < kMaxInputChannels + 22 ? meters.matrixDetails[(size_t) (ch - kMaxInputChannels - 16)]
+             : meters.fxReturnDetails[(size_t) (ch - kMaxInputChannels - 22)];
     if (activeRtaTarget != ch)
     {
         for (auto& filter : rtaFilters) filter.reset();
@@ -169,6 +170,27 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
     const int monitorMode = params.monitorMode.getInt();
     const bool soloSelected = params.anySolo();
     const bool anySolo = monitorMode == 0 && soloSelected;
+    // When a channel is soloed, its configured sends must follow it to the
+    // corresponding FX return. Otherwise the dry channel is audible while
+    // its reverb/delay settings disappear because the return is not soloed.
+    std::array<bool, 4> soloFxContext {};
+    if (anySolo)
+    {
+        for (int c = 0; c < kMaxInputChannels; ++c)
+        {
+            const auto& cp = params.channels[(size_t) c];
+            if (! cp.solo.getBool()) continue;
+            for (int fx = 0; fx < 4; ++fx)
+            {
+                const int bus = 12 + fx;
+                soloFxContext[(size_t) fx] = soloFxContext[(size_t) fx]
+                    || (! cp.sendMutes[(size_t) bus].getBool() && cp.sends[(size_t) bus].get() > -89.0f);
+            }
+        }
+        for (int fx = 0; fx < 4; ++fx)
+            soloFxContext[(size_t) fx] = soloFxContext[(size_t) fx]
+                || params.buses[(size_t) (12 + fx)].solo.getBool();
+    }
     std::fill_n (monitorL.data(), n, 0.0f);
     std::fill_n (monitorR.data(), n, 0.0f);
 
@@ -416,7 +438,7 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             sumL[(size_t) i] += l * rg;
             sumR[(size_t) i] += r * rg;
 
-            if (! muted)
+            if (! muted && (! anySolo || p.solo.getBool()))
             {
                 for (int b = 0; b < 16; ++b)
                 {
@@ -630,6 +652,12 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             fxReturnDsp[(size_t) rR].process (fxRetBufR[(size_t) s].data(), nullptr, 1, n,
                                               retPR.dsp, fxReturnDspMeters[(size_t) rR]);
 
+            const int fxRtaBase = kMaxInputChannels + 22;
+            if (rtaChannel.load (std::memory_order_relaxed) == fxRtaBase + rL)
+                processRta (fxRetBufL[(size_t) s].data(), nullptr, 1, n, fxRtaBase + rL);
+            if (rtaChannel.load (std::memory_order_relaxed) == fxRtaBase + rR)
+                processRta (fxRetBufR[(size_t) s].data(), nullptr, 1, n, fxRtaBase + rR);
+
             const float retTargetL = retPL.mute.getBool() ? 0.0f : faderDbToGain (retPL.faderDb.get());
             const float retTargetR = retPR.mute.getBool() ? 0.0f : faderDbToGain (retPR.faderDb.get());
             fxReturnGains[(size_t) rL].setTarget (retTargetL);
@@ -638,8 +666,9 @@ void MixEngine::process (const float* const* slotData, const int* slotChannels,
             const auto panL = panMonoConstantPower (retPL.pan.get());
             const auto panR = panMonoConstantPower (retPR.pan.get());
 
-            const bool routeL = retPL.mainAssign.getBool() && (! anySolo || retPL.solo.getBool());
-            const bool routeR = retPR.mainAssign.getBool() && (! anySolo || retPR.solo.getBool());
+            const bool fxSolo = anySolo && soloFxContext[(size_t) s];
+            const bool routeL = retPL.mainAssign.getBool() && (! anySolo || retPL.solo.getBool() || fxSolo);
+            const bool routeR = retPR.mainAssign.getBool() && (! anySolo || retPR.solo.getBool() || fxSolo);
 
             float retPkL = 0.0f, retPkR = 0.0f;
             for (int i = 0; i < n; ++i)

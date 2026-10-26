@@ -77,7 +77,7 @@ private:
     std::array<LinearSmoother, 8> fxReturnGains;
     std::array<LinearSmoother, 4> fxSendGains;
 
-    // RTA targets: inputs 0..31, buses 32..47, matrices 48..53.
+    // RTA targets: inputs 0..31, buses 32..47, matrices 48..53, FX returns 54..61.
     std::atomic<int> rtaChannel { 0 };
     int activeRtaTarget = -1;
     std::array<Biquad, 31> rtaFilters;

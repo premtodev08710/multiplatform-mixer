@@ -261,6 +261,7 @@ void AudioEngine::preparePlayback (double sampleRate, int blockSize)
     engineOutR.assign ((size_t) safeCapacity, 0.0f);
 
     mixEngine.prepare (sr, safeCapacity);
+    outputProtection.prepare (sr);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -284,69 +285,54 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* /*inputC
 
     juce::ScopedNoDenormals noDenormals;
 
-    // Ensure scratch buffers are large enough for the requested callback block size
-    if (slotBuffers.empty() || (size_t) numSamples > slotBuffers[0].size())
-    {
-        const size_t newCap = (size_t) std::max (4096, numSamples);
-        for (auto& buf : slotBuffers)
-            buf.resize (newCap, 0.0f);
-        for (size_t i = 0; i < slotBuffers.size(); ++i)
-        {
-            slotPointers[i] = slotBuffers[i].data();
-            slotConstPointers[i] = slotBuffers[i].data();
-        }
-        engineOutL.resize (newCap, 0.0f);
-        engineOutR.resize (newCap, 0.0f);
-        mixEngine.prepare (getSampleRate(), (int) newCap);
-    }
-
-    // 1. Pull synchronized multitrack frame from the lock-free ring
-    streamer.pull (slotPointers.data(), numSamples);
-    streamer.getSlotChannelCounts (slotChannels.data());
-
-    // 2. Mix and process DSP
-    mixEngine.process (slotConstPointers.data(), slotChannels.data(), numSamples,
-                       engineOutL.data(), engineOutR.data());
-
-    // Queue the monitored stereo output to disk without waiting on the audio thread.
-    if (recording.load (std::memory_order_relaxed))
-    {
-        const juce::SpinLock::ScopedTryLockType lock (recordingLock);
-        if (lock.isLocked() && recordingWriter)
-        {
-            const float* channels[] = { engineOutL.data(), engineOutR.data() };
-            if (getSampleRate() != recordingSampleRate || !recordingWriter->write (channels, numSamples))
-                recordingOverruns.fetch_add (1, std::memory_order_relaxed);
-        }
-        else recordingOverruns.fetch_add (1, std::memory_order_relaxed);
-    }
-
-    // 3. Robust write to active hardware outputs (handles arbitrary channel mapping)
+    // Split oversized device callbacks without allocating or resetting DSP state.
+    if (engineOutL.empty()) return;
     float* outL = nullptr;
     float* outR = nullptr;
     for (int ch = 0; ch < numOutputChannels; ++ch)
-    {
         if (outputChannelData[ch] != nullptr)
         {
-            if (outL == nullptr)
-                outL = outputChannelData[ch];
-            else if (outR == nullptr)
-            {
-                outR = outputChannelData[ch];
-                break;
-            }
+            if (outL == nullptr) outL = outputChannelData[ch];
+            else { outR = outputChannelData[ch]; break; }
         }
-    }
 
-    if (outL != nullptr && outR != nullptr)
+    for (int offset = 0; offset < numSamples;)
     {
-        std::memcpy (outL, engineOutL.data(), sizeof (float) * (size_t) numSamples);
-        std::memcpy (outR, engineOutR.data(), sizeof (float) * (size_t) numSamples);
-    }
-    else if (outL != nullptr)
-    {
-        for (int i = 0; i < numSamples; ++i)
-            outL[i] = 0.5f * (engineOutL[(size_t) i] + engineOutR[(size_t) i]);
+        const int blockFrames = std::min (numSamples - offset, (int) engineOutL.size());
+        // 1. Pull synchronized multitrack frame from the lock-free ring
+        streamer.pull (slotPointers.data(), blockFrames);
+        streamer.getSlotChannelCounts (slotChannels.data());
+
+        // 2. Mix and process DSP
+        mixEngine.process (slotConstPointers.data(), slotChannels.data(), blockFrames,
+                           engineOutL.data(), engineOutR.data());
+
+        outputProtection.process (engineOutL.data(), engineOutR.data(), blockFrames);
+
+        // Queue the monitored stereo output to disk without waiting on the audio thread.
+        if (recording.load (std::memory_order_relaxed))
+        {
+            const juce::SpinLock::ScopedTryLockType lock (recordingLock);
+            if (lock.isLocked() && recordingWriter)
+            {
+                const float* channels[] = { engineOutL.data(), engineOutR.data() };
+                if (getSampleRate() != recordingSampleRate || !recordingWriter->write (channels, blockFrames))
+                    recordingOverruns.fetch_add (1, std::memory_order_relaxed);
+            }
+            else recordingOverruns.fetch_add (1, std::memory_order_relaxed);
+        }
+
+        if (outL != nullptr && outR != nullptr)
+        {
+            std::memcpy (outL + offset, engineOutL.data(), sizeof (float) * (size_t) blockFrames);
+            std::memcpy (outR + offset, engineOutR.data(), sizeof (float) * (size_t) blockFrames);
+        }
+        else if (outL != nullptr)
+        {
+            for (int i = 0; i < blockFrames; ++i)
+                outL[offset + i] = 0.5f * (engineOutL[(size_t) i] + engineOutR[(size_t) i]);
+        }
+        offset += blockFrames;
     }
 }
 

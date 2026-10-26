@@ -40,12 +40,12 @@ namespace X32Fx
         SoundMaxer,       // Sound Maxer
         GuitarAmp,        // Dual GuitarAmp, Stereo GuitarAmp
         TubeStage,        // Dual Tube Stage, Stereo Tube Stage
-        DualPitch         // Dual Pitch Shifter
+        DualPitch          // Dual Pitch Shifter
     };
 
     struct EffectModelInfo
     {
-        int index14;              // 0..60 index in FX1-4
+        int index14;              // 0..61 index in FX1-4
         juce::String id;          // Internal ID
         juce::String name;        // Full Display Name in X32-Edit
         juce::String oscCode;     // X32 OSC Enum Code
@@ -86,7 +86,7 @@ namespace X32Fx
             // ==================== PAGE 3 (FX 1-4) ====================
             { 16, "dimension_c", "Dimension-C",         "DIMC", 3, 0, 0, GuiFamily::DimensionC,   juce::Colour(0xffef4444), false, "DIM-C",     { "STEREO", "MODE 1", "MODE 2", "MODE 3", "MODE 4" }, { 100, 0, 100, 0, 0 } },
             { 17, "mood_filter", "Mood Filter",         "FILT", 3, 4, 8, GuiFamily::MoodFilter,   juce::Colour(0xff38bdf8), false, "mood",      { "SPEED", "DEPTH", "RESO", "BASE", "MODE", "MIX", "WAVE", "PHASE", "ENV MOD", "ATTACK", "RELEASE", "DRIVE" }, { 38, 64, 58, 45, 33, 65, 50, 50, 42, 22, 52, 35 } },
-            { 18, "rotary_spk",  "Rotary Speaker",      "ROTA", 3, 0, 0, GuiFamily::RotarySpeaker,juce::Colour(0xff7c2d12), false, "ROTARY",    { "LO SPEED", "HI SPEED", "ACCEL", "DISTANCE", "BALANCE", "MIX" }, { 35, 68, 45, 52, 50, 75 } },
+            { 18, "rotary_spk",  "Rotary Speaker",      "ROTA", 3, 0, 0, GuiFamily::RotarySpeaker,juce::Colour(0xff7c2d12), false, "ROTARY",    { "LO SPEED", "HI SPEED", "ACCEL", "DISTANCE", "BALANCE", "MIX", "FAST" }, { 35, 68, 45, 52, 50, 75, 0 } },
             { 19, "tremolo_pan", "Tremolo Panner",      "PAN",  3, 5, 1, GuiFamily::ColoredMod,   juce::Colour(0xff0d9488), false, "Stereo Tremolo", { "SPEED", "PHASE", "WAVE", "DEPTH", "ENV SPD", "ENV DPTH", "ATTACK", "HOLD", "RELEASE" }, { 48, 50, 40, 72, 30, 35, 25, 30, 55 } },
             { 20, "sub_octaver", "Suboctaver",          "SUB",  3, 5, 2, GuiFamily::SubOctaver,   juce::Colour(0xff8c5248), true,  "Sub Octaver",    { "DIRECT A", "OCT1 A", "OCT2 A", "DIRECT B", "OCT1 B", "OCT2 B" }, { 80, 62, 35, 80, 62, 35 } },
             { 21, "dly_chamber", "Delay & Chamber",     "D_RV", 3, 0, 0, GuiFamily::PcmPlate,     juce::Colour(0xff0088ff), false, "DELAY AND CHAMBER",  { "TIME", "PATTERN", "FEED HC", "FEEDBACK", "XFEED", "BALANCE", "PREDELAY", "DECAY", "SIZE", "DAMPING", "LO CUT", "MIX" }, { 46, 50, 68, 38, 25, 50, 18, 52, 64, 45, 22, 50 } },
@@ -120,8 +120,8 @@ namespace X32Fx
             { 43, "du_fair_comp","Dual Fair Comp",      "FAC2", 6, 2, 7, GuiFamily::FairComp,     juce::Colour(0xff15262d), true,  "DUAL",        { "INPUT GAIN", "THRESHOLD", "TIME", "OUTPUT GAIN", "BIAS", "BALANCE" }, { 48, 56, 33, 62, 50, 50 } },
             { 44, "leisure_comp","Leisure Comp",        "LEC",  6, 2, 8, GuiFamily::LeisureComp,  juce::Colour(0xff8c8f94), false, "STEREO",      { "GAIN", "PEAK REDUCTION", "OUTPUT" }, { 52, 58, 65 } },
             { 45, "du_leisure",  "Dual Leisure Comp",   "LEC2", 6, 3, 1, GuiFamily::LeisureComp,  juce::Colour(0xff8c8f94), true,  "DUAL",        { "GAIN", "PEAK REDUCTION", "OUTPUT" }, { 52, 58, 65 } },
-            { 46, "ultimo_comp", "Ultimo Comp",         "ULC",  6, 3, 2, GuiFamily::UltimoComp,   juce::Colour(0xff161618), false, "STEREO",      { "INPUT", "OUTPUT", "ATTACK", "RELEASE" }, { 55, 62, 42, 68 } },
-            { 47, "du_ultimo",   "Dual Ultimo Comp",    "ULC2", 6, 3, 3, GuiFamily::UltimoComp,   juce::Colour(0xff161618), true,  "DUAL",        { "INPUT", "OUTPUT", "ATTACK", "RELEASE" }, { 55, 62, 42, 68 } },
+            { 46, "ultimo_comp", "Ultimo Comp",         "ULC",  6, 3, 2, GuiFamily::UltimoComp,   juce::Colour(0xff161618), false, "STEREO",      { "INPUT", "OUTPUT", "ATTACK", "RELEASE", "RATIO", "ALL IN" }, { 55, 62, 42, 68, 0, 0 } },
+            { 47, "du_ultimo",   "Dual Ultimo Comp",    "ULC2", 6, 3, 3, GuiFamily::UltimoComp,   juce::Colour(0xff161618), true,  "DUAL",        { "INPUT", "OUTPUT", "ATTACK", "RELEASE", "RATIO", "ALL IN" }, { 55, 62, 42, 68, 0, 0 } },
 
             // ==================== PAGE 7 (FX 1-4) ====================
             { 48, "du_enhancer", "Dual Enhancer",       "ENH2", 7, 3, 4, GuiFamily::Enhancer,     juce::Colour(0xffdfbe62), true,  "Enhancer",    { "OUT GAIN", "BASS GAIN", "BASS FREQ", "MID GAIN", "MID Q", "HI GAIN", "HI FREQ" }, { 50, 58, 40, 52, 50, 62, 68 } },
@@ -138,7 +138,7 @@ namespace X32Fx
             { 57, "du_tubestage","Dual Tube Stage",     "DRV2", 8, 4, 5, GuiFamily::TubeStage,    juce::Colour(0xffb91c1c), true,  "Dual Tube Stage",{ "DRIVE", "EVEN", "ODD", "GAIN", "LO CUT", "HI CUT", "BASS GAIN", "BASS FREQ", "TREBLE GAIN", "TREBLE FREQ" }, { 56, 62, 48, 52, 20, 76, 55, 42, 58, 68 } },
             { 58, "st_tubestage","Stereo Tube Stage",   "DRV",  8, 4, 6, GuiFamily::TubeStage,    juce::Colour(0xffb91c1c), false, "Tube Stage",  { "DRIVE", "EVEN", "ODD", "GAIN", "LO CUT", "HI CUT", "BASS GAIN", "BASS FREQ", "TREBLE GAIN", "TREBLE FREQ" }, { 56, 62, 48, 52, 20, 76, 55, 42, 58, 68 } },
             { 59, "dual_pitch",  "Dual Pitch",          "PIT2", 8, 0, 0, GuiFamily::DualPitch,    juce::Colour(0xff27272a), true,  "DUAL PITCH",  { "SEMI 1", "CENT 1", "DELAY 1", "GAIN 1", "PAN 1", "SEMI 2", "CENT 2", "DELAY 2", "GAIN 2", "PAN 2" }, { 50, 42, 25, 75, 25, 50, 58, 30, 75, 75 } },
-            { 60, "stereo_pitch","Stereo Pitch",        "PIT",  8, 0, 0, GuiFamily::PcmPlate,     juce::Colour(0xff0088ff), false, "STEREO PITCH",{ "SEMI", "CENT", "DELAY", "LO CUT", "HI CUT", "MIX" }, { 50, 58, 28, 20, 76, 50 } }
+            { 60, "stereo_pitch","Stereo Pitch",        "PIT",  8, 0, 0, GuiFamily::PcmPlate,     juce::Colour(0xff0088ff), false, "STEREO PITCH",{ "SEMI", "CENT", "DELAY", "LO CUT", "HI CUT", "MIX" }, { 50, 58, 28, 20, 76, 50 } },
         };
         return catalog;
     }
@@ -1026,6 +1026,7 @@ public:
             return;
         }
 
+
         int activeCount = (int) currentModel.paramNames.size();
         if (activeCount == 0) activeCount = 6;
         activeCount = juce::jmin (activeCount, 12);
@@ -1562,5 +1563,36 @@ private:
         g.setColour (juce::Colours::black);
         g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::bold));
         g.drawText (currentModel.subLabel, lcd, juce::Justification::centred, false);
+    }
+
+    void paintSslGFaceplate (juce::Graphics& g, juce::Rectangle<float> b)
+    {
+        g.fillAll (juce::Colour (0xff3f4244));
+        const float meterX = b.getRight() - 88.0f;
+        g.setColour (juce::Colour (0xff222426));
+        g.fillRect (meterX, b.getY(), 88.0f, b.getHeight());
+        g.setColour (juce::Colour (0xff8a8d8f));
+        g.drawVerticalLine ((int) meterX, b.getY(), b.getBottom());
+        g.setColour (juce::Colours::white);
+        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.drawText ("FILTERS", 10, 5, 100, 16, juce::Justification::left);
+        g.drawText ("DYNAMICS", (int)(b.getWidth()*0.47f), 5, 100, 16, juce::Justification::left);
+        g.drawText ("SOLID STATE LOGIC", 12, (int)b.getBottom()-25, 160, 18, juce::Justification::left);
+        g.drawText ("G-CHANNEL", (int)b.getWidth()-190, (int)b.getBottom()-25, 100, 18, juce::Justification::right);
+        g.setColour (juce::Colour (0xff777a7c));
+        const float x1=b.getX()+b.getWidth()*.22f, x2=b.getX()+b.getWidth()*.47f;
+        g.drawVerticalLine ((int)x1, b.getY()+22, b.getBottom()-28);
+        g.drawVerticalLine ((int)x2, b.getY()+22, b.getBottom()-28);
+        g.setColour (juce::Colour (0xff252729));
+        g.fillRect (juce::Rectangle<float> (meterX+20, b.getY()+100, 18.0f, b.getHeight()-155.0f));
+        g.fillRect (juce::Rectangle<float> (meterX+48, b.getY()+100, 18.0f, b.getHeight()-155.0f));
+        g.setColour (juce::Colour (0xff54d45b));
+        g.fillRect (juce::Rectangle<float> (meterX+21, b.getBottom()-110, 16.0f, 50.0f));
+        g.fillRect (juce::Rectangle<float> (meterX+49, b.getBottom()-135, 16.0f, 75.0f));
+        g.setColour (juce::Colour (0xffd5d7d8));
+        g.setFont (juce::FontOptions (9.0f));
+        g.drawText ("INPUT", (int)meterX+8, 28, 70, 14, juce::Justification::centred);
+        g.drawText ("OUTPUT", (int)meterX+8, 46, 70, 14, juce::Justification::centred);
+        g.drawText ("0  5  10  20  30  40", (int)meterX+5, (int)b.getBottom()-42, 78, 14, juce::Justification::centred);
     }
 };

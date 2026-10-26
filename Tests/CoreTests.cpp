@@ -1,6 +1,7 @@
 // Core DSP / transport tests. Build: see CMakeLists (target MixPracticeCoreTests) or
 //   clang++ -std=c++17 -O2 -ISource Tests/CoreTests.cpp Source/Core/*.cpp -o build/core_tests
 #include "TestHarness.h"
+#include "../Source/Core/OutputProtection.h"
 #include "../Source/Core/DspMath.h"
 #include "../Source/Core/MixEngine.h"
 #include "../Source/Core/SincResampler.h"
@@ -1032,8 +1033,8 @@ TEST (authenticHardwareBrandFxModeling)
         PremiumDynamicsDsp dyn;
         dyn.prepare (sr);
         std::vector<float> L (2048, 0.8f), R (2048, 0.8f);
-        // Ratio = 20 (All-In mode), Input = 45, Output = 20
-        dyn.process (L.data(), R.data(), 2048, FxType::UltimoCompressor, 45.0f, 20.0f, 20.0f, 10.0f, 1.0f);
+        // Ratio = 24 (All-In mode), Input = 45, Output = 20
+        dyn.process (L.data(), R.data(), 2048, FxType::UltimoCompressor, 45.0f, 20.0f, 24.0f, 10.0f, 1.0f);
         float compressedPeak = 0.0f;
         for (size_t i = 500; i < L.size(); ++i)
             compressedPeak = std::max (compressedPeak, std::abs (L[i]));
@@ -1131,6 +1132,7 @@ TEST (all61FxModelsProcessDefaultAndNormalizedParameters)
             proc.reset();
             FxSlotParams params;
             params.setDefaultsForType (type);
+            params.parameterEncoding.set (2.0f);
             for (int p = 0; p < 18; ++p)
                 params.parameter (p).set (0.25f);
             params.geqGainsL[15].set (6.0f);
@@ -1341,6 +1343,48 @@ TEST (mixerParamsResetToDefaults)
     CHECK (p.fxSlots[2].fxType.getInt() == (int) FxType::StereoDelay);
     CHECK (p.fxSlots[3].fxType.getInt() == (int) FxType::StereoChorus);
     CHECK_NEAR (p.buses[0].faderDb.get(), 0.0f, 1e-5);
+}
+
+TEST (outputProtectionPreservesCleanAudioAndStereoOverload)
+{
+    OutputProtection protection;
+    protection.prepare (48000);
+    float l[] = { 0.0f, 0.5f, -0.9f, 1.0f };
+    float r[] = { 0.2f, -0.4f, 0.7f, -1.0f };
+    protection.process (l, r, 4);
+    CHECK_NEAR (l[1], 0.5f, 0);
+    CHECK_NEAR (l[2], -0.9f, 0);
+    CHECK_NEAR (r[3], -1.0f, 0);
+    for (int i = 0; i < 48000; ++i)
+    {
+        float a = 4.0f * std::sin (i * 0.13f), b = a * 0.25f;
+        protection.process (&a, &b, 1);
+        CHECK (std::abs (a) <= 1.000001f);
+        CHECK_NEAR (b, a * 0.25f, 1e-7);
+    }
+    for (int i = 0; i < 96000; ++i)
+    {
+        float a = 0.5f, b = 0.25f;
+        protection.process (&a, &b, 1);
+        if (i == 95999) CHECK_NEAR (a, 0.5f, 0.0001f);
+    }
+}
+
+TEST (neutralEqIsTransparent)
+{
+    ChannelDspProcessor dsp;
+    ChannelDspParams params;
+    ChannelDspMeters meters;
+    dsp.prepare (48000);
+    std::vector<float> l (512), r (512);
+    for (int i = 0; i < 512; ++i) { l[i] = std::sin (i * 0.31f); r[i] = std::cos (i * 0.17f); }
+    const auto expectedL = l, expectedR = r;
+    dsp.process (l.data(), r.data(), 2, 512, params, meters);
+    for (int i = 0; i < 512; ++i)
+    {
+        CHECK_NEAR (l[i], expectedL[i], 0);
+        CHECK_NEAR (r[i], expectedR[i], 0);
+    }
 }
 
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }

@@ -86,6 +86,11 @@ int main (int argc, char* argv[])
         mixer.buses[3].dsp.compThreshDb.set (-31.0f);
         mixer.matrices[2].polarity.setBool (true);
         mixer.fxSlots[6].insertTargets[1].set (204);
+        mixer.fxSlots[6].fxType.set ((float)mps::FxType::DualXtecEQ1);
+        mixer.fxSlots[6].parameterEncoding.set (2);
+        mixer.fxSlots[6].rightParametersEnabled.setBool (true);
+        mixer.fxSlots[6].p1.set (.25f);
+        mixer.fxSlots[6].rightParameters[0].set (.8f);
         mixer.channels[2].insertFxSlot.set (6);
         mixer.auxes[1].faderDb.set (-12);
         mixer.monitorMode.set (2);
@@ -95,12 +100,20 @@ int main (int argc, char* argv[])
         std::vector<float> expected;
         mps::visitConsoleState (mixer, [&] (const juce::String&, mps::Param& p) { expected.push_back (p.get()); p.resetToDefault(); });
         mixer.muteGroupActive[4].store (false);
+        mixer.fxSlots[6].parameterEncoding.set (1);
+        mixer.fxSlots[6].rightParametersEnabled.setBool (false);
+        mixer.fxSlots[6].p1.set (0);
+        mixer.fxSlots[6].rightParameters[0].set (0);
         project.recallSceneSnapshot (snapshot);
         size_t index = 0; int failures = 0;
         mps::visitConsoleState (mixer, [&] (const juce::String& key, mps::Param& p) {
             if (std::abs (p.get() - expected[index++]) > 0.0001f) { std::cerr << key << " did not round trip\n"; ++failures; }
         });
         if (!mixer.muteGroupActive[4].load()) ++failures;
+        if (mixer.fxSlots[6].parameterEncoding.getInt() != 2) ++failures;
+        if (!mixer.fxSlots[6].rightParametersEnabled.getBool()) ++failures;
+        if (std::abs(mixer.fxSlots[6].p1.get()-.25f) > .0001f) ++failures;
+        if (std::abs(mixer.fxSlots[6].rightParameters[0].get()-.8f) > .0001f) ++failures;
         const auto recordingFile = juce::File::createTempFile (".wav");
         recordingFile.deleteFile();
         host.preparePlayback (48000, 256);

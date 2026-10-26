@@ -32,6 +32,9 @@ public:
         {
             auto& from = live.fxSlots[(size_t)s]; auto& to = params.fxSlots[(size_t)s];
             to.fxType.set (from.fxType.get()); to.bypass.set (from.bypass.get());
+            to.parameterEncoding.set (from.parameterEncoding.get());
+            to.rightParametersEnabled.set (from.rightParametersEnabled.get());
+            for (int p = 0; p < FxSlotParams::kNumParameters; ++p) to.rightParameters[(size_t)p].set (from.rightParameters[(size_t)p].get());
             to.insertMode.set (from.insertMode.get()); to.mix.set (from.mix.get());
             for (int p = 0; p < FxSlotParams::kNumParameters; ++p) to.parameter(p).set (from.parameter(p).get());
             for (int b = 0; b < 31; ++b) { to.geqGainsL[(size_t)b].set(from.geqGainsL[(size_t)b].get()); to.geqGainsR[(size_t)b].set(from.geqGainsR[(size_t)b].get()); }

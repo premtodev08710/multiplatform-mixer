@@ -254,11 +254,16 @@ juce::var ProjectModel::serializeMixerState() const
         fxObj->setProperty ("bypass", fp.bypass.getBool());
         fxObj->setProperty ("insertMode", i >= 4 || fp.insertMode.getBool());
         fxObj->setProperty ("mix", fp.mix.get());
+        fxObj->setProperty ("parameterEncoding", fp.parameterEncoding.getInt());
 
         juce::Array<juce::var> parameters;
         for (int p = 0; p < FxSlotParams::kNumParameters; ++p)
             parameters.add (fp.parameter (p).get());
         fxObj->setProperty ("parameters", parameters);
+        fxObj->setProperty ("rightParametersEnabled", fp.rightParametersEnabled.getBool());
+        juce::Array<juce::var> parametersR;
+        for (int p = 0; p < FxSlotParams::kNumParameters; ++p) parametersR.add (fp.rightParameters[(size_t)p].get());
+        fxObj->setProperty ("parametersR", parametersR);
 
         juce::Array<juce::var> geqL, geqR;
         for (int band = 0; band < 31; ++band)
@@ -494,6 +499,11 @@ void ProjectModel::deserializeMixerState (const juce::var& root)
                 if (fxObj->hasProperty ("mix"))
                     fp.mix.set ((float) (double) fxObj->getProperty ("mix"));
 
+                fp.parameterEncoding.set ((float)(int)fxObj->getProperty ("parameterEncoding"));
+                fp.rightParametersEnabled.setBool ((bool) fxObj->getProperty ("rightParametersEnabled"));
+                if (auto* valuesR = fxObj->getProperty ("parametersR").getArray())
+                    for (int p = 0; p < std::min (valuesR->size(), FxSlotParams::kNumParameters); ++p)
+                        fp.rightParameters[(size_t)p].set ((float)(double)(*valuesR)[p]);
                 if (fxObj->hasProperty ("parameters"))
                 {
                     auto* values = fxObj->getProperty ("parameters").getArray();

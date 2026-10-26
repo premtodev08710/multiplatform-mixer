@@ -5,6 +5,7 @@
 #include "../Core/MixerParams.h"
 #include "../Core/TimelineStreamer.h"
 #include "AudioFileTrack.h"
+#include "../Core/OutputProtection.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -87,6 +88,7 @@ private:
     MixerMeters meters;
     TimelineStreamer streamer;
     MixEngine mixEngine;
+    OutputProtection outputProtection;
 
     std::shared_ptr<TrackSet> currentTracks;
     std::mutex tracksMutex;

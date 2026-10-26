@@ -235,6 +235,7 @@ endif()
 if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(MixPracticeCoreTests
         Tests/CoreTests.cpp
+        Tests/FxRegressionTests.cpp
         Source/Core/MixEngine.cpp
         Source/Core/EffectsDsp.cpp
         Source/Core/TimelineStreamer.cpp

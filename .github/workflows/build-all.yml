@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path -Path "external/JUCE/CMakeLists.txt")) {
-            git clone --depth 1 https://github.com/juce-framework/JUCE.git external/JUCE
+            git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
           }
 
       - name: Setup MSVC Compiler Environment
@@ -65,7 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.1 MixPracticeStudio-Windows-x64.zip dist-windows/MixPracticeStudio.exe --clobber || true
+          gh release upload v1.0.1 MixPracticeStudio-Windows-x64.zip dist-windows/MixPracticeStudio.exe --clobber
 
   # =========================================================================
   # 2. Build macOS (.app / .zip)
@@ -81,7 +81,7 @@ jobs:
       - name: Setup JUCE Framework
         run: |
           if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
-            git clone --depth 1 https://github.com/juce-framework/JUCE.git external/JUCE
+            git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
           fi
 
       - name: Configure CMake
@@ -92,15 +92,16 @@ jobs:
 
       - name: Package macOS App
         run: |
-          APP_PATH=$(find build-mac -name "*.app" -maxdepth 4 | head -n 1)
-          if [ -n "$APP_PATH" ]; then
+          APP_PATH="build-mac/MixPracticeStudio_artefacts/Release/Mix Practice Studio.app"
+          if [ -x "$APP_PATH/Contents/MacOS/Mix Practice Studio" ]; then
             echo "Signing $APP_PATH"
-            codesign --force --deep --sign - "$APP_PATH" || true
+            codesign --force --deep --sign - "$APP_PATH"
+            codesign --verify --deep --strict "$APP_PATH"
             echo "Packaging $APP_PATH"
             ditto -c -k --keepParent "$APP_PATH" MixPracticeStudio-macOS.zip
             mkdir -p pkg-root/Applications
             cp -R "$APP_PATH" pkg-root/Applications/
-            pkgbuild --root pkg-root --identifier com.mixpractice.studio --version 1.0.1 MixPracticeStudio.pkg
+            pkgbuild --root pkg-root --identifier com.mixpractice.studio --version 1.0.2 MixPracticeStudio.pkg
             rm -rf pkg-root
           else
             echo "App not found"
@@ -120,7 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.1 MixPracticeStudio-macOS.zip MixPracticeStudio.pkg --clobber || true
+          gh release upload v1.0.1 MixPracticeStudio-macOS.zip MixPracticeStudio.pkg --clobber
 
   # =========================================================================
   # 3. Build Android (.apk)
@@ -189,11 +190,10 @@ jobs:
       - name: Build Android APK with Gradle
         run: |
           cd android
-          gradle assembleDebug --stacktrace
-          APK_FILE=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-          if [ -n "$APK_FILE" ]; then
-            cp "$APK_FILE" ../MixPracticeStudio.apk
-          fi
+          gradle assembleRelease --stacktrace
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          test -n "$APK_FILE"
+          cp "$APK_FILE" ../MixPracticeStudio.apk
           cd ..
           if [ -f "MixPracticeStudio.apk" ]; then
             zip -q MixPracticeStudio-Android-APK.zip MixPracticeStudio.apk
@@ -203,14 +203,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MixPracticeStudio-Android-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
 
       - name: Update GitHub Release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.1 MixPracticeStudio.apk MixPracticeStudio-Android-APK.zip --clobber || true
+          gh release upload v1.0.1 MixPracticeStudio.apk MixPracticeStudio-Android-APK.zip --clobber
 
   # =========================================================================
   # 4. Build iOS (.ipa)
@@ -226,7 +226,7 @@ jobs:
       - name: Setup JUCE Framework
         run: |
           if [ ! -d "external/JUCE" ] || [ ! -f "external/JUCE/CMakeLists.txt" ]; then
-            git clone --depth 1 https://github.com/juce-framework/JUCE.git external/JUCE
+            git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git external/JUCE
           fi
 
       - name: Configure CMake for iOS
@@ -272,4 +272,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.1 MixPracticeStudio.ipa MixPracticeStudio-iOS-IPA.zip --clobber || true
+          gh release upload v1.0.1 MixPracticeStudio.ipa MixPracticeStudio-iOS-IPA.zip --clobber

@@ -78,7 +78,6 @@ enum class FxType : int
     StereoTubeStage,
     DualPitch,
     StereoPitch,
-
     NumFxTypes = 61,
 
     // Legacy aliases retained for source and X32 scene compatibility.
@@ -125,6 +124,7 @@ struct FxMetadata
 
 const FxMetadata& getFxMetadata (FxType type) noexcept;
 int getNumFxTypes() noexcept;
+bool usesIndependentFxParameters (FxType type) noexcept;
 
 // ISO Standard 31 Graphic EQ Center Frequencies (Hz)
 constexpr std::array<float, 31> kGeqFrequencies = {
@@ -144,6 +144,7 @@ struct FxSlotParams
     Param bypass;       // 0 = active, 1 = bypassed
     Param insertMode;   // 0 = send/return (or normal), 1 = insert
     Param mix;          // 0.0 .. 1.0 (dry/wet)
+    Param parameterEncoding; // 0 = old project auto-detect, 1 = physical, 2 = normalized UI
 
     // Dual Independent FX Inserts: [0] = Insert 1 (Left / In A), [1] = Insert 2 (Right / In B)
     // 0 = None, 1..32 = Ch 1..32, 101..116 = Bus 1..16, 201..206 = Mtx 1..6, 301 = Main LR
@@ -171,6 +172,16 @@ struct FxSlotParams
     std::array<Param, 31> geqGainsL;
     std::array<Param, 31> geqGainsR;
 
+    // Separate bank for the channel selected by the A/B layer buttons.
+    // Old projects share the A bank until B is explicitly edited.
+    std::array<Param, kNumParameters> rightParameters;
+    Param rightParametersEnabled;
+    Param& channelParameter (int channel, int index) noexcept
+    {
+        return channel == 1 && rightParametersEnabled.getBool()
+            ? rightParameters[(size_t) std::clamp (index, 0, kNumParameters - 1)] : parameter (index);
+    }
+
     FxSlotParams();
     void setDefaultsForType (FxType type);
 };
@@ -192,7 +203,7 @@ public:
                   float bassMult = 1.0f, float spreadNorm = 100.0f,
                   float spinNorm = 50.0f,
                   float echoLMs = 0.0f, float echoRMs = 0.0f,
-                  float echoFeedLNorm = 0.0f, float echoFeedRNorm = 0.0f);
+                  float echoFeedLNorm = 0.0f, float echoFeedRNorm = 0.0f, float attackNorm = 0.0f);
 
     // Compatibility overload for callers that only provide the original controls.
     void process (float* chL, float* chR, int numSamples,
@@ -220,6 +231,8 @@ private:
     std::vector<float> combBufR[kNumCombs];
     int combPosL[kNumCombs] = {0}, combPosR[kNumCombs] = {0};
     float combFilterStateL[kNumCombs] = {0.0f}, combFilterStateR[kNumCombs] = {0.0f};
+
+    float combBassL[kNumCombs] {}, combBassR[kNumCombs] {};
 
     // 4 Series All-Pass Diffusers
     static constexpr int kNumAllPasses = 4;
@@ -277,7 +290,9 @@ public:
 
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float speedHz, float depthNorm,
-                  float feedbackNorm, float paramCustom, float mixNorm);
+                  float feedbackNorm, float paramCustom, float mixNorm, float modeNorm = 0.0f, float widthR = -1.0f,
+                  float delayLMs = -1.0f, float delayRMs = -1.0f, float phaseDeg = 90.0f,
+                  float acceleration = 0.5f);
 
 private:
     float sr = 48000.0f;
@@ -293,6 +308,7 @@ private:
 
     // Leslie Rotary dual rotors (horn & drum) with dedicated crossover filters
     float rotorPhaseHorn = 0.0f, rotorPhaseDrum = 0.0f;
+    float rotorSpeedHorn = 0.4f, rotorSpeedDrum = 0.3f;
     Biquad hornHpfL, hornHpfR;
     Biquad drumLpfL, drumLpfR;
 
@@ -378,6 +394,7 @@ private:
 
     // Fairchild Vari-Mu envelope
     float fairEnvL = 0.0f, fairEnvR = 0.0f;
+    float fairMemoryL = 0.0f, fairMemoryR = 0.0f;
 
     // Combinator 5-band crossover filters and envelope followers
     Biquad crossFiltL[4], crossFiltR[4];
@@ -395,6 +412,8 @@ private:
     // De-Esser bandpass filter
     Biquad sibilanceFiltL, sibilanceFiltR;
     float deEssEnv = 0.0f, deEssEnvR = 0.0f;
+    Biquad deEssLowL, deEssLowR;
+    float deEssLowEnvL = 0.0f, deEssLowEnvR = 0.0f;
 };
 
 //==============================================================================
@@ -406,7 +425,11 @@ public:
     void reset();
 
     void process (float* chL, float* chR, int numSamples,
-                  FxType type, float p1, float p2, float p3, float p4, float p5, float p6, float mixNorm);
+                  FxType type, float p1, float p2, float p3, float p4, float p5, float p6, float mixNorm, float highQ = 1.1f, float attenHz = 10000.0f,
+                  float outputDb = 0.0f, bool transformer = true);
+
+    void processEnhancer(float* l, float* r, int n, float bassGain, float bassHz,
+        float midGain, float midQ, float highGain, float highHz, float width, float outputDb, float mix);
 
 private:
     float sr = 48000.0f;
@@ -441,10 +464,13 @@ public:
 
     void process (float* chL, float* chR, int numSamples,
                   FxType type, float p1, float p2, float p3, float p4, float mixNorm,
-                  float p5 = 50.0f, float p6 = 50.0f);
+                  float p5 = 50.0f, float p6 = 50.0f, float outputDb = 0.0f,
+                  float loCutHz = 20.0f, float hiCutHz = 20000.0f,
+                  float bassHz = 120.0f, float trebleHz = 4500.0f);
 
 private:
     float sr = 48000.0f;
+    Biquad outputHpfL, outputHpfR, outputLpfL, outputLpfR;
     // Guitar Amp 3-band tone stack + presence
     Biquad toneBassL, toneBassR;
     Biquad toneMidL, toneMidR;
@@ -470,7 +496,7 @@ private:
 class FxSlotProcessor
 {
 public:
-    void prepare (double sampleRate);
+    void prepare (double sampleRate, bool internalWorker = false);
     void reset();
 
     void process (const float* inL, const float* inR,
@@ -493,8 +519,10 @@ private:
     AtomicPeak inPeakL, inPeakR;
     AtomicPeak outPeakL, outPeakR;
 
-    std::vector<float> workL, workR;
-    int silentBlocks = 0;
+    std::vector<float> workL, workR, dualInputR;
+    int lastType = -1;
+    bool monoPass = false;
+    std::unique_ptr<FxSlotProcessor> rightWorker;
 
     ReverbDsp reverb;
     DelayDsp delay;

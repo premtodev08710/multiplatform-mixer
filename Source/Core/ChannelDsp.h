@@ -551,23 +551,32 @@ public:
         const bool eqActive = ! p.eqBypass.getBool();
         if (eqActive)
         {
-            // Calculate coefficients for 4 bands
+            const std::array<float, 4> gains { p.eqLowGainDb.get(), p.eqMid1GainDb.get(),
+                                               p.eqMid2GainDb.get(), p.eqHighGainDb.get() };
+            // A zero-gain shelf/bell is identity: avoid filtering every sample.
+            // Calculate coefficients only for bands that affect the sound.
             std::array<BiquadCoeffs, 4> coeffs;
             const auto lowType = (EqBandType) p.eqLowType.getInt();
-            coeffs[0] = (lowType == EqBandType::LowShelf)
+            if (gains[0] != 0.0f) coeffs[0] = (lowType == EqBandType::LowShelf)
                 ? calcLowShelf (p.eqLowFreq.get(), p.eqLowGainDb.get(), p.eqLowQ.get(), sr)
                 : calcBell (p.eqLowFreq.get(), p.eqLowGainDb.get(), p.eqLowQ.get(), sr);
 
-            coeffs[1] = calcBell (p.eqMid1Freq.get(), p.eqMid1GainDb.get(), p.eqMid1Q.get(), sr);
-            coeffs[2] = calcBell (p.eqMid2Freq.get(), p.eqMid2GainDb.get(), p.eqMid2Q.get(), sr);
+            if (gains[1] != 0.0f) coeffs[1] = calcBell (p.eqMid1Freq.get(), p.eqMid1GainDb.get(), p.eqMid1Q.get(), sr);
+            if (gains[2] != 0.0f) coeffs[2] = calcBell (p.eqMid2Freq.get(), p.eqMid2GainDb.get(), p.eqMid2Q.get(), sr);
 
             const auto highType = (EqBandType) p.eqHighType.getInt();
-            coeffs[3] = (highType == EqBandType::HighShelf)
+            if (gains[3] != 0.0f) coeffs[3] = (highType == EqBandType::HighShelf)
                 ? calcHighShelf (p.eqHighFreq.get(), p.eqHighGainDb.get(), p.eqHighQ.get(), sr)
                 : calcBell (p.eqHighFreq.get(), p.eqHighGainDb.get(), p.eqHighQ.get(), sr);
 
             for (int b = 0; b < 4; ++b)
             {
+                if (gains[(size_t) b] == 0.0f)
+                {
+                    eqL[(size_t) b].reset();
+                    eqR[(size_t) b].reset();
+                    continue;
+                }
                 for (int i = 0; i < numSamples; ++i)
                 {
                     chL[i] = eqL[(size_t) b].process (chL[i], coeffs[(size_t) b]);

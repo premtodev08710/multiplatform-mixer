@@ -68,7 +68,9 @@ private:
     // Clipboard for Copy / Paste
     bool hasClipboard = false;
     FxType clipboardType = FxType::HallReverb;
-    std::array<float, 18> clipboardParams {};
+    std::array<float, 18> clipboardParams {}, clipboardParamsR {};
+    bool clipboardRightEnabled = false;
+    float clipboardEncoding = 0.0f;
     std::array<float, 31> clipboardGeq {};
 
     X32FxLookAndFeel rackLnf;

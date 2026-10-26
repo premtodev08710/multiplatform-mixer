@@ -78,7 +78,19 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
         }
         else
         {
-            p.parameter (paramIdx).set (normVal);
+            bool legacy = p.parameterEncoding.getInt() == 1;
+            for (int j = 0; j < 6; ++j) legacy |= std::abs (p.parameter(j).get()) > 1.0f;
+            if (legacy)
+                for (int j = 0; j < FxSlotParams::kNumParameters; ++j)
+                    p.parameter(j).set (j < (int) info.defaultValues.size() ? info.defaultValues[(size_t)j] * .01f : .5f);
+            p.parameterEncoding.set (2.0f);
+            const bool bankB = activeEngineLayer == 1 && usesIndependentFxParameters ((FxType)p.fxType.getInt());
+            if (bankB && ! p.rightParametersEnabled.getBool())
+            {
+                for (int j = 0; j < FxSlotParams::kNumParameters; ++j) p.rightParameters[(size_t)j].set (p.parameter(j).get());
+                p.rightParametersEnabled.setBool (true);
+            }
+            p.channelParameter (bankB ? 1 : 0, paramIdx).set (normVal);
         }
 
         if (onParametersChanged) onParametersChanged();
@@ -107,6 +119,9 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
         else
         {
             p.setDefaultsForType (targetType);
+            const auto& model = X32Fx::getCatalog()[(size_t)targetType];
+            for (int j = 0; j < FxSlotParams::kNumParameters; ++j) p.parameter(j).set(j < (int)model.defaultValues.size() ? model.defaultValues[(size_t)j] * .01f : .5f);
+            p.parameterEncoding.set (2.0f);
             setSlot (currentSlot);
             if (onTypeChangeRequested) onTypeChangeRequested (targetType);
             if (onParametersChanged) onParametersChanged();
@@ -127,6 +142,8 @@ FxFaceplateComponent::FxFaceplateComponent (AudioEngine& eng)
         const auto newType = (FxType) chosen.index14;
         auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
         p.setDefaultsForType (newType);
+        for (int j = 0; j < FxSlotParams::kNumParameters; ++j) p.parameter(j).set(j < (int)chosen.defaultValues.size() ? chosen.defaultValues[(size_t)j] * .01f : .5f);
+        p.parameterEncoding.set (2.0f);
         setSlot (currentSlot);
         if (onTypeChangeRequested) onTypeChangeRequested (newType);
         if (onParametersChanged) onParametersChanged();
@@ -180,13 +197,14 @@ void FxFaceplateComponent::refreshFromSlot()
     }
 
     // Helper to convert stored parameter value (either normalized 0..1 or legacy raw default) to 0..100 slider scale
-    auto getSliderPercent = [&p] (const X32Fx::EffectModelInfo& model, int paramIdx) -> float {
-        const float raw = p.parameter (paramIdx).get();
+    auto getSliderPercent = [&p, this] (const X32Fx::EffectModelInfo& model, int paramIdx) -> float {
+        const bool bankB = activeEngineLayer == 1 && usesIndependentFxParameters ((FxType)p.fxType.getInt());
+        const float raw = p.channelParameter (bankB ? 1 : 0, paramIdx).get();
         if (raw >= 0.0f && raw <= 1.0f)
         {
             // Check if raw is an exact normalized value (or 0.0 / 1.0)
             // Note: For HallReverb, p6 is initialized to 0.0f in setDefaultsForType, whereas p1..p5 are > 1.0f.
-            const bool slotHasLegacyRaw = (p.parameter (0).get() > 1.001f || p.parameter (1).get() > 1.001f || p.parameter (2).get() > 1.001f);
+            const bool slotHasLegacyRaw = p.parameterEncoding.getInt() == 1 || (p.parameterEncoding.getInt() == 0 && (p.parameter (0).get() > 1.001f || p.parameter (1).get() > 1.001f || p.parameter (2).get() > 1.001f));
             if (! slotHasLegacyRaw)
                 return raw * 100.0f;
         }
@@ -510,6 +528,7 @@ void FxFaceplateComponent::showPresetsMenu (juce::Component* target)
             const auto curType = (FxType) (int) p.fxType.getInt();
             p.setDefaultsForType (curType);
 
+            p.parameterEncoding.set (2.0f);
             const float scale = (res == 1) ? 1.0f : (res == 2 ? 1.18f : (res == 3 ? 0.72f : (res == 4 ? 1.32f : 0.88f)));
             for (int i = 0; i < 16; ++i)
             {
@@ -560,6 +579,9 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
     {
         const auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
         clipboardType = (FxType) (int) p.fxType.getInt();
+        clipboardEncoding = p.parameterEncoding.get();
+        clipboardRightEnabled = p.rightParametersEnabled.getBool();
+        for (int i = 0; i < 18; ++i) clipboardParamsR[(size_t)i] = p.rightParameters[(size_t)i].get();
         for (int i = 0; i < 18; ++i)
             clipboardParams[(size_t) i] = p.parameter (i).get();
         for (int i = 0; i < 31; ++i)
@@ -573,6 +595,9 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
         if (! hasClipboard) return;
         auto& p = engine.getMixerParams().fxSlots[(size_t) currentSlot];
         p.fxType.set ((float) (int) clipboardType);
+        p.parameterEncoding.set (clipboardEncoding);
+        p.rightParametersEnabled.setBool (clipboardRightEnabled);
+        for (int i = 0; i < 18; ++i) p.rightParameters[(size_t)i].set (clipboardParamsR[(size_t)i]);
         for (int i = 0; i < 18; ++i)
             p.parameter (i).set (clipboardParams[(size_t) i]);
         for (int i = 0; i < 31; ++i)
@@ -595,6 +620,7 @@ void FxFaceplateComponent::buttonClicked (juce::Button* b)
             engineButtons[1].setToggleState (activeEngineLayer == 1, juce::dontSendNotification);
             if (unitCanvas.getCurrentModel().family == X32Fx::GuiFamily::LarcReverb)
                 setLarcPageIndex (i);
+            refreshFromSlot();
             repaint();
             return;
         }

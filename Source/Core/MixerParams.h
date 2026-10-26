@@ -403,6 +403,7 @@ struct MixerMeters
     std::array<ChannelMeters, 6> matrixDetails;
     MainMeters main;
     std::array<AtomicPeak, 8> fxReturns;
+    std::array<ChannelMeters, 8> fxReturnDetails;
     std::array<AtomicPeak, 16> buses;
     std::array<AtomicPeak, 8> auxes;
     std::array<AtomicPeak, 6> matrices;

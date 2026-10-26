@@ -1181,7 +1181,8 @@ void DetailScreen::setSelectedStrip (ChannelStripComponent::StripType type, int 
     engine.getMixEngine().setRtaChannel (
         type == ChannelStripComponent::StripType::InputChannel ? clamped :
         type == ChannelStripComponent::StripType::Bus ? (int) kMaxInputChannels + clamped :
-        type == ChannelStripComponent::StripType::Matrix ? (int) kMaxInputChannels + 16 + clamped : -1);
+        type == ChannelStripComponent::StripType::Matrix ? (int) kMaxInputChannels + 16 + clamped :
+        type == ChannelStripComponent::StripType::FxReturn ? (int) kMaxInputChannels + 22 + clamped : -1);
     eqGraph.setRtaEnabled (false);
     eqGraph.setRtaEnabled (eqRtaButton.getToggleState());
     compGrMeter.setReductionDb (0.0f);
@@ -1487,6 +1488,8 @@ void DetailScreen::refreshLiveMeters()
                 cm = &mm.busDetails[(size_t) currentStripIndex];
             else if (currentStripType == ChannelStripComponent::StripType::Matrix)
                 cm = &mm.matrixDetails[(size_t) currentStripIndex];
+            else if (currentStripType == ChannelStripComponent::StripType::FxReturn)
+                cm = &mm.fxReturnDetails[(size_t) currentStripIndex];
             float bands[InteractiveEqGraph::kNumRtaBands];
             for (int i = 0; i < InteractiveEqGraph::kNumRtaBands; ++i)
                 bands[i] = cm ? std::clamp (gainToDb (cm->rtaBands[(size_t) i].read()), -60.0f, 15.0f) : -60.0f;
