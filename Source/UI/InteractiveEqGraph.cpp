@@ -45,9 +45,12 @@ void InteractiveEqGraph::updateRtaSpectrum (const float* levelsDb, int numBands)
 {
     if (! rtaEnabled || levelsDb == nullptr) return;
 
+    bool changed = false;
     const int count = std::min (numBands, kNumRtaBands);
     for (int i = 0; i < count; ++i)
     {
+        const float prevLvl = rtaLevelsDb[(size_t) i];
+        const float prevPk  = rtaPeakHoldDb[(size_t) i];
         const float target = std::clamp (levelsDb[i], -60.0f, 18.0f);
         if (target > rtaLevelsDb[(size_t) i])
         {
@@ -58,6 +61,8 @@ void InteractiveEqGraph::updateRtaSpectrum (const float* levelsDb, int numBands)
         {
             // Smooth natural acoustic decay (~25 dB/sec)
             rtaLevelsDb[(size_t) i] += 0.22f * (target - rtaLevelsDb[(size_t) i]);
+            if (rtaLevelsDb[(size_t) i] < -59.95f)
+                rtaLevelsDb[(size_t) i] = -60.0f;
         }
 
         // Peak Hold ballistics: hold peak for ~400ms then smoothly fall
@@ -74,8 +79,15 @@ void InteractiveEqGraph::updateRtaSpectrum (const float* levelsDb, int numBands)
         {
             rtaPeakHoldDb[(size_t) i] = std::max (-60.0f, rtaPeakHoldDb[(size_t) i] - 0.75f);
         }
+
+        if (std::abs (rtaLevelsDb[(size_t) i] - prevLvl) > 0.05f
+            || std::abs (rtaPeakHoldDb[(size_t) i] - prevPk) > 0.05f)
+        {
+            changed = true;
+        }
     }
-    repaint();
+    if (changed)
+        repaint();
 }
 
 void InteractiveEqGraph::setParams (ChannelDspParams* p, double sampleRate)
@@ -315,31 +327,10 @@ void InteractiveEqGraph::paint (juce::Graphics& g)
 
     if (dspParams == nullptr) return;
 
-    // 4. Calculate real biquad filter coefficients
+    // 4. Calculate real biquad filter coefficients & cache composite response curve
     const float sampleRate = (float) sr;
     const bool hpfOn = ! dspParams->hpfBypass.getBool();
     const bool eqOn = ! dspParams->eqBypass.getBool();
-
-    BiquadCoeffs hpfCoeffs;
-    if (hpfOn)
-        hpfCoeffs = calcHPF (dspParams->hpfFreq.get(), 0.7071f, sampleRate);
-
-    std::array<BiquadCoeffs, 4> eqCoeffs;
-    if (eqOn)
-    {
-        const auto lowType = (EqBandType) dspParams->eqLowType.getInt();
-        eqCoeffs[0] = (lowType == EqBandType::LowShelf)
-            ? calcLowShelf (dspParams->eqLowFreq.get(), dspParams->eqLowGainDb.get(), dspParams->eqLowQ.get(), sampleRate)
-            : calcBell (dspParams->eqLowFreq.get(), dspParams->eqLowGainDb.get(), dspParams->eqLowQ.get(), sampleRate);
-
-        eqCoeffs[1] = calcBell (dspParams->eqMid1Freq.get(), dspParams->eqMid1GainDb.get(), dspParams->eqMid1Q.get(), sampleRate);
-        eqCoeffs[2] = calcBell (dspParams->eqMid2Freq.get(), dspParams->eqMid2GainDb.get(), dspParams->eqMid2Q.get(), sampleRate);
-
-        const auto highType = (EqBandType) dspParams->eqHighType.getInt();
-        eqCoeffs[3] = (highType == EqBandType::HighShelf)
-            ? calcHighShelf (dspParams->eqHighFreq.get(), dspParams->eqHighGainDb.get(), dspParams->eqHighQ.get(), sampleRate)
-            : calcBell (dspParams->eqHighFreq.get(), dspParams->eqHighGainDb.get(), dspParams->eqHighQ.get(), sampleRate);
-    }
 
     // 5. Draw 4 Vertical Dashed Cursor Lines with Badges [1], [2], [3], [4]
     const float bandFreqs[4] = {
@@ -375,33 +366,75 @@ void InteractiveEqGraph::paint (juce::Graphics& g)
         g.drawText (juce::String (b + 1), badgeRect.toNearestInt(), juce::Justification::centred);
     }
 
-    // 6. Draw Composite Response Curve (Solid white curve)
-    juce::Path curvePath;
-    const int startX = 30;
-    const int endX = (int) w - 10;
+    // 6. Draw Composite Response Curve (Solid white curve, cached across RTA frames)
+    CurveCacheKey currentKey;
+    currentKey.width = getWidth();
+    currentKey.height = getHeight();
+    currentKey.sampleRate = sampleRate;
+    currentKey.hpfOn = hpfOn;
+    currentKey.eqOn = eqOn;
+    currentKey.hpfFreq = dspParams->hpfFreq.get();
+    currentKey.lowType = dspParams->eqLowType.getInt();
+    currentKey.highType = dspParams->eqHighType.getInt();
+    currentKey.freq = { bandFreqs[0], bandFreqs[1], bandFreqs[2], bandFreqs[3] };
+    currentKey.gain = { dspParams->eqLowGainDb.get(), dspParams->eqMid1GainDb.get(),
+                        dspParams->eqMid2GainDb.get(), dspParams->eqHighGainDb.get() };
+    currentKey.q    = { dspParams->eqLowQ.get(), dspParams->eqMid1Q.get(),
+                        dspParams->eqMid2Q.get(), dspParams->eqHighQ.get() };
 
-    for (int x = startX; x < endX; ++x)
+    if (! curveCacheValid || ! (currentKey == cachedCurveKey))
     {
-        const float f = xToFreq ((float) x);
-        float totalDb = 0.0f;
+        cachedCurveKey = currentKey;
+        curveCacheValid = true;
+        cachedCurvePath.clear();
 
+        BiquadCoeffs hpfCoeffs;
         if (hpfOn)
-            totalDb += hpfCoeffs.getMagnitudeResponseDb (f, sampleRate);
+            hpfCoeffs = calcHPF (currentKey.hpfFreq, 0.7071f, sampleRate);
 
+        std::array<BiquadCoeffs, 4> eqCoeffs;
         if (eqOn)
         {
-            for (int b = 0; b < 4; ++b)
-                totalDb += eqCoeffs[(size_t) b].getMagnitudeResponseDb (f, sampleRate);
+            const auto lowType = (EqBandType) currentKey.lowType;
+            eqCoeffs[0] = (lowType == EqBandType::LowShelf)
+                ? calcLowShelf (currentKey.freq[0], currentKey.gain[0], currentKey.q[0], sampleRate)
+                : calcBell (currentKey.freq[0], currentKey.gain[0], currentKey.q[0], sampleRate);
+
+            eqCoeffs[1] = calcBell (currentKey.freq[1], currentKey.gain[1], currentKey.q[1], sampleRate);
+            eqCoeffs[2] = calcBell (currentKey.freq[2], currentKey.gain[2], currentKey.q[2], sampleRate);
+
+            const auto highType = (EqBandType) currentKey.highType;
+            eqCoeffs[3] = (highType == EqBandType::HighShelf)
+                ? calcHighShelf (currentKey.freq[3], currentKey.gain[3], currentKey.q[3], sampleRate)
+                : calcBell (currentKey.freq[3], currentKey.gain[3], currentKey.q[3], sampleRate);
         }
 
-        const float y = gainToY (totalDb);
-        if (x == startX) curvePath.startNewSubPath ((float) x, y);
-        else curvePath.lineTo ((float) x, y);
+        const int startX = 30;
+        const int endX = (int) w - 10;
+
+        for (int x = startX; x < endX; ++x)
+        {
+            const float f = xToFreq ((float) x);
+            float totalDb = 0.0f;
+
+            if (hpfOn)
+                totalDb += hpfCoeffs.getMagnitudeResponseDb (f, sampleRate);
+
+            if (eqOn)
+            {
+                for (int b = 0; b < 4; ++b)
+                    totalDb += eqCoeffs[(size_t) b].getMagnitudeResponseDb (f, sampleRate);
+            }
+
+            const float y = gainToY (totalDb);
+            if (x == startX) cachedCurvePath.startNewSubPath ((float) x, y);
+            else cachedCurvePath.lineTo ((float) x, y);
+        }
     }
 
     // Solid white response curve
     g.setColour (juce::Colours::white);
-    g.strokePath (curvePath, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath (cachedCurvePath, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // 7. Draw Interactive Node Handles on the curve
     struct HandleDrawInfo { int idx; const char* label; float f; float g; };

@@ -436,7 +436,7 @@ TEST (transportTrackReorderingSwap)
     auto newSet = std::make_shared<TrackSet> (*set);
     std::swap (newSet->slots[0], newSet->slots[1]);
     r.s.setTrackSet (newSet);
-    for (int b = 0; b < 10; ++b) { r.serviceAll(); r.pull(); }
+    for (int b = 0; b < 15; ++b) { r.serviceAll(); r.pull(); }
     CHECK_NEAR (r.at (0, 0, 100), 0.75, 1e-4);
     CHECK_NEAR (r.at (1, 0, 100), 0.25, 1e-4);
 }
@@ -1385,6 +1385,103 @@ TEST (neutralEqIsTransparent)
         CHECK_NEAR (l[i], expectedL[i], 0);
         CHECK_NEAR (r[i], expectedR[i], 0);
     }
+}
+
+TEST (timelineStreamerClearBufferAndMixEngineSampleRateReinit)
+{
+    StreamRig r (256);
+    auto set = std::make_shared<TrackSet>();
+    set->slots[0] = std::make_shared<FnTrack> (1, 48000, [] (int64_t, int) { return 0.5f; });
+    r.s.setTrackSet (set);
+    r.s.setPlaying (true);
+    r.serviceAll();
+    CHECK (r.s.getBufferFill() > 0.0f);
+
+    // Clear buffer simulates flushing old sample rate frames before re-initialization
+    r.s.setPlaying (false);
+    r.s.clearBuffer();
+    r.pull();
+    // Stale frames are discarded on pull
+    CHECK_NEAR (r.at (0, 0, 0), 0.0f, 1e-6);
+
+    // Re-prepare MixEngine across sample rates (44.1k -> 48k -> 96k)
+    EngineRig rig;
+    rig.engine.prepare (44100.0, 512);
+    CHECK_NEAR (rig.engine.getSampleRate(), 44100.0, 1e-3);
+    rig.engine.prepare (96000.0, 512);
+    CHECK_NEAR (rig.engine.getSampleRate(), 96000.0, 1e-3);
+    rig.setDc (0, 0.5f, 0.0f, 1);
+    rig.params.channels[0].source.set (0);
+    rig.run (40);
+    CHECK_NEAR (rig.L(), 0.5 * 0.70710678, 1e-4);
+}
+
+TEST (transportAddingTrackDuringPlaybackIsClickFree)
+{
+    StreamRig r (256);
+    auto set1 = std::make_shared<TrackSet>();
+    set1->slots[0] = std::make_shared<FnTrack> (1, 48000 * 10, [] (int64_t, int) { return 0.5f; });
+    r.s.setTrackSet (set1);
+    r.s.setPlaying (true);
+
+    // Let track 0 reach steady-state 0.5f playback
+    for (int b = 0; b < 10; ++b) { r.serviceAll(); r.pull(); }
+    CHECK_NEAR (r.at (0, 0, r.block - 1), 0.5f, 1e-6);
+
+    // Add track 1 while track 0 is playing
+    auto set2 = std::make_shared<TrackSet> (*set1);
+    set2->slots[1] = std::make_shared<FnTrack> (1, 48000 * 10, [] (int64_t, int) { return 0.25f; });
+    r.s.setTrackSet (set2);
+
+    // Verify that track 0 has ZERO dropouts or clicks across the next 20 blocks
+    float minTrack0 = 1.0f, maxTrack0 = 0.0f;
+    for (int b = 0; b < 20; ++b)
+    {
+        r.serviceAll();
+        r.pull();
+        for (int i = 0; i < r.block; ++i)
+        {
+            const float v = r.at (0, 0, i);
+            minTrack0 = std::min (minTrack0, v);
+            maxTrack0 = std::max (maxTrack0, v);
+        }
+    }
+    CHECK_NEAR (minTrack0, 0.5f, 1e-6);
+    CHECK_NEAR (maxTrack0, 0.5f, 1e-6);
+    CHECK_NEAR (r.at (1, 0, r.block - 1), 0.25f, 1e-6);
+}
+
+TEST (mixBusAndSendGainChangesAreSmoothed)
+{
+    EngineRig rig;
+    rig.setDc (0, 1.0f, 0.0f, 1);
+    auto& ch = rig.params.channels[0];
+    ch.source.set (0);
+    ch.pan.set (-1.0f);
+    ch.mainAssign.setBool (false);
+    ch.sends[0].set (0.0f);
+    ch.sendMutes[0].setBool (false);
+    rig.params.buses[0].mainAssign.setBool (true);
+    rig.params.buses[0].faderDb.set (0.0f);
+    rig.run (20);
+    CHECK_NEAR (rig.L(), 1.0f, 1e-4);
+
+    // Step send level down by -20 dB (1.0 -> 0.1) and verify per-sample smoothing
+    ch.sends[0].set (-20.0f);
+    rig.engine.process (rig.slotPtr.data(), rig.slotCh, EngineRig::kBlock, rig.outL.data(), rig.outR.data());
+    float maxSendStep = 0.0f;
+    for (int i = 1; i < EngineRig::kBlock; ++i)
+        maxSendStep = std::max (maxSendStep, std::abs (rig.outL[(size_t) i] - rig.outL[(size_t) i - 1]));
+    CHECK (rig.outL[0] > 0.98f);        // no instant jump from 1.0 to 0.1
+    CHECK (maxSendStep < 0.002f);       // smooth linear ramp
+
+    rig.run (20);
+    CHECK_NEAR (rig.L(), 0.1f, 1e-4);
+
+    // Step bus master fader from 0 dB to -90 dB (-inf) and verify per-sample smoothing
+    rig.params.buses[0].faderDb.set (-90.0f);
+    rig.engine.process (rig.slotPtr.data(), rig.slotCh, EngineRig::kBlock, rig.outL.data(), rig.outR.data());
+    CHECK (rig.outL[0] > 0.09f);        // no instant drop to 0.0
 }
 
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }

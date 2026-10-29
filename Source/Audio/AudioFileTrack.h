@@ -29,7 +29,7 @@ public:
 private:
     AudioFileTrack (const juce::File& file, juce::String name,
                     std::unique_ptr<juce::AudioFormatReader> reader,
-                    double targetSr);
+                    double origSr, double targetSr);
 
     juce::File sourceFile;
     juce::String trackName;

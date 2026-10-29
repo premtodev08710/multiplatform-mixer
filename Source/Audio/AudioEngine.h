@@ -42,8 +42,17 @@ public:
     double getSampleRate() const noexcept { return currentSampleRate.load(); }
     int getBufferSize() const noexcept { return currentBlockSize.load(); }
 
+    // Sample Rate Configuration (Validation, Re-initialization, State Sync)
+    static constexpr double kDefaultSampleRate = 48000.0;
+    double getDefaultSampleRate() const noexcept;
+    juce::Array<double> getAvailableSampleRates() const;
+    bool isSampleRateSupported (double sampleRate) const;
+    double setSampleRate (double requestedSampleRate);
+    void reinitializeAudioForSampleRate (double newSampleRate, int blockSize);
+
     // Multitrack slot management
     void setTrackSlot (int slot, std::shared_ptr<TrackReader> reader);
+    void setTrackSlots (const std::vector<std::pair<int, std::shared_ptr<TrackReader>>>& slots);
     std::shared_ptr<TrackReader> getTrackSlot (int slot) const;
     void swapTracks (int slotA, int slotB);
     void moveTrack (int fromSlot, int toSlot);

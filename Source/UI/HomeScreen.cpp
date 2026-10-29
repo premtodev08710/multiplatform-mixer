@@ -112,11 +112,39 @@ void HomeScreen::timerCallback()
         stopTimer();
         return;
     }
-    bankSelectorBar.repaint();
+    bankSelectorBar.refreshMeters();
+}
+
+void HomeScreen::refreshStrips()
+{
+    if (channelStrips.empty() || builtBank != currentBank)
+    {
+        rebuildStrips();
+        return;
+    }
+
+    for (auto& s : channelStrips)
+    {
+        if (s->getStripType() == ChannelStripComponent::StripType::InputChannel)
+        {
+            s->setSelected (s->getChannelIndex() == selectedChannel);
+            s->setSendsOnFader (sendsOnFaderActive ? sofTarget : -1);
+        }
+        s->updateFromModel();
+    }
+    if (masterStrip != nullptr)
+        masterStrip->updateFromModel();
 }
 
 void HomeScreen::rebuildStrips()
 {
+    if (! channelStrips.empty() && builtBank == currentBank)
+    {
+        refreshStrips();
+        return;
+    }
+
+    builtBank = currentBank;
     channelStrips.clear();
 
     if (currentBank >= 0 && currentBank <= 3) // Input Channels 1..32
@@ -249,7 +277,7 @@ void HomeScreen::buttonClicked (juce::Button* b)
     if (b == &sendsOnFadersButton)
     {
         sendsOnFaderActive = sendsOnFadersButton.getToggleState();
-        rebuildStrips();
+        refreshStrips();
     }
     for (int i = 0; i < 6; ++i)
     {
@@ -270,7 +298,7 @@ void HomeScreen::comboBoxChanged (juce::ComboBox* cb)
     {
         sofTarget = cb->getSelectedId() - 1;
         if (sendsOnFaderActive)
-            rebuildStrips();
+            refreshStrips();
     }
 }
 
@@ -398,49 +426,77 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
     if (audioFiles.isEmpty()) return;
 
     audioFiles.sort();
-    const double targetSr = engine.getSampleRate();
 
-    int startSlot = -1;
-    const int maxTracksAllowed = AppEdition::getMaxTracks();
-    for (int s = 0; s < maxTracksAllowed; ++s)
-    {
-        if (engine.getTrackSlot (s) == nullptr)
+    // Decode & pre-buffer audio files asynchronously on a background thread so the
+    // UI thread and audio playback never stall or click, then connect in one atomic batch.
+    juce::Component::SafePointer<HomeScreen> safeThis (this);
+    juce::Thread::launch ([safeThis, audioFiles] {
+        if (safeThis == nullptr) return;
+
+        auto& eng = safeThis->engine;
+        const double targetSr = (eng.getSampleRate() > 1000.0) ? eng.getSampleRate() : AudioEngine::kDefaultSampleRate;
+
+        int startSlot = -1;
+        const int maxTracksAllowed = AppEdition::getMaxTracks();
+        for (int s = 0; s < maxTracksAllowed; ++s)
         {
-            startSlot = s;
-            break;
+            if (eng.getTrackSlot (s) == nullptr)
+            {
+                startSlot = s;
+                break;
+            }
         }
-    }
-    if (startSlot < 0)
-        startSlot = 0;
+        if (startSlot < 0)
+            startSlot = 0;
 
-    for (int i = 0; i < audioFiles.size() && (startSlot + i) < maxTracksAllowed; ++i)
-    {
-        const int slot = startSlot + i;
-        const auto& file = audioFiles[i];
-
-        auto track = AudioFileTrack::open (file, targetSr, engine.getFormatManager());
-        if (track != nullptr)
+        struct LoadedTrack
         {
-            engine.setTrackSlot (slot, track);
-            project.setTrackFile (slot, file);
+            int slot;
+            juce::File file;
+            std::shared_ptr<AudioFileTrack> track;
+        };
+        std::vector<LoadedTrack> readyTracks;
 
-            auto& cp = engine.getMixerParams().channels[(size_t) slot];
-            if (cp.source.getInt() < 0)
-                cp.source.set ((float) slot);
+        for (int i = 0; i < audioFiles.size() && (startSlot + i) < maxTracksAllowed; ++i)
+        {
+            const int slot = startSlot + i;
+            const auto& file = audioFiles[i];
 
-            auto meta = project.getChannelMetadata (slot);
-            if (meta.name.startsWith ("CH ") || meta.name.isEmpty())
-                project.setChannelName (slot, file.getFileNameWithoutExtension().substring (0, 8));
+            auto track = AudioFileTrack::open (file, targetSr, eng.getFormatManager());
+            if (track != nullptr)
+                readyTracks.push_back ({ slot, file, std::move (track) });
         }
-    }
 
-    project.setModified (true);
-    project.autoSaveSession();
+        juce::MessageManager::callAsync ([safeThis, readyTracks = std::move (readyTracks)] {
+            if (safeThis == nullptr || readyTracks.empty()) return;
 
-    if (project.onTracksChanged)
-        project.onTracksChanged();
-    else
-        rebuildStrips();
+            std::vector<std::pair<int, std::shared_ptr<TrackReader>>> batchSlots;
+            batchSlots.reserve (readyTracks.size());
+
+            for (const auto& item : readyTracks)
+            {
+                batchSlots.emplace_back (item.slot, item.track);
+                safeThis->project.setTrackFile (item.slot, item.file);
+
+                auto& cp = safeThis->engine.getMixerParams().channels[(size_t) item.slot];
+                if (cp.source.getInt() < 0)
+                    cp.source.set ((float) item.slot);
+
+                auto meta = safeThis->project.getChannelMetadata (item.slot);
+                if (meta.name.startsWith ("CH ") || meta.name.isEmpty())
+                    safeThis->project.setChannelName (item.slot, item.file.getFileNameWithoutExtension().substring (0, 8));
+            }
+
+            safeThis->engine.setTrackSlots (batchSlots);
+            safeThis->project.setModified (true);
+            safeThis->project.autoSaveSession();
+
+            if (safeThis->project.onTracksChanged)
+                safeThis->project.onTracksChanged();
+            else
+                safeThis->refreshStrips();
+        });
+    });
 }
 
 } // namespace mps

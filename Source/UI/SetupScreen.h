@@ -40,6 +40,13 @@ private:
     juce::TextButton useSpeakersButton { "Switch to MacBook Speakers" };
     juce::TextButton useHeadphonesButton { "Switch to Headphones" };
 
+    // Sample Rate Quick Selector
+    juce::Label sampleRateLabel;
+    juce::TextButton sr44100Button { "44.1 kHz" };
+    juce::TextButton sr48000Button { "48.0 kHz" };
+    juce::TextButton sr96000Button { "96.0 kHz" };
+    void refreshSampleRateButtons();
+
     // Behringer X32 OSC Hardware Remote Network Panel
     juce::Label x32TitleLabel;
     juce::Label x32IpLabel;

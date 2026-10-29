@@ -18,17 +18,27 @@ void TransferCurveGraph::setMode (Mode m)
 
 void TransferCurveGraph::setGateParams (float thresholdDb, float rangeDb)
 {
-    gateThreshold = thresholdDb;
-    gateRange = rangeDb;
-    repaint();
+    if (std::abs (gateThreshold - thresholdDb) > 1.0e-4f || std::abs (gateRange - rangeDb) > 1.0e-4f)
+    {
+        gateThreshold = thresholdDb;
+        gateRange = rangeDb;
+        repaint();
+    }
 }
 
 void TransferCurveGraph::setCompParams (float thresholdDb, float ratio, float kneeDb)
 {
-    compThreshold = thresholdDb;
-    compRatio = std::max (1.0f, ratio);
-    compKnee = std::max (0.0f, kneeDb);
-    repaint();
+    const float r = std::max (1.0f, ratio);
+    const float k = std::max (0.0f, kneeDb);
+    if (std::abs (compThreshold - thresholdDb) > 1.0e-4f
+        || std::abs (compRatio - r) > 1.0e-4f
+        || std::abs (compKnee - k) > 1.0e-4f)
+    {
+        compThreshold = thresholdDb;
+        compRatio = r;
+        compKnee = k;
+        repaint();
+    }
 }
 
 void TransferCurveGraph::paint (juce::Graphics& g)

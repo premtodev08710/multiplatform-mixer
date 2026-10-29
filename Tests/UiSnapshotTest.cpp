@@ -186,6 +186,61 @@ int main (int argc, char* argv[])
             mp3File.deleteFile();
         }
         wavExport.deleteFile(); inputA.deleteFile(); inputB.deleteFile();
+
+        // Sample Rate configuration tests (Validation, Re-initialization, State Sync)
+        {
+            mps::AudioEngine srHost;
+            const auto trackWav = juce::File::createTempFile (".wav");
+            trackWav.deleteFile();
+            {
+                auto out = std::unique_ptr<juce::OutputStream> (trackWav.createOutputStream());
+                juce::WavAudioFormat wav;
+                auto writer = wav.createWriterFor (out, juce::AudioFormatWriterOptions().withSampleRate (44100.0).withNumChannels (1).withBitsPerSample (24));
+                std::vector<float> samples (44100, 0.25f); // 1.0 sec at 44.1 kHz
+                const float* data[] = { samples.data() };
+                if (! writer || ! writer->writeFromFloatArrays (data, 1, 44100)) ++failures;
+            }
+
+            srHost.setSampleRate (44100.0);
+            if (std::abs (srHost.getSampleRate() - 44100.0) > 1.0) ++failures;
+            if (std::abs (srHost.getMixEngine().getSampleRate() - 44100.0) > 1.0) ++failures;
+
+            auto track44 = mps::AudioFileTrack::open (trackWav, srHost.getSampleRate(), srHost.getFormatManager());
+            if (! track44 || std::abs (track44->getOriginalSampleRate() - 44100.0) > 1.0 || track44->getLengthInFrames() != 44100) ++failures;
+            srHost.setTrackSlot (0, track44);
+            srHost.seekToSample (22050); // 0.5 sec
+
+            // Switch to 48000 Hz -> should validate, clear buffer, re-open & resample track, scale playhead, and sync state
+            const double applied48 = srHost.setSampleRate (48000.0);
+            if (std::abs (applied48 - 48000.0) > 1.0 || std::abs (srHost.getSampleRate() - 48000.0) > 1.0) ++failures;
+            if (std::abs (srHost.getMixEngine().getSampleRate() - 48000.0) > 1.0) ++failures;
+
+            auto reloaded48 = std::dynamic_pointer_cast<mps::AudioFileTrack> (srHost.getTrackSlot (0));
+            if (! reloaded48 || std::abs (reloaded48->getTargetSampleRate() - 48000.0) > 1.0
+                || std::abs (reloaded48->getOriginalSampleRate() - 44100.0) > 1.0
+                || reloaded48->getLengthInFrames() != 48000
+                || reloaded48->getFile() != trackWav)
+                ++failures;
+            if (std::abs ((double) srHost.getStreamer().getPlayhead() - 24000.0) > 2.0) ++failures;
+
+            // Switch to 96000 Hz
+            const double applied96 = srHost.setSampleRate (96000.0);
+            if (std::abs (applied96 - 96000.0) > 1.0 || std::abs (srHost.getSampleRate() - 96000.0) > 1.0) ++failures;
+            auto reloaded96 = std::dynamic_pointer_cast<mps::AudioFileTrack> (srHost.getTrackSlot (0));
+            if (! reloaded96 || std::abs (reloaded96->getTargetSampleRate() - 96000.0) > 1.0
+                || std::abs (reloaded96->getOriginalSampleRate() - 44100.0) > 1.0
+                || reloaded96->getLengthInFrames() != 96000)
+                ++failures;
+
+            // Unsupported sample rate (e.g. 12345 Hz or negative) -> must fall back to default sample rate (48000 Hz)
+            const double fallbackSr = srHost.setSampleRate (12345.0);
+            if (std::abs (fallbackSr - srHost.getDefaultSampleRate()) > 1.0
+                || std::abs (srHost.getSampleRate() - srHost.getDefaultSampleRate()) > 1.0)
+                ++failures;
+
+            trackWav.deleteFile();
+        }
+
         mps::ConsoleToolsScreen tools (host);
         for (int width : { 640, 1024 })
             for (int mode = 0; mode < 4; ++mode)

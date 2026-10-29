@@ -37,12 +37,16 @@ public:
     void mouseDown (const juce::MouseEvent& e) override;
 
     void setMeters (const MixerMeters* m) { meters = m; }
+    void refreshMeters();
 
     std::function<void (int)> onBankSelected;
 
 private:
+    int computeLitSegments (int bankIdx, int colIdx) const noexcept;
+
     int selectedBank = 0;
     const MixerMeters* meters = nullptr;
+    std::array<uint8_t, NumBanks * 8> cachedLitSegments {};
 };
 
 } // namespace mps

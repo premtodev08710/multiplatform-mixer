@@ -84,11 +84,15 @@ static juce::File getAudioSettingsFile()
 void AudioEngine::saveAudioDeviceSettings()
 {
     auto xml = deviceManager.createStateXml();
-    if (xml != nullptr)
-    {
-        auto file = getAudioSettingsFile();
-        xml->writeTo (file);
-    }
+    if (xml == nullptr)
+        xml = std::make_unique<juce::XmlElement> ("DEVICESETUP");
+
+    const double sr = currentSampleRate.load();
+    if (sr > 0.0)
+        xml->setAttribute ("deviceSampleRate", sr);
+
+    auto file = getAudioSettingsFile();
+    xml->writeTo (file);
 }
 
 void AudioEngine::loadAudioDeviceSettings()
@@ -98,11 +102,25 @@ void AudioEngine::loadAudioDeviceSettings()
     if (file.existsAsFile())
         xml = juce::XmlDocument::parse (file);
 
+    double savedSr = 0.0;
+    if (xml != nullptr && xml->hasAttribute ("deviceSampleRate"))
+        savedSr = xml->getDoubleAttribute ("deviceSampleRate", 0.0);
+
     juce::String err;
     if (xml != nullptr)
         err = deviceManager.initialise (0, 2, xml.get(), true);
     else
         err = deviceManager.initialiseWithDefaultDevices (0, 2);
+
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        if (dev->getCurrentSampleRate() > 0.0)
+            currentSampleRate.store (dev->getCurrentSampleRate());
+    }
+    else if (isSampleRateSupported (savedSr))
+    {
+        currentSampleRate.store (savedSr);
+    }
 }
 
 void AudioEngine::setTrackSlot (int slot, std::shared_ptr<TrackReader> reader)
@@ -114,6 +132,25 @@ void AudioEngine::setTrackSlot (int slot, std::shared_ptr<TrackReader> reader)
         std::lock_guard<std::mutex> lock (tracksMutex);
         newTracks = std::make_shared<TrackSet> (*currentTracks);
         newTracks->slots[(size_t) slot] = std::move (reader);
+        currentTracks = newTracks;
+    }
+
+    streamer.setTrackSet (newTracks);
+}
+
+void AudioEngine::setTrackSlots (const std::vector<std::pair<int, std::shared_ptr<TrackReader>>>& slots)
+{
+    if (slots.empty()) return;
+
+    std::shared_ptr<TrackSet> newTracks;
+    {
+        std::lock_guard<std::mutex> lock (tracksMutex);
+        newTracks = std::make_shared<TrackSet> (*currentTracks);
+        for (const auto& item : slots)
+        {
+            if (item.first >= 0 && item.first < kMaxTracks)
+                newTracks->slots[(size_t) item.first] = item.second;
+        }
         currentTracks = newTracks;
     }
 
@@ -233,7 +270,214 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
 {
     if (device == nullptr) return;
 
-    preparePlayback (device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples());
+    reinitializeAudioForSampleRate (device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples());
+}
+
+double AudioEngine::getDefaultSampleRate() const noexcept
+{
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        const auto rates = dev->getAvailableSampleRates();
+        for (double r : rates)
+            if (std::abs (r - kDefaultSampleRate) <= 1.0)
+                return r;
+
+        const double cur = dev->getCurrentSampleRate();
+        if (cur > 0.0)
+            return cur;
+
+        if (! rates.isEmpty() && rates[0] > 0.0)
+            return rates[0];
+    }
+
+    const double current = currentSampleRate.load();
+    return current > 0.0 ? current : kDefaultSampleRate;
+}
+
+juce::Array<double> AudioEngine::getAvailableSampleRates() const
+{
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        auto rates = dev->getAvailableSampleRates();
+        if (! rates.isEmpty())
+            return rates;
+    }
+
+    return { 44100.0, 48000.0, 88200.0, 96000.0 };
+}
+
+bool AudioEngine::isSampleRateSupported (double sampleRate) const
+{
+    if (! std::isfinite (sampleRate) || sampleRate < 8000.0 || sampleRate > 384000.0)
+        return false;
+
+    const auto rates = getAvailableSampleRates();
+    for (double r : rates)
+    {
+        if (std::abs (r - sampleRate) <= 1.0)
+            return true;
+    }
+
+    return false;
+}
+
+void AudioEngine::reinitializeAudioForSampleRate (double newSampleRate, int blockSize)
+{
+    const double oldSr = currentSampleRate.load();
+    const double validSr = (std::isfinite (newSampleRate) && newSampleRate > 0.0)
+                           ? newSampleRate
+                           : getDefaultSampleRate();
+    const int validBs = std::max (64, blockSize > 0 ? blockSize : currentBlockSize.load());
+
+    // Stop active recording if sample rate changes to avoid header/sample-rate mismatch
+    if (recording.load() && std::abs (recordingSampleRate - validSr) > 1.0)
+        stopRecording();
+
+    const bool wasPlaying = streamer.isPlaying();
+    const int64_t oldPlayhead = streamer.getPlayhead();
+    const bool loopOn = streamer.getLoopEnabled();
+    const int64_t oldLoopStart = streamer.getLoopStart();
+    const int64_t oldLoopEnd = streamer.getLoopEnd();
+
+    // Pause and flush old ring buffer frames before re-initializing context
+    streamer.setPlaying (false);
+    streamer.clearBuffer();
+
+    // Re-allocate and clear audio scratch buffers, MixEngine DSP, and OutputProtection
+    preparePlayback (validSr, validBs);
+
+    // Check if any loaded AudioFileTrack needs resampling to the new sample rate
+    std::shared_ptr<TrackSet> snapshot;
+    {
+        std::lock_guard<std::mutex> lock (tracksMutex);
+        snapshot = currentTracks;
+    }
+
+    bool anyTrackNeedsReload = false;
+    if (snapshot != nullptr)
+    {
+        for (int s = 0; s < kMaxTracks; ++s)
+        {
+            if (auto aft = std::dynamic_pointer_cast<AudioFileTrack> (snapshot->slots[(size_t) s]))
+            {
+                if (std::abs (aft->getTargetSampleRate() - validSr) > 1.0)
+                {
+                    anyTrackNeedsReload = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (anyTrackNeedsReload && snapshot != nullptr)
+    {
+        auto reloadedTracks = std::make_shared<TrackSet>();
+        for (int s = 0; s < kMaxTracks; ++s)
+        {
+            auto existing = snapshot->slots[(size_t) s];
+            if (auto aft = std::dynamic_pointer_cast<AudioFileTrack> (existing))
+            {
+                if (std::abs (aft->getTargetSampleRate() - validSr) > 1.0 && aft->getFile().existsAsFile())
+                {
+                    auto reopened = AudioFileTrack::open (aft->getFile(), validSr, formatManager);
+                    reloadedTracks->slots[(size_t) s] = reopened != nullptr ? std::move (reopened) : existing;
+                }
+                else
+                {
+                    reloadedTracks->slots[(size_t) s] = existing;
+                }
+            }
+            else
+            {
+                reloadedTracks->slots[(size_t) s] = existing;
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock (tracksMutex);
+            currentTracks = reloadedTracks;
+        }
+        streamer.setTrackSet (reloadedTracks);
+    }
+
+    // Rescale timeline playhead and loop boundaries proportionally to avoid time/position drift
+    if (oldSr > 0.0 && std::abs (validSr - oldSr) > 1.0)
+    {
+        const double ratio = validSr / oldSr;
+        const int64_t newPlayhead = std::max<int64_t> (0, (int64_t) std::llround ((double) oldPlayhead * ratio));
+        const int64_t newLoopStart = std::max<int64_t> (0, (int64_t) std::llround ((double) oldLoopStart * ratio));
+        const int64_t newLoopEnd = std::max<int64_t> (0, (int64_t) std::llround ((double) oldLoopEnd * ratio));
+
+        streamer.setLoop (loopOn, newLoopStart, newLoopEnd);
+        streamer.seek (newPlayhead);
+    }
+
+    if (wasPlaying)
+        streamer.setPlaying (true);
+}
+
+double AudioEngine::setSampleRate (double requestedSampleRate)
+{
+    // 1. Validation: Verify requested sample rate is supported; fallback to device default if not
+    double targetSr = getDefaultSampleRate();
+    if (isSampleRateSupported (requestedSampleRate))
+    {
+        const auto rates = getAvailableSampleRates();
+        for (double r : rates)
+        {
+            if (std::abs (r - requestedSampleRate) <= 1.0)
+            {
+                targetSr = r;
+                break;
+            }
+        }
+    }
+
+    // 2. Re-initialization: Stop/clear old buffers & update hardware device and audio processors
+    const bool wasPlaying = streamer.isPlaying();
+    streamer.setPlaying (false);
+    streamer.clearBuffer();
+
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        juce::AudioDeviceManager::AudioDeviceSetup setup;
+        deviceManager.getAudioDeviceSetup (setup);
+
+        if (std::abs (dev->getCurrentSampleRate() - targetSr) > 1.0
+            || std::abs (setup.sampleRate - targetSr) > 1.0)
+        {
+            const double fallbackSr = dev->getCurrentSampleRate() > 0.0
+                                      ? dev->getCurrentSampleRate()
+                                      : getDefaultSampleRate();
+            setup.sampleRate = targetSr;
+            const juce::String err = deviceManager.setAudioDeviceSetup (setup, true);
+
+            if (err.isNotEmpty())
+            {
+                // Hardware rejected the rate: fall back to safe default rate to prevent freeze
+                setup.sampleRate = fallbackSr;
+                deviceManager.setAudioDeviceSetup (setup, true);
+                targetSr = fallbackSr;
+            }
+        }
+
+        if (auto* activeDev = deviceManager.getCurrentAudioDevice())
+        {
+            if (activeDev->getCurrentSampleRate() > 0.0)
+                targetSr = activeDev->getCurrentSampleRate();
+        }
+    }
+
+    reinitializeAudioForSampleRate (targetSr, currentBlockSize.load());
+
+    if (wasPlaying)
+        streamer.setPlaying (true);
+
+    // 3. State Sync: Persist and sync the applied sample rate across the system
+    currentSampleRate.store (targetSr);
+    saveAudioDeviceSettings();
+
+    return targetSr;
 }
 
 void AudioEngine::preparePlayback (double sampleRate, int blockSize)

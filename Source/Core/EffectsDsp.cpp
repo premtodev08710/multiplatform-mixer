@@ -2169,6 +2169,8 @@ void FxSlotProcessor::prepare (double sampleRate, bool internalWorker)
 void FxSlotProcessor::reset()
 {
     lastType = -1;
+    dormant = true;
+    silentSamples = 0;
     if (rightWorker) rightWorker->reset();
     reverb.reset();
     delay.reset();
@@ -2207,6 +2209,33 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
 
     const auto requestedType = (FxType) params.fxType.getInt();
     if (lastType != (int) requestedType) { reset(); lastType = (int) requestedType; }
+
+    float inPkL = 0.0f, inPkR = 0.0f;
+    for (int i = 0; i < numSamples; ++i)
+    {
+        inPkL = std::max (inPkL, std::abs (inL[i]));
+        inPkR = std::max (inPkR, std::abs (srcR[i]));
+    }
+    if (inPkL > 0.0f || inPkR > 0.0f)
+    {
+        dormant = false;
+        silentSamples = 0;
+    }
+    else if (dormant)
+    {
+        std::memset (outL, 0, sizeof (float) * (size_t) numSamples);
+        if (outR != nullptr && outR != outL)
+            std::memset (outR, 0, sizeof (float) * (size_t) numSamples);
+        if (! monoPass)
+        {
+            inPeakL.update (0.0f);
+            inPeakR.update (0.0f);
+            outPeakL.update (0.0f);
+            outPeakR.update (0.0f);
+        }
+        return;
+    }
+
     if (! monoPass && rightWorker && ! params.bypass.getBool()
         && (usesIndependentFxParameters (requestedType) || requestedType == FxType::SoundMaxer
             || requestedType == FxType::Suboctaver))
@@ -2229,8 +2258,6 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
             for (int j = 0; j < 3; ++j) right.parameter(j).set (params.parameter(j + 3).get());
             if (requestedType == FxType::Suboctaver) { left.p4.set (.5f); right.p4.set (.5f); }
         }
-        float ipL = 0, ipR = 0;
-        for (int i = 0; i < numSamples; ++i) { ipL = std::max (ipL, std::abs(inL[i])); ipR = std::max (ipR, std::abs(srcR[i])); }
         if ((int) dualInputR.size() < numSamples) dualInputR.resize ((size_t)numSamples);
         std::copy_n (srcR, numSamples, dualInputR.data());
         monoPass = true;
@@ -2241,17 +2268,25 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
         rightWorker->monoPass = false;
         float opL = 0, opR = 0;
         for (int i = 0; i < numSamples; ++i) { opL = std::max (opL, std::abs(outL[i])); opR = std::max (opR, std::abs(outR[i])); }
-        inPeakL.update(ipL); inPeakR.update(ipR); outPeakL.update(opL); outPeakR.update(opR);
+        inPeakL.update(inPkL); inPeakR.update(inPkR); outPeakL.update(opL); outPeakR.update(opR);
+        if (inPkL <= 1.0e-9f && inPkR <= 1.0e-9f && opL <= 1.0e-9f && opR <= 1.0e-9f)
+        {
+            silentSamples += numSamples;
+            if (silentSamples >= (int) (sr * 6.0))
+            {
+                const int savedType = lastType;
+                reset();
+                lastType = savedType;
+            }
+        }
+        else
+        {
+            silentSamples = 0;
+        }
         return;
     }
 
     // Track input peak meters
-    float inPkL = 0.0f, inPkR = 0.0f;
-    for (int i = 0; i < numSamples; ++i)
-    {
-        inPkL = std::max (inPkL, std::abs (inL[i]));
-        inPkR = std::max (inPkR, std::abs (srcR[i]));
-    }
     if (! monoPass) { inPeakL.update (inPkL); inPeakR.update (inPkR); }
 
     // Bypass check
@@ -2809,7 +2844,25 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
         outPkL = std::max (outPkL, std::abs (outL[i]));
         outPkR = std::max (outPkR, std::abs (outR[i]));
     }
-    if (! monoPass) { outPeakL.update (outPkL); outPeakR.update (outPkR); }
+    if (! monoPass)
+    {
+        outPeakL.update (outPkL);
+        outPeakR.update (outPkR);
+        if (inPkL <= 1.0e-9f && inPkR <= 1.0e-9f && outPkL <= 1.0e-9f && outPkR <= 1.0e-9f)
+        {
+            silentSamples += numSamples;
+            if (silentSamples >= (int) (sr * 6.0))
+            {
+                const int savedType = lastType;
+                reset();
+                lastType = savedType;
+            }
+        }
+        else
+        {
+            silentSamples = 0;
+        }
+    }
 }
 
 //==============================================================================

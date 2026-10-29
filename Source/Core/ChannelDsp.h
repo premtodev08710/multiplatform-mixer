@@ -52,6 +52,7 @@ class Biquad
 {
 public:
     void reset() noexcept { z1 = z2 = 0.0f; }
+    bool isSilent() const noexcept { return std::abs (z1) < 1.0e-9f && std::abs (z2) < 1.0e-9f; }
 
     inline float process (float x, const BiquadCoeffs& c) noexcept
     {
@@ -205,9 +206,7 @@ public:
     void prepare (double sampleRate) noexcept
     {
         sr = (float) sampleRate;
-        envelope = 0.0f;
-        gain = 1.0f;
-        holdCounter = 0;
+        reset();
     }
 
     void reset() noexcept
@@ -215,6 +214,10 @@ public:
         envelope = 0.0f;
         gain = 1.0f;
         holdCounter = 0;
+        lastAttackMs = -1.0f;
+        lastReleaseMs = -1.0f;
+        lastHoldMs = -1.0f;
+        lastRangeDb = 1.0f;
     }
 
     // Process mono or stereo detector, returns linear gain multiplier
@@ -223,15 +226,31 @@ public:
     {
         if (! enabled) return 1.0f;
 
-        const float attackCoeff = std::exp (-1.0f / (std::max (0.1f, attackMs) * 0.001f * sr));
-        const float releaseCoeff = std::exp (-1.0f / (std::max (1.0f, releaseMs) * 0.001f * sr));
-        const int holdSamples = (int) std::lround (holdMs * 0.001f * sr);
+        if (attackMs != lastAttackMs)
+        {
+            lastAttackMs = attackMs;
+            attackCoeff = std::exp (-1.0f / (std::max (0.1f, attackMs) * 0.001f * sr));
+        }
+        if (releaseMs != lastReleaseMs)
+        {
+            lastReleaseMs = releaseMs;
+            releaseCoeff = std::exp (-1.0f / (std::max (1.0f, releaseMs) * 0.001f * sr));
+        }
+        if (holdMs != lastHoldMs)
+        {
+            lastHoldMs = holdMs;
+            holdSamples = (int) std::lround (holdMs * 0.001f * sr);
+        }
+        if (rangeDb != lastRangeDb)
+        {
+            lastRangeDb = rangeDb;
+            rangeGain = dbToGain (rangeDb);
+        }
 
         const float inputLevel = std::abs (xDetector);
         const float inputDb = gainToDb (inputLevel);
 
-        const float targetGainDb = (inputDb >= threshDb) ? 0.0f : rangeDb; // rangeDb is negative (e.g. -60 dB)
-        const float targetGain = dbToGain (targetGainDb);
+        const float targetGain = (inputDb >= threshDb) ? 1.0f : rangeGain; // rangeDb is negative (e.g. -60 dB)
 
         if (inputDb >= threshDb)
         {
@@ -258,6 +277,14 @@ private:
     float envelope = 0.0f;
     float gain = 1.0f;
     int holdCounter = 0;
+    float lastAttackMs = -1.0f;
+    float lastReleaseMs = -1.0f;
+    float lastHoldMs = -1.0f;
+    float lastRangeDb = 1.0f;
+    float attackCoeff = 0.0f;
+    float releaseCoeff = 0.0f;
+    int holdSamples = 0;
+    float rangeGain = 0.0f;
 };
 
 //==============================================================================
@@ -268,14 +295,15 @@ public:
     void prepare (double sampleRate) noexcept
     {
         sr = (float) sampleRate;
-        envelope = 0.0f;
-        gain = 1.0f;
+        reset();
     }
 
     void reset() noexcept
     {
         envelope = 0.0f;
         gain = 1.0f;
+        lastAttackMs = -1.0f;
+        lastReleaseMs = -1.0f;
     }
 
     // Process detector and returns gain reduction in dB (> 0) and linear gain multiplier
@@ -289,8 +317,16 @@ public:
             return 1.0f;
         }
 
-        const float attackCoeff = std::exp (-1.0f / (std::max (0.1f, attackMs) * 0.001f * sr));
-        const float releaseCoeff = std::exp (-1.0f / (std::max (1.0f, releaseMs) * 0.001f * sr));
+        if (attackMs != lastAttackMs)
+        {
+            lastAttackMs = attackMs;
+            attackCoeff = std::exp (-1.0f / (std::max (0.1f, attackMs) * 0.001f * sr));
+        }
+        if (releaseMs != lastReleaseMs)
+        {
+            lastReleaseMs = releaseMs;
+            releaseCoeff = std::exp (-1.0f / (std::max (1.0f, releaseMs) * 0.001f * sr));
+        }
 
         const float inputLevel = std::abs (xDetector);
         const float inputDb = gainToDb (inputLevel);
@@ -331,6 +367,10 @@ private:
     float sr = 48000.0f;
     float envelope = 0.0f;
     float gain = 1.0f;
+    float lastAttackMs = -1.0f;
+    float lastReleaseMs = -1.0f;
+    float attackCoeff = 0.0f;
+    float releaseCoeff = 0.0f;
 };
 
 //==============================================================================
@@ -527,15 +567,16 @@ public:
             const float hold = p.gateHoldMs.get();
             const float rel = p.gateReleaseMs.get();
 
+            float minGateGain = 1.0f;
             for (int i = 0; i < numSamples; ++i)
             {
                 const float det = (width == 2) ? std::max (std::abs (chL[i]), std::abs (chR[i])) : std::abs (chL[i]);
                 const float g = gate.processGain (det, true, thresh, range, att, hold, rel);
                 chL[i] *= g;
                 if (width == 2) chR[i] *= g;
-                const float grDb = -gainToDb (g);
-                maxGateGr = std::max (maxGateGr, grDb);
+                minGateGain = std::min (minGateGain, g);
             }
+            maxGateGr = std::max (0.0f, -gainToDb (minGateGain));
         }
         m.gateGainReductionDb.store (maxGateGr, std::memory_order_relaxed);
 
@@ -573,9 +614,8 @@ public:
             {
                 if (gains[(size_t) b] == 0.0f)
                 {
-                    eqL[(size_t) b].reset();
-                    eqR[(size_t) b].reset();
-                    continue;
+                    if (eqL[(size_t) b].isSilent() && (width < 2 || eqR[(size_t) b].isSilent()))
+                        continue;
                 }
                 for (int i = 0; i < numSamples; ++i)
                 {

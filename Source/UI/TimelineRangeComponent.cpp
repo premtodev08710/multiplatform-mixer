@@ -103,9 +103,14 @@ void TimelineRangeComponent::setPlayhead (double normPos)
 
 void TimelineRangeComponent::setRange (double startNorm, double endNorm, bool notify)
 {
-    rangeStart = juce::jlimit (0.0, 0.999, startNorm);
-    rangeEnd = juce::jlimit (rangeStart + 0.001, 1.0, endNorm);
-    repaint();
+    const double newStart = juce::jlimit (0.0, 0.999, startNorm);
+    const double newEnd = juce::jlimit (newStart + 0.001, 1.0, endNorm);
+    if (std::abs (rangeStart - newStart) > 1.0e-6 || std::abs (rangeEnd - newEnd) > 1.0e-6)
+    {
+        rangeStart = newStart;
+        rangeEnd = newEnd;
+        repaint();
+    }
 
     if (notify && onRangeChanged)
         onRangeChanged (rangeStart, rangeEnd);
@@ -122,9 +127,13 @@ void TimelineRangeComponent::setLoopActive (bool active)
 
 void TimelineRangeComponent::setTotalLength (int64_t frames, double sr)
 {
-    totalFrames = frames;
-    sampleRate = sr > 0.0 ? sr : 48000.0;
-    repaint();
+    const double validSr = sr > 0.0 ? sr : 48000.0;
+    if (totalFrames != frames || std::abs (sampleRate - validSr) > 1.0e-3)
+    {
+        totalFrames = frames;
+        sampleRate = validSr;
+        repaint();
+    }
 }
 
 void TimelineRangeComponent::setZoomLevel (double newZoom, double centerNorm)

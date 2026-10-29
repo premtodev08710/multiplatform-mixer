@@ -30,6 +30,7 @@ public:
     void buttonClicked (juce::Button* button) override;
     void comboBoxChanged (juce::ComboBox* comboBox) override;
     void rebuildStrips();
+    void refreshStrips();
 
     // File Drag and Drop directly onto Mixer strips
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
@@ -46,6 +47,7 @@ private:
     ProjectModel& project;
 
     int currentBank = 0; // 0..9 matching BankSelectorBar
+    int builtBank = -1;  // Tracks which bank the existing channelStrips represent
     int selectedChannel = 0;
 
     // Top Bank Selector Bar with live miniature LED meters

@@ -96,7 +96,7 @@ public:
 
     void setTarget (float v) noexcept
     {
-        if (v == target) return;
+        if (std::abs (v - target) <= 1.0e-7f) return;
         target = v;
         remaining = steps;
         increment = (target - current) / (float) steps;

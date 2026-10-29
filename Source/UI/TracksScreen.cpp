@@ -37,24 +37,32 @@ public:
         addAndMakeVisible (downButton);
 
         dragLabel.setText (juce::CharPointer_UTF8 ("\xe2\xa0\xbf"), juce::dontSendNotification); // Braille ⠿
-        dragLabel.setFont (juce::FontOptions (14.0f));
+        dragLabel.setFont (juce::FontOptions (15.0f));
         dragLabel.setJustificationType (juce::Justification::centred);
         dragLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
         dragLabel.setMouseCursor (juce::MouseCursor::DraggingHandCursor);
         dragLabel.setTooltip ("Drag row to reorder track position");
+        dragLabel.setInterceptsMouseClicks (false, false);
         addAndMakeVisible (dragLabel);
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
     }
 
     void setRow (int r)
     {
         rowNumber = r;
         upButton.setEnabled (rowNumber > 0);
-        downButton.setEnabled (rowNumber < kMaxTracks - 1);
+        downButton.setEnabled (rowNumber < AppEdition::getMaxTracks() - 1);
     }
 
-    void mouseDown (const juce::MouseEvent&) override
+    void mouseDown (const juce::MouseEvent& e) override
     {
-        screen.startDragging ("track_row:" + juce::String (rowNumber), &screen);
+        screen.startRowDrag (rowNumber, e);
+    }
+
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (e.mouseWasDraggedSinceMouseDown())
+            screen.startRowDrag (rowNumber, e);
     }
 
     void resized() override
@@ -256,18 +264,69 @@ int TracksScreen::getNumRows()
     return AppEdition::getMaxTracks();
 }
 
-void TracksScreen::paintRowBackground (juce::Graphics& g, int rowNumber, int /*width*/, int /*height*/, bool rowIsSelected)
+juce::var TracksScreen::getDragSourceDescription (const juce::SparseSet<int>& currentlySelectedRows)
 {
-    if (rowIsSelected)
+    if (! currentlySelectedRows.isEmpty())
+    {
+        const int row = currentlySelectedRows[0];
+        dragSourceRow = row;
+        return "track_row:" + juce::String (row);
+    }
+    return {};
+}
+
+void TracksScreen::startRowDrag (int rowNumber, const juce::MouseEvent& e)
+{
+    if (isDragAndDropActive())
+        return;
+
+    dragSourceRow = rowNumber;
+    dragTargetRow = rowNumber;
+    trackTable.selectRow (rowNumber);
+
+    juce::SparseSet<int> rows;
+    rows.addRange ({ rowNumber, rowNumber + 1 });
+    int imgX = 0, imgY = 0;
+    auto dragImg = trackTable.createSnapshotOfRows (rows, imgX, imgY);
+    auto offset = juce::Point<int> (imgX, imgY) - e.getEventRelativeTo (&trackTable).position.toInt();
+    startDragging ("track_row:" + juce::String (rowNumber), &trackTable, dragImg, false, &offset, &e.source);
+    trackTable.repaint();
+}
+
+void TracksScreen::paintRowBackground (juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected)
+{
+    if (rowNumber == dragTargetRow && dragTargetRow >= 0 && dragTargetRow != dragSourceRow)
+    {
+        g.fillAll (ConsoleLookAndFeel::accentCyan.withAlpha (0.22f));
+    }
+    else if (rowNumber == dragSourceRow && dragSourceRow >= 0)
+    {
+        g.fillAll (ConsoleLookAndFeel::bgSection.brighter (0.28f));
+    }
+    else if (rowIsSelected)
+    {
         g.fillAll (ConsoleLookAndFeel::bgSection.brighter (0.15f));
+    }
     else if (rowNumber % 2 == 1)
+    {
         g.fillAll (ConsoleLookAndFeel::bgSection.withAlpha (0.45f));
+    }
     else
+    {
         g.fillAll (ConsoleLookAndFeel::bgSection.withAlpha (0.2f));
+    }
 
     // Subtle bottom row separator
     g.setColour (juce::Colour (0xff1f242d));
-    g.drawHorizontalLine (25, 0.0f, (float) getWidth());
+    g.drawHorizontalLine (height - 1, 0.0f, (float) width);
+
+    // Draw clear insertion line indicator when dragging over a target row
+    if (rowNumber == dragTargetRow && dragTargetRow >= 0 && dragTargetRow != dragSourceRow)
+    {
+        g.setColour (ConsoleLookAndFeel::accentCyan);
+        const float lineY = (dragSourceRow < dragTargetRow) ? (float) (height - 2) : 1.0f;
+        g.fillRect (0.0f, lineY, (float) width, 2.5f);
+    }
 }
 
 void TracksScreen::paintCell (juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool /*rowIsSelected*/)
@@ -450,9 +509,12 @@ void TracksScreen::buttonClicked (juce::Button* b)
 
 void TracksScreen::moveTrackRow (int fromSlot, int toSlot)
 {
-    if (fromSlot >= 0 && fromSlot < kMaxTracks && toSlot >= 0 && toSlot < kMaxTracks && fromSlot != toSlot)
+    const int maxTracks = AppEdition::getMaxTracks();
+    if (fromSlot >= 0 && fromSlot < maxTracks && toSlot >= 0 && toSlot < maxTracks && fromSlot != toSlot)
     {
         project.moveTrack (fromSlot, toSlot);
+        project.autoSaveSession();
+        trackTable.selectRow (toSlot);
         trackTable.updateContent();
         trackTable.repaint();
     }
@@ -480,6 +542,51 @@ bool TracksScreen::isInterestedInDragSource (const SourceDetails& details)
     return details.description.toString().startsWith ("track_row:");
 }
 
+void TracksScreen::itemDragEnter (const SourceDetails& details)
+{
+    itemDragMove (details);
+}
+
+void TracksScreen::itemDragMove (const SourceDetails& details)
+{
+    const juce::String desc = details.description.toString();
+    if (! desc.startsWith ("track_row:"))
+        return;
+
+    dragSourceRow = desc.substring (10).getIntValue();
+    const auto tablePoint = trackTable.getLocalPoint (this, details.localPosition);
+
+    // Auto-scroll when dragging near top or bottom of table viewport
+    if (auto* vp = trackTable.getViewport())
+    {
+        const int vpTop = vp->getY();
+        const int vpBottom = vp->getBottom();
+        if (tablePoint.y < vpTop + 24)
+            vp->setViewPosition (vp->getViewPositionX(), std::max (0, vp->getViewPositionY() - 12));
+        else if (tablePoint.y > vpBottom - 24)
+            vp->setViewPosition (vp->getViewPositionX(), vp->getViewPositionY() + 12);
+    }
+
+    int toSlot = trackTable.getRowContainingPosition (
+        juce::jlimit (1, std::max (1, trackTable.getWidth() - 2), tablePoint.x),
+        tablePoint.y);
+
+    if (toSlot < 0 && tablePoint.y >= trackTable.getHeaderHeight())
+        toSlot = AppEdition::getMaxTracks() - 1;
+
+    if (dragTargetRow != toSlot)
+    {
+        dragTargetRow = toSlot;
+        trackTable.repaint();
+    }
+}
+
+void TracksScreen::itemDragExit (const SourceDetails& /*details*/)
+{
+    dragTargetRow = -1;
+    trackTable.repaint();
+}
+
 void TracksScreen::itemDropped (const SourceDetails& details)
 {
     const juce::String desc = details.description.toString();
@@ -487,11 +594,24 @@ void TracksScreen::itemDropped (const SourceDetails& details)
     {
         const int fromSlot = desc.substring (10).getIntValue();
         const auto tablePoint = trackTable.getLocalPoint (this, details.localPosition);
-        const int toSlot = trackTable.getRowContainingPosition (tablePoint.x, tablePoint.y);
+        int toSlot = trackTable.getRowContainingPosition (
+            juce::jlimit (1, std::max (1, trackTable.getWidth() - 2), tablePoint.x),
+            tablePoint.y);
 
-        if (toSlot >= 0 && toSlot < kMaxTracks && fromSlot != toSlot)
+        if (toSlot < 0 && dragTargetRow >= 0)
+            toSlot = dragTargetRow;
+
+        dragSourceRow = -1;
+        dragTargetRow = -1;
+
+        const int maxTracks = AppEdition::getMaxTracks();
+        if (toSlot >= 0 && toSlot < maxTracks && fromSlot != toSlot)
         {
             moveTrackRow (fromSlot, toSlot);
+        }
+        else
+        {
+            trackTable.repaint();
         }
     }
 }
@@ -529,7 +649,9 @@ static bool isSupportedAudioExtension (const juce::String& fileName)
         || lower.endsWith (".aiff")
         || lower.endsWith (".flac")
         || lower.endsWith (".mp3")
-        || lower.endsWith (".ogg");
+        || lower.endsWith (".ogg")
+        || lower.endsWith (".m4a")
+        || lower.endsWith (".aac");
 }
 
 static juce::String ensureAudioExtension (const juce::String& name, const juce::String& mimeType)
@@ -750,9 +872,9 @@ void TracksScreen::importAudioFilesInternal()
    #endif
 
     fileChooser = std::make_unique<juce::FileChooser> (
-        "Select Multitrack Audio Files (WAV, AIFF, FLAC, MP3, OGG)",
+        "Select Multitrack Audio Files (WAV, AIFF, FLAC, MP3, OGG, M4A)",
         getLastImportDir(),
-        "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+        "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a;*.aac");
 
     const auto flags = juce::FileBrowserComponent::openMode
                      | juce::FileBrowserComponent::canSelectFiles
@@ -995,9 +1117,12 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
             );
         }
 
+        std::vector<std::pair<int, std::shared_ptr<TrackReader>>> batchSlots;
+        batchSlots.reserve (readyTracks.size());
+
         for (const auto& item : readyTracks)
         {
-            engine.setTrackSlot (item.slot, item.track);
+            batchSlots.emplace_back (item.slot, item.track);
             project.setTrackFile (item.slot, item.file);
 
             auto& cp = engine.getMixerParams().channels[(size_t) item.slot];
@@ -1008,6 +1133,9 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
             if (meta.name.startsWith ("CH ") || meta.name.isEmpty())
                 project.setChannelName (item.slot, item.file.getFileNameWithoutExtension().substring (0, 8));
         }
+
+        if (! batchSlots.empty())
+            engine.setTrackSlots (batchSlots);
 
         if (project.onTracksChanged)
             project.onTracksChanged();

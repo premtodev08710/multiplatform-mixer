@@ -22,6 +22,80 @@ void BankSelectorBar::setSelectedBank (int bankIndex, bool sendNotification)
     }
 }
 
+int BankSelectorBar::computeLitSegments (int i, int c) const noexcept
+{
+    if (meters == nullptr) return 0;
+    float chDb = -90.0f;
+    if (i <= 3) // Channels 1..32
+    {
+        const int chIdx = i * 8 + c;
+        if (chIdx < kMaxInputChannels)
+        {
+            const float pL = meters->channels[(size_t) chIdx].preL.read();
+            const float pR = meters->channels[(size_t) chIdx].preR.read();
+            chDb = gainToDb (std::max (pL, pR));
+        }
+    }
+    else if (i == 4) // Aux 1-8
+    {
+        chDb = gainToDb (meters->auxes[(size_t) c].read());
+    }
+    else if (i == 5) // FX 1L-4R (FX Returns)
+    {
+        chDb = gainToDb (meters->fxReturns[(size_t) c].read());
+    }
+    else if (i == 6) // Bus 1-8
+    {
+        chDb = gainToDb (meters->buses[(size_t) c].read());
+    }
+    else if (i == 7) // Bus 9-16 (Buses 13..16 are FX 1..4 Sends)
+    {
+        chDb = gainToDb (meters->buses[(size_t) (8 + c)].read());
+    }
+    else if (i == 8) // Mtx-Main
+    {
+        if (c < 6)
+            chDb = gainToDb (meters->matrices[(size_t) c].read());
+        else if (c == 6)
+            chDb = gainToDb (meters->mainC.read());
+        else
+            chDb = gainToDb (std::max (meters->main.l.read(), meters->main.r.read()));
+    }
+    else if (i == 9) // DCA 1-8
+    {
+        chDb = gainToDb (meters->dcas[(size_t) c].read());
+    }
+
+    const float segThresh[6] = { 0.0f, -6.0f, -12.0f, -18.0f, -30.0f, -50.0f };
+    int litCount = 0;
+    for (int s = 0; s < 6; ++s)
+    {
+        if (chDb >= segThresh[s])
+            ++litCount;
+    }
+    return litCount;
+}
+
+void BankSelectorBar::refreshMeters()
+{
+    bool changed = false;
+    for (int i = 0; i < NumBanks; ++i)
+    {
+        for (int c = 0; c < 8; ++c)
+        {
+            const uint8_t lit = (uint8_t) computeLitSegments (i, c);
+            const size_t idx = (size_t) (i * 8 + c);
+            if (cachedLitSegments[idx] != lit)
+            {
+                cachedLitSegments[idx] = lit;
+                changed = true;
+            }
+        }
+    }
+    if (changed)
+        repaint();
+}
+
 void BankSelectorBar::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
@@ -94,58 +168,16 @@ void BankSelectorBar::paint (juce::Graphics& g)
         for (int c = 0; c < 8; ++c)
         {
             const float mx = btnRect.getX() + 3.0f + (float) c * colW;
-            float chDb = -90.0f;
-            if (meters != nullptr)
-            {
-                if (i <= 3) // Channels 1..32
-                {
-                    const int chIdx = i * 8 + c;
-                    if (chIdx < kMaxInputChannels)
-                    {
-                        const float pL = meters->channels[(size_t) chIdx].preL.read();
-                        const float pR = meters->channels[(size_t) chIdx].preR.read();
-                        chDb = gainToDb (std::max (pL, pR));
-                    }
-                }
-                else if (i == 4) // Aux 1-8
-                {
-                    chDb = gainToDb (meters->auxes[(size_t) c].read());
-                }
-                else if (i == 5) // FX 1L-4R (FX Returns)
-                {
-                    chDb = gainToDb (meters->fxReturns[(size_t) c].read());
-                }
-                else if (i == 6) // Bus 1-8
-                {
-                    chDb = gainToDb (meters->buses[(size_t) c].read());
-                }
-                else if (i == 7) // Bus 9-16 (Buses 13..16 are FX 1..4 Sends)
-                {
-                    chDb = gainToDb (meters->buses[(size_t) (8 + c)].read());
-                }
-                else if (i == 8) // Mtx-Main
-                {
-                    if (c < 6)
-                        chDb = gainToDb (meters->matrices[(size_t) c].read());
-                    else if (c == 6)
-                        chDb = gainToDb (meters->mainC.read());
-                    else
-                        chDb = gainToDb (std::max (meters->main.l.read(), meters->main.r.read()));
-                }
-                else if (i == 9) // DCA 1-8
-                {
-                    chDb = gainToDb (meters->dcas[(size_t) c].read());
-                }
-            }
+            const int litCount = computeLitSegments (i, c);
+            cachedLitSegments[(size_t) (i * 8 + c)] = (uint8_t) litCount;
 
             // 6 discrete LED segments: s=0 is 0 dB (top/clip), s=5 is -50 dB (bottom)
-            const float segThresh[6] = { 0.0f, -6.0f, -12.0f, -18.0f, -30.0f, -50.0f };
             for (int s = 0; s < 6; ++s)
             {
                 const float sy = meterTopY + (float) s * segStep;
                 const juce::Rectangle<float> dotRect (mx + 0.5f, sy, colW - 1.0f, std::max (2.0f, segStep - 1.0f));
 
-                const bool lit = (chDb >= segThresh[s]);
+                const bool lit = (s >= 6 - litCount);
                 juce::Colour segCol = juce::Colour (0xff1e232b);
                 if (lit)
                 {

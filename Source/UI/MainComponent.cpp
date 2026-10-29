@@ -53,7 +53,7 @@ MainComponent::MainComponent()
     };
 
     project.onTracksChanged = [this] {
-        homeScreen.rebuildStrips();
+        homeScreen.refreshStrips();
     };
 
     detailScreen.onBack = [this] { showScreen (NavHome); };

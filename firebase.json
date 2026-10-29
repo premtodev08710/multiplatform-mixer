@@ -90,10 +90,6 @@
       {
         "source": "/admin",
         "destination": "/admin.html"
-      },
-      {
-        "source": "/lite",
-        "destination": "/lite.html"
       }
     ],
     "ignore": [

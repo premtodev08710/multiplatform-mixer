@@ -56,6 +56,32 @@ private:
     std::array<float, kNumRtaBands> rtaPeakHoldDb {};
     std::array<int, kNumRtaBands> peakHoldCounter {};
 
+    struct CurveCacheKey
+    {
+        int width = 0;
+        int height = 0;
+        float sampleRate = 0.0f;
+        bool hpfOn = false;
+        bool eqOn = false;
+        float hpfFreq = 0.0f;
+        int lowType = 0;
+        int highType = 0;
+        std::array<float, 4> freq {};
+        std::array<float, 4> gain {};
+        std::array<float, 4> q {};
+
+        bool operator== (const CurveCacheKey& o) const noexcept
+        {
+            return width == o.width && height == o.height && sampleRate == o.sampleRate
+                && hpfOn == o.hpfOn && eqOn == o.eqOn && hpfFreq == o.hpfFreq
+                && lowType == o.lowType && highType == o.highType
+                && freq == o.freq && gain == o.gain && q == o.q;
+        }
+    };
+    CurveCacheKey cachedCurveKey;
+    juce::Path cachedCurvePath;
+    bool curveCacheValid = false;
+
     static const juce::Colour nodeColours[5];
 };
 

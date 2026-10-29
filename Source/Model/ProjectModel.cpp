@@ -664,6 +664,7 @@ juce::Result ProjectModel::loadProject (const juce::File& file, juce::StringArra
         if (tracksArr != nullptr)
         {
             const double targetSr = engine.getSampleRate();
+            std::vector<std::pair<int, std::shared_ptr<TrackReader>>> batchSlots;
             for (auto& tVar : *tracksArr)
             {
                 auto* tObj = tVar.getDynamicObject();
@@ -682,13 +683,15 @@ juce::Result ProjectModel::loadProject (const juce::File& file, juce::StringArra
                     trackFiles[(size_t) slot] = audioFile;
                     auto track = AudioFileTrack::open (audioFile, targetSr, engine.getFormatManager());
                     if (track != nullptr)
-                        engine.setTrackSlot (slot, std::move (track));
+                        batchSlots.emplace_back (slot, std::move (track));
                 }
                 else
                 {
                     outMissingFiles.add (audioFile.getFullPathName());
                 }
             }
+            if (! batchSlots.empty())
+                engine.setTrackSlots (batchSlots);
         }
     }
 
@@ -774,6 +777,7 @@ void ProjectModel::recallSceneSnapshot (const juce::var& sceneData)
             for (auto& tf : trackFiles) tf = juce::File();
 
             const double targetSr = engine.getSampleRate();
+            std::vector<std::pair<int, std::shared_ptr<TrackReader>>> batchSlots;
             for (auto& tVar : *tracksArr)
             {
                 auto* tObj = tVar.getDynamicObject();
@@ -789,10 +793,12 @@ void ProjectModel::recallSceneSnapshot (const juce::var& sceneData)
                         trackFiles[(size_t) slot] = audioFile;
                         auto track = AudioFileTrack::open (audioFile, targetSr, engine.getFormatManager());
                         if (track != nullptr)
-                            engine.setTrackSlot (slot, std::move (track));
+                            batchSlots.emplace_back (slot, std::move (track));
                     }
                 }
             }
+            if (! batchSlots.empty())
+                engine.setTrackSlots (batchSlots);
             if (onTracksChanged) onTracksChanged();
         }
     }

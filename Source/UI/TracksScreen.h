@@ -33,10 +33,15 @@ public:
     void paintRowBackground (juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected) override;
     void paintCell (juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
     juce::Component* refreshComponentForCell (int rowNumber, int columnId, bool isRowSelected, juce::Component* existingComponentToUpdate) override;
+    juce::var getDragSourceDescription (const juce::SparseSet<int>& currentlySelectedRows) override;
 
     // Drag and Drop (Track Row Reordering)
     bool isInterestedInDragSource (const SourceDetails& dragSourceDetails) override;
+    void itemDragEnter (const SourceDetails& dragSourceDetails) override;
+    void itemDragMove (const SourceDetails& dragSourceDetails) override;
+    void itemDragExit (const SourceDetails& dragSourceDetails) override;
     void itemDropped (const SourceDetails& dragSourceDetails) override;
+    void startRowDrag (int rowNumber, const juce::MouseEvent& e);
 
     // File Drag and Drop (External Files from Finder / Desktop)
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
@@ -81,6 +86,8 @@ private:
     juce::Label trackLoopLabel;
 
     juce::TableListBox trackTable;
+    int dragSourceRow = -1;
+    int dragTargetRow = -1;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 };

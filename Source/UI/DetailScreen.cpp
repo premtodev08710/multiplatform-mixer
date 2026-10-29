@@ -1433,7 +1433,7 @@ void DetailScreen::timerCallback()
         return;
     }
 
-    bankSelectorBar.repaint();
+    bankSelectorBar.refreshMeters();
 
     // Keep channel name & colour in sync with project model (only for InputChannel)
     if (currentStripType == ChannelStripComponent::StripType::InputChannel)
@@ -1478,7 +1478,6 @@ void DetailScreen::refreshLiveMeters()
     }
     else if (currentTab == TabEq)
     {
-        eqGraph.repaint();
         if (eqGraph.isRtaEnabled())
         {
             const ChannelMeters* cm = nullptr;

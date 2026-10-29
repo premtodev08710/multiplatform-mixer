@@ -801,13 +801,24 @@ void FxFaceplateComponent::timerCallback()
     const float outL = slotDsp.getOutPeakL();
     const float outR = slotDsp.getOutPeakR();
 
+    const float prevInL = peakInL, prevInR = peakInR;
+    const float prevOutL = peakOutL, prevOutR = peakOutR;
+
     peakInL = std::max (inL, peakInL * 0.82f);
     peakInR = std::max (inR, peakInR * 0.82f);
     peakOutL = std::max (outL, peakOutL * 0.82f);
     peakOutR = std::max (outR, peakOutR * 0.82f);
+    if (peakInL < 0.001f) peakInL = 0.0f;
+    if (peakInR < 0.001f) peakInR = 0.0f;
+    if (peakOutL < 0.001f) peakOutL = 0.0f;
+    if (peakOutR < 0.001f) peakOutR = 0.0f;
 
     unitCanvas.setMeterPeaks (std::max (peakInL, peakOutL), std::max (peakInR, peakOutR));
-    repaint (8, 6, 520, 60);
+    if (std::abs (peakInL - prevInL) > 0.002f || std::abs (peakInR - prevInR) > 0.002f
+        || std::abs (peakOutL - prevOutL) > 0.002f || std::abs (peakOutR - prevOutR) > 0.002f)
+    {
+        repaint (8, 6, 520, 60);
+    }
 }
 
 } // namespace mps

@@ -42,6 +42,7 @@ private:
         LinearSmoother postL, postR;    // fader * mute * pan
         LinearSmoother route;
         LinearSmoother automix;           // main assign * solo gate
+        std::array<LinearSmoother, 16> sendGains; // per-bus send level smoother
         ChannelDspProcessor dsp;
         int activeSource = -1;
         int activeWidth = 0;
@@ -54,15 +55,18 @@ private:
     std::vector<ChannelState> states;
     std::array<ChannelDspProcessor, 8> auxDsp;
     std::array<ChannelDspMeters, 8> auxDspMeters;
+    std::array<LinearSmoother, 8> auxInGain, auxPostL, auxPostR;
     std::array<float, 32> automixLevels {};
     std::vector<float> monoBuffer;
     std::vector<float> chL, chR, sumL, sumR;
-    LinearSmoother mainGain, monitorGain;
+    LinearSmoother mainGain, monoMainGain, monitorGain;
     std::vector<float> monitorL, monitorR;
 
     std::array<ChannelDspProcessor, 16> busDsp;
+    std::array<LinearSmoother, 16> busGainSmoother;
 
     std::array<ChannelDspProcessor, 6> matrixDsp;
+    std::array<LinearSmoother, 6> mtxGainL, mtxGainR, mainToMtxGain;
 
     std::array<ChannelDspProcessor, 8> fxReturnDsp;
     std::array<ChannelDspMeters, 8> fxReturnDspMeters;

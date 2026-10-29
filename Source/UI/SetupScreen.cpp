@@ -38,6 +38,19 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
     useHeadphonesButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff252e38));
     addAndMakeVisible (useHeadphonesButton);
 
+    sampleRateLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    sampleRateLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
+    sampleRateLabel.setText ("Sample Rate:", juce::dontSendNotification);
+    addAndMakeVisible (sampleRateLabel);
+
+    for (auto* srBtn : { &sr44100Button, &sr48000Button, &sr96000Button })
+    {
+        srBtn->addListener (this);
+        srBtn->setColour (juce::TextButton::buttonColourId, juce::Colour (0xff252e38));
+        addAndMakeVisible (srBtn);
+    }
+    refreshSampleRateButtons();
+
     statusLabel.setFont (juce::FontOptions (12.0f));
     statusLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::accentCyan);
     addAndMakeVisible (statusLabel);
@@ -143,8 +156,12 @@ void SetupScreen::timerCallback()
     }
     else
     {
-        statusLabel.setText ("No Audio Device Selected or Initialized!", juce::dontSendNotification);
+        statusLabel.setText ("No Audio Device Selected or Initialized! (Engine SR: "
+                             + juce::String (engine.getSampleRate() * 0.001, 1) + " kHz)",
+                             juce::dontSendNotification);
     }
+
+    refreshSampleRateButtons();
 
     // X32 Network Status
     if (oscClient.isConnected())
@@ -171,6 +188,25 @@ void SetupScreen::buttonClicked (juce::Button* b)
     if (b == &backButton)
     {
         if (onBack) onBack();
+        return;
+    }
+
+    if (b == &sr44100Button)
+    {
+        engine.setSampleRate (44100.0);
+        refreshSampleRateButtons();
+        return;
+    }
+    if (b == &sr48000Button)
+    {
+        engine.setSampleRate (48000.0);
+        refreshSampleRateButtons();
+        return;
+    }
+    if (b == &sr96000Button)
+    {
+        engine.setSampleRate (96000.0);
+        refreshSampleRateButtons();
         return;
     }
 
@@ -230,6 +266,28 @@ void SetupScreen::buttonClicked (juce::Button* b)
     else if (b == &buyKeyButton)
     {
         juce::URL ("https://s.shopee.co.th/80DYoxalGQ").launchInDefaultBrowser();
+    }
+}
+
+void SetupScreen::refreshSampleRateButtons()
+{
+    const double currentSr = engine.getSampleRate();
+    struct RateBtn { juce::TextButton* btn; double rate; };
+    const RateBtn items[] = {
+        { &sr44100Button, 44100.0 },
+        { &sr48000Button, 48000.0 },
+        { &sr96000Button, 96000.0 }
+    };
+
+    for (const auto& item : items)
+    {
+        const bool active = (std::abs (currentSr - item.rate) <= 1.0);
+        const bool supported = engine.isSampleRateSupported (item.rate);
+        item.btn->setColour (juce::TextButton::buttonColourId,
+                             active ? juce::Colour (0xff00838f) : juce::Colour (0xff252e38));
+        item.btn->setColour (juce::TextButton::textColourOffId,
+                             active ? juce::Colours::white
+                                    : (supported ? ConsoleLookAndFeel::textPrimary : ConsoleLookAndFeel::textMuted));
     }
 }
 
@@ -346,6 +404,17 @@ void SetupScreen::resized()
     useSpeakersButton.setBounds (quickRow.removeFromLeft (quickW));
     quickRow.removeFromLeft (8);
     useHeadphonesButton.setBounds (quickRow);
+    leftArea.removeFromTop (4);
+
+    auto srRow = leftArea.removeFromTop (26);
+    sampleRateLabel.setBounds (srRow.removeFromLeft (88));
+    srRow.removeFromLeft (6);
+    const int srBtnW = (srRow.getWidth() - 12) / 3;
+    sr44100Button.setBounds (srRow.removeFromLeft (srBtnW));
+    srRow.removeFromLeft (6);
+    sr48000Button.setBounds (srRow.removeFromLeft (srBtnW));
+    srRow.removeFromLeft (6);
+    sr96000Button.setBounds (srRow);
     leftArea.removeFromTop (6);
 
     if (deviceSelector != nullptr)

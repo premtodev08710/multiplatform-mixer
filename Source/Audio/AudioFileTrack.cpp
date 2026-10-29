@@ -15,7 +15,6 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
         return nullptr;
 
     const double origSr = r->sampleRate;
-    juce::File fileToUse = file;
     std::unique_ptr<juce::AudioFormatReader> readerToUse = std::move (r);
 
     // If sample rate matches closely, use directly
@@ -38,7 +37,6 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
             if (cr != nullptr && std::abs (cr->sampleRate - targetSampleRate) <= 1.0)
             {
                 readerToUse = std::move (cr);
-                fileToUse = cacheFile;
                 cacheValid = true;
             }
         }
@@ -103,7 +101,6 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
                     if (cr != nullptr)
                     {
                         readerToUse = std::move (cr);
-                        fileToUse = cacheFile;
                     }
                 }
             }
@@ -111,19 +108,19 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
     }
 
     return std::shared_ptr<AudioFileTrack> (
-        new AudioFileTrack (fileToUse, file.getFileNameWithoutExtension(), std::move (readerToUse), targetSampleRate));
+        new AudioFileTrack (file, file.getFileNameWithoutExtension(), std::move (readerToUse), origSr, targetSampleRate));
 }
 
 AudioFileTrack::AudioFileTrack (const juce::File& file, juce::String name,
                                 std::unique_ptr<juce::AudioFormatReader> r,
-                                double targetSr)
-    : sourceFile (file), trackName (std::move (name)), reader (std::move (r)), targetSampleRate (targetSr)
+                                double origSr, double targetSr)
+    : sourceFile (file), trackName (std::move (name)), reader (std::move (r)),
+      originalSampleRate (origSr > 0.0 ? origSr : targetSr), targetSampleRate (targetSr)
 {
     if (reader != nullptr)
     {
         numChannels = std::min (2, (int) reader->numChannels);
         lengthInFrames = (int64_t) reader->lengthInSamples;
-        originalSampleRate = reader->sampleRate;
     }
 }
 

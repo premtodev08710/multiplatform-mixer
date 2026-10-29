@@ -57,6 +57,7 @@ public:
     void setTrackSet (std::shared_ptr<const TrackSet> set);   // keeps playhead position
     void seek (int64_t frame);
     void setLoop (bool enabled, int64_t startFrame, int64_t endFrame);
+    void clearBuffer();                                       // flushes ring buffer & resets state
     void setPlaying (bool shouldPlay) noexcept { playing.store (shouldPlay, std::memory_order_release); }
     void setFadeFrames (int frames) noexcept   { fadeFrames.store (std::max (1, frames)); }
 
@@ -112,9 +113,11 @@ private:
         std::shared_ptr<const TrackSet> tracks;
     } pending;
     std::atomic<uint32_t> requestedGen { 1 };
+    std::atomic<uint32_t> requestedTrackEpoch { 0 };
 
     // producer-only state
     uint32_t prodGen = 0;
+    uint32_t prodTrackEpoch = 0;
     int64_t prodPos = 0;
     bool prodLoopOn = false;
     int64_t prodLoopA = 0, prodLoopB = 0;

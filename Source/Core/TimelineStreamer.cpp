@@ -29,8 +29,12 @@ void TimelineStreamer::setTrackSet (std::shared_ptr<const TrackSet> set)
 {
     std::lock_guard<std::mutex> lock (controlMutex);
     pending.tracks = std::move (set);
-    pending.position = playhead.load();
-    requestedGen.fetch_add (1, std::memory_order_acq_rel);
+    if (! playing.load (std::memory_order_acquire))
+    {
+        pending.position = playhead.load (std::memory_order_acquire);
+        requestedGen.fetch_add (1, std::memory_order_acq_rel);
+    }
+    requestedTrackEpoch.fetch_add (1, std::memory_order_acq_rel);
 }
 
 void TimelineStreamer::seek (int64_t frame)
@@ -60,6 +64,14 @@ void TimelineStreamer::setLoop (bool enabled, int64_t a, int64_t b)
     }
 }
 
+void TimelineStreamer::clearBuffer()
+{
+    std::lock_guard<std::mutex> lock (controlMutex);
+    pending.position = playhead.load (std::memory_order_acquire);
+    reachedEnd.store (false, std::memory_order_release);
+    requestedGen.fetch_add (1, std::memory_order_acq_rel);
+}
+
 bool TimelineStreamer::getLoopEnabled() const { std::lock_guard<std::mutex> l (controlMutex); return pending.loopOn; }
 int64_t TimelineStreamer::getLoopStart() const { std::lock_guard<std::mutex> l (controlMutex); return pending.loopA; }
 int64_t TimelineStreamer::getLoopEnd() const   { std::lock_guard<std::mutex> l (controlMutex); return pending.loopB; }
@@ -79,12 +91,16 @@ void TimelineStreamer::getSlotChannelCounts (int* dest) const noexcept
 //==============================================================================
 bool TimelineStreamer::service()
 {
+    bool backfillNeeded = false;
+    std::array<bool, kMaxTracks> changedSlots {};
     {
         std::lock_guard<std::mutex> lock (controlMutex);
         const uint32_t g = requestedGen.load (std::memory_order_acquire);
+        const uint32_t te = requestedTrackEpoch.load (std::memory_order_acquire);
         if (g != prodGen)
         {
             prodGen = g;
+            prodTrackEpoch = te;
             prodPos = pending.position;
             prodLoopOn = pending.loopOn;
             prodLoopA = pending.loopA;
@@ -107,6 +123,134 @@ bool TimelineStreamer::service()
             }
             length.store (len, std::memory_order_release);
         }
+        else if (te != prodTrackEpoch)
+        {
+            auto oldTracks = prodTracks;
+            prodTrackEpoch = te;
+            prodTracks = pending.tracks;
+
+            int64_t len = 0;
+            for (int s = 0; s < kMaxTracks; ++s)
+            {
+                const auto oldR = oldTracks != nullptr ? oldTracks->slots[(size_t) s] : nullptr;
+                const auto newR = prodTracks != nullptr ? prodTracks->slots[(size_t) s] : nullptr;
+                if (oldR != newR)
+                {
+                    changedSlots[(size_t) s] = true;
+                    backfillNeeded = true;
+                }
+
+                int ch = 0;
+                if (newR != nullptr)
+                {
+                    ch = std::min (2, std::max (1, newR->getNumChannels()));
+                    len = std::max (len, newR->getLengthInFrames());
+                }
+                if (oldR == nullptr && newR != nullptr)
+                {
+                    // Delay exposing slotChannels until after backfill completes
+                }
+                else
+                {
+                    slotChannels[(size_t) s].store (ch, std::memory_order_release);
+                }
+            }
+            const int64_t prevLen = length.load (std::memory_order_acquire);
+            length.store (len, std::memory_order_release);
+            if (prodFinished && len > prevLen && prodPos < len)
+                prodFinished = false;
+        }
+    }
+
+    if (backfillNeeded)
+    {
+        // Backfill already-buffered ring frames for newly added/changed slots ahead of consumer read pointer
+        // so that existing playing tracks continue uninterrupted with zero dropout or discontinuity!
+        const int chunk = cfg.chunkFrames;
+        const auto ringFrames = (uint64_t) cfg.ringFrames;
+        const uint64_t w = writeCount.load (std::memory_order_relaxed);
+        const uint64_t rNow = readCount.load (std::memory_order_acquire);
+        const uint64_t safetyMargin = 1024;
+        uint64_t cursor = std::min (w, rNow + safetyMargin);
+
+        while (cursor < w)
+        {
+            int run = (int) std::min<uint64_t> ((uint64_t) chunk, w - cursor);
+            const int64_t basePos = framePos[(size_t) (cursor & mask)];
+            // Ensure contiguous timeline positions within this chunk (stops before loop wrap)
+            for (int i = 1; i < run; ++i)
+            {
+                if (framePos[(size_t) ((cursor + (uint64_t) i) & mask)] != basePos + i)
+                {
+                    run = i;
+                    break;
+                }
+            }
+
+            for (int s = 0; s < kMaxTracks; ++s)
+            {
+                if (! changedSlots[(size_t) s])
+                    continue;
+
+                float* d0 = scratch.data() + (size_t) (s * 2) * (size_t) chunk;
+                float* d1 = scratch.data() + (size_t) (s * 2 + 1) * (size_t) chunk;
+                TrackReader* reader = prodTracks != nullptr ? prodTracks->slots[(size_t) s].get() : nullptr;
+
+                if (reader == nullptr)
+                {
+                    std::memset (d0, 0, sizeof (float) * (size_t) run);
+                    std::memset (d1, 0, sizeof (float) * (size_t) run);
+                }
+                else
+                {
+                    const int numCh = std::min (2, std::max (1, reader->getNumChannels()));
+                    const int64_t trackLen = reader->getLengthInFrames();
+                    const int m = (int) std::max<int64_t> (0, std::min<int64_t> (run, trackLen - basePos));
+                    if (m > 0)
+                    {
+                        float* dest[2] = { d0, d1 };
+                        if (! reader->read (dest, basePos, m))
+                        {
+                            std::memset (d0, 0, sizeof (float) * (size_t) m);
+                            std::memset (d1, 0, sizeof (float) * (size_t) m);
+                        }
+                    }
+                    if (m < run)
+                    {
+                        std::memset (d0 + m, 0, sizeof (float) * (size_t) (run - m));
+                        std::memset (d1 + m, 0, sizeof (float) * (size_t) (run - m));
+                    }
+                    if (numCh == 1)
+                        std::memcpy (d1, d0, sizeof (float) * (size_t) run);
+                }
+
+                const uint64_t start = cursor & mask;
+                const int first = (int) std::min<uint64_t> ((uint64_t) run, ringFrames - start);
+                const int second = run - first;
+                for (int c = 0; c < 2; ++c)
+                {
+                    const int ch = s * 2 + c;
+                    const float* src = scratch.data() + (size_t) ch * (size_t) chunk;
+                    float* dst = ring.data() + (size_t) ch * ringFrames;
+                    std::memcpy (dst + start, src, sizeof (float) * (size_t) first);
+                    if (second > 0)
+                        std::memcpy (dst, src + first, sizeof (float) * (size_t) second);
+                }
+            }
+            cursor += (uint64_t) run;
+        }
+
+        // Now that ring buffer frames are ready for any newly added slots, expose their channel counts
+        for (int s = 0; s < kMaxTracks; ++s)
+        {
+            if (changedSlots[(size_t) s])
+            {
+                int ch = 0;
+                if (prodTracks != nullptr && prodTracks->slots[(size_t) s] != nullptr)
+                    ch = std::min (2, std::max (1, prodTracks->slots[(size_t) s]->getNumChannels()));
+                slotChannels[(size_t) s].store (ch, std::memory_order_release);
+            }
+        }
     }
 
     if (prodFinished) return false;
@@ -120,7 +264,8 @@ bool TimelineStreamer::service()
 
     for (;;)
     {
-        if (requestedGen.load (std::memory_order_acquire) != prodGen)
+        if (requestedGen.load (std::memory_order_acquire) != prodGen
+            || requestedTrackEpoch.load (std::memory_order_acquire) != prodTrackEpoch)
             return true; // new command: let the caller call service() again right away
 
         const uint64_t w = writeCount.load (std::memory_order_relaxed);

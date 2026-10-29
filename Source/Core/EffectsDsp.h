@@ -508,6 +508,7 @@ public:
     float getInPeakR()  noexcept { return inPeakR.readAndReset(); }
     float getOutPeakL() noexcept { return outPeakL.readAndReset(); }
     float getOutPeakR() noexcept { return outPeakR.readAndReset(); }
+    bool isDormant() const noexcept { return dormant; }
 
     AtomicPeak* getInPeakLPtr()  noexcept { return &inPeakL; }
     AtomicPeak* getInPeakRPtr()  noexcept { return &inPeakR; }
@@ -522,6 +523,8 @@ private:
     std::vector<float> workL, workR, dualInputR;
     int lastType = -1;
     bool monoPass = false;
+    bool dormant = true;
+    int silentSamples = 0;
     std::unique_ptr<FxSlotProcessor> rightWorker;
 
     ReverbDsp reverb;
