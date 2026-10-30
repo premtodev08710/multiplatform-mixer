@@ -1484,6 +1484,63 @@ TEST (mixBusAndSendGainChangesAreSmoothed)
     CHECK (rig.outL[0] > 0.09f);        // no instant drop to 0.0
 }
 
+TEST (transportAddingTrackThenPlay)
+{
+    StreamRig r (256);
+    // Background thread has run service with no tracks initially
+    r.s.service();
+    CHECK (! r.s.isPlaying());
+
+    // User imports tracks
+    auto set = std::make_shared<TrackSet>();
+    set->slots[0] = std::make_shared<FnTrack> (1, 48000 * 10, [] (int64_t, int) { return 0.5f; });
+    r.s.setTrackSet (set);
+
+    // User presses play
+    r.s.setPlaying (true);
+
+    // Disk thread services
+    r.serviceAll();
+    // Audio thread pulls
+    for (int b = 0; b < 20; ++b)
+    {
+        r.pull();
+    }
+    CHECK (r.s.isPlaying());
+    CHECK (r.s.getPlayhead() > 0);
+}
+
+TEST (transportAddingTrackAfterPlayheadAtEnd)
+{
+    StreamRig r (256);
+    auto set1 = std::make_shared<TrackSet>();
+    set1->slots[0] = std::make_shared<FnTrack> (1, 2048, [] (int64_t, int) { return 0.5f; });
+    r.s.setTrackSet (set1);
+    r.s.setPlaying (true);
+    r.serviceAll();
+
+    // Pull until end reached
+    for (int i = 0; i < 50 && r.s.isPlaying(); ++i)
+    {
+        r.pull();
+    }
+    CHECK (! r.s.isPlaying());
+    CHECK (r.s.getPlayhead() >= 2048);
+
+    // Now user adds a new track (e.g. 2048 samples or replaces)
+    auto set2 = std::make_shared<TrackSet>();
+    set2->slots[0] = std::make_shared<FnTrack> (1, 2048, [] (int64_t, int) { return 0.5f; });
+    set2->slots[1] = std::make_shared<FnTrack> (1, 2048, [] (int64_t, int) { return 0.5f; });
+    r.s.setTrackSet (set2);
+
+    // Now user presses Play
+    r.s.setPlaying (true);
+    r.serviceAll();
+    r.pull();
+
+    CHECK (r.s.isPlaying());
+}
+
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }
 
 

@@ -58,7 +58,7 @@ public:
     void seek (int64_t frame);
     void setLoop (bool enabled, int64_t startFrame, int64_t endFrame);
     void clearBuffer();                                       // flushes ring buffer & resets state
-    void setPlaying (bool shouldPlay) noexcept { playing.store (shouldPlay, std::memory_order_release); }
+    void setPlaying (bool shouldPlay) noexcept;
     void setFadeFrames (int frames) noexcept   { fadeFrames.store (std::max (1, frames)); }
 
     bool isPlaying() const noexcept            { return playing.load (std::memory_order_acquire); }

@@ -1,6 +1,7 @@
 // Mix Practice Studio - Home Screen (Channel Strips + Bank Selectors + Master Strip)
 #pragma once
 
+#include "AudioImportProgressOverlay.h"
 #include "BankSelectorBar.h"
 #include "ChannelStripComponent.h"
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -75,6 +76,8 @@ private:
 
     // Master Strip (anchored on right when not in Mtx-Main bank)
     std::unique_ptr<ChannelStripComponent> masterStrip;
+
+    AudioImportProgressOverlay progressOverlay;
 };
 
 } // namespace mps

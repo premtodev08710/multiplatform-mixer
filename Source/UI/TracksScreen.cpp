@@ -208,6 +208,8 @@ TracksScreen::TracksScreen (AudioEngine& eng, ProjectModel& proj)
     trackTable.getHeader().addColumn ("Assigned To", 7, 110, 80, 180);
     trackTable.getHeader().addColumn ("Clear", 8, 48, 40, 60);
     addAndMakeVisible (trackTable);
+
+    addChildComponent (progressOverlay);
 }
 
 TracksScreen::~TracksScreen()
@@ -426,8 +428,18 @@ void TracksScreen::buttonClicked (juce::Button* b)
 
     if (b == &trackPlayButton)
     {
-        if (engine.getStreamer().isPlaying()) engine.pause();
-        else                                  engine.play();
+        if (engine.getStreamer().isPlaying())
+        {
+            engine.pause();
+        }
+        else
+        {
+            const int64_t len = engine.getStreamer().getLength();
+            const int64_t ph = engine.getStreamer().getPlayhead();
+            if (len > 0 && (ph >= len || engine.getStreamer().consumeReachedEnd()))
+                engine.seekToSample (0);
+            engine.play();
+        }
         return;
     }
     if (b == &trackStopButton)
@@ -1054,6 +1066,12 @@ void TracksScreen::assignFilesToSlots (const juce::Array<juce::File>& rawFiles)
     importButton.setEnabled (false);
     importFolderButton.setEnabled (false);
 
+    progressOverlay.reset();
+    progressOverlay.setProgress (0.0f, "Preparing to import audio tracks...",
+                                 "Found " + juce::String (rawFiles.size()) + " file(s)");
+    progressOverlay.setVisible (true);
+    progressOverlay.toFront (true);
+
     juce::Thread::launch ([this, rawFiles] {
         processLoadedFilesInBackground (rawFiles);
     });
@@ -1063,6 +1081,14 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
 {
     juce::Array<juce::File> files = rawFiles;
     files.sort();
+
+    juce::MessageManager::callAsync ([this, count = files.size()] {
+        progressOverlay.reset();
+        progressOverlay.setProgress (0.0f, "Importing audio tracks...",
+                                     "Processing " + juce::String (count) + " file(s)");
+        progressOverlay.setVisible (true);
+        progressOverlay.toFront (true);
+    });
 
     const double targetSr = (engine.getSampleRate() > 1000.0) ? engine.getSampleRate() : 48000.0;
 
@@ -1086,16 +1112,33 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
     std::vector<LoadedTrack> readyTracks;
 
     const int maxTracks = AppEdition::getMaxTracks();
+    const int totalFiles = files.size();
+    const int filesToProcess = std::min (totalFiles, maxTracks - startSlot);
+
     for (int i = 0; i < files.size() && (startSlot + i) < maxTracks; ++i)
     {
         const int slot = startSlot + i;
         const auto& file = files[i];
+
+        const float progressStart = (float) i / (float) std::max (1, filesToProcess);
+        juce::MessageManager::callAsync ([this, progressStart, filename = file.getFileName(), idx = i + 1, total = filesToProcess] {
+            progressOverlay.setProgress (progressStart,
+                                         "Decoding track " + juce::String (idx) + " of " + juce::String (total) + "...",
+                                         filename);
+        });
 
         auto track = AudioFileTrack::open (file, targetSr, engine.getFormatManager());
         if (track != nullptr)
         {
             readyTracks.push_back ({ slot, file, std::move (track) });
         }
+
+        const float progressEnd = (float) (i + 1) / (float) std::max (1, filesToProcess);
+        juce::MessageManager::callAsync ([this, progressEnd, filename = file.getFileName(), idx = i + 1, total = filesToProcess] {
+            progressOverlay.setProgress (progressEnd,
+                                         "Imported " + juce::String (idx) + " of " + juce::String (total),
+                                         filename);
+        });
     }
 
     const bool exceededFreeLimit = (! AppEdition::isPro() && (startSlot + files.size() > maxTracks));
@@ -1104,6 +1147,13 @@ void TracksScreen::processLoadedFilesInBackground (const juce::Array<juce::File>
         importButton.setEnabled (true);
         importFolderButton.setEnabled (true);
         dragHintLabel.setText ("Tip: Drag & Drop audio files here or drag rows to reorder tracks", juce::dontSendNotification);
+
+        progressOverlay.setProgress (1.0f, "Import Complete!",
+                                     "Loaded " + juce::String ((int) readyTracks.size()) + " track(s) into session");
+        juce::Timer::callAfterDelay (350, [this] {
+            progressOverlay.setVisible (false);
+            progressOverlay.reset();
+        });
 
         if (exceededFreeLimit)
         {
@@ -1265,6 +1315,7 @@ void TracksScreen::resized()
     trackLoopLabel.setBounds (controlRow);
 
     trackTable.setBounds (area);
+    progressOverlay.setBounds (getLocalBounds());
 }
 
 } // namespace mps

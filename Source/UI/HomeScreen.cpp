@@ -88,6 +88,7 @@ HomeScreen::HomeScreen (AudioEngine& eng, ProjectModel& proj)
     addAndMakeVisible (masterStrip.get());
 
     rebuildStrips();
+    addChildComponent (progressOverlay);
 }
 
 HomeScreen::~HomeScreen()
@@ -380,6 +381,8 @@ void HomeScreen::resized()
             channelStrips[(size_t) i]->setBounds (area.removeFromLeft (stripW).reduced (2, 0));
         }
     }
+
+    progressOverlay.setBounds (getLocalBounds());
 }
 
 static bool isSupportedAudioFileHome (const juce::File& f)
@@ -427,6 +430,12 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
 
     audioFiles.sort();
 
+    progressOverlay.reset();
+    progressOverlay.setProgress (0.0f, "Importing audio files...",
+                                 "Processing " + juce::String (audioFiles.size()) + " file(s)");
+    progressOverlay.setVisible (true);
+    progressOverlay.toFront (true);
+
     // Decode & pre-buffer audio files asynchronously on a background thread so the
     // UI thread and audio playback never stall or click, then connect in one atomic batch.
     juce::Component::SafePointer<HomeScreen> safeThis (this);
@@ -457,18 +466,55 @@ void HomeScreen::filesDropped (const juce::StringArray& files, int /*x*/, int /*
         };
         std::vector<LoadedTrack> readyTracks;
 
+        const int totalFiles = audioFiles.size();
+        const int filesToProcess = std::min (totalFiles, maxTracksAllowed - startSlot);
+
         for (int i = 0; i < audioFiles.size() && (startSlot + i) < maxTracksAllowed; ++i)
         {
             const int slot = startSlot + i;
             const auto& file = audioFiles[i];
 
+            const float progressStart = (float) i / (float) std::max (1, filesToProcess);
+            juce::MessageManager::callAsync ([safeThis, progressStart, filename = file.getFileName(), idx = i + 1, total = filesToProcess] {
+                if (safeThis != nullptr)
+                    safeThis->progressOverlay.setProgress (progressStart,
+                                                           "Decoding track " + juce::String (idx) + " of " + juce::String (total) + "...",
+                                                           filename);
+            });
+
             auto track = AudioFileTrack::open (file, targetSr, eng.getFormatManager());
             if (track != nullptr)
                 readyTracks.push_back ({ slot, file, std::move (track) });
+
+            const float progressEnd = (float) (i + 1) / (float) std::max (1, filesToProcess);
+            juce::MessageManager::callAsync ([safeThis, progressEnd, filename = file.getFileName(), idx = i + 1, total = filesToProcess] {
+                if (safeThis != nullptr)
+                    safeThis->progressOverlay.setProgress (progressEnd,
+                                                           "Imported " + juce::String (idx) + " of " + juce::String (total),
+                                                           filename);
+            });
         }
 
         juce::MessageManager::callAsync ([safeThis, readyTracks = std::move (readyTracks)] {
-            if (safeThis == nullptr || readyTracks.empty()) return;
+            if (safeThis == nullptr || readyTracks.empty())
+            {
+                if (safeThis != nullptr)
+                {
+                    safeThis->progressOverlay.setVisible (false);
+                    safeThis->progressOverlay.reset();
+                }
+                return;
+            }
+
+            safeThis->progressOverlay.setProgress (1.0f, "Import Complete!",
+                                                   "Loaded " + juce::String ((int) readyTracks.size()) + " track(s) into mixer");
+            juce::Timer::callAfterDelay (350, [safeThis] {
+                if (safeThis != nullptr)
+                {
+                    safeThis->progressOverlay.setVisible (false);
+                    safeThis->progressOverlay.reset();
+                }
+            });
 
             std::vector<std::pair<int, std::shared_ptr<TrackReader>>> batchSlots;
             batchSlots.reserve (readyTracks.size());

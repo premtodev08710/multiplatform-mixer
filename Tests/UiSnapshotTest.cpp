@@ -241,6 +241,18 @@ int main (int argc, char* argv[])
             trackWav.deleteFile();
         }
 
+        {
+            mps::AudioImportProgressOverlay overlay;
+            overlay.setSize (600, 400);
+            if (overlay.getProgress() != 0.0f) ++failures;
+            overlay.setProgress (0.5f, "Decoding...", "test.wav");
+            if (std::abs (overlay.getProgress() - 0.5f) > 0.001f) ++failures;
+            overlay.setProgress (1.0f, "Complete", "");
+            if (std::abs (overlay.getProgress() - 1.0f) > 0.001f) ++failures;
+            overlay.reset();
+            if (overlay.getProgress() != 0.0f) ++failures;
+        }
+
         mps::ConsoleToolsScreen tools (host);
         for (int width : { 640, 1024 })
             for (int mode = 0; mode < 4; ++mode)

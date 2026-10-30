@@ -346,9 +346,17 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
     if (key.getKeyCode() == juce::KeyPress::spaceKey)
     {
         if (engine.getStreamer().isPlaying())
+        {
             engine.pause();
+        }
         else
+        {
+            const int64_t len = engine.getStreamer().getLength();
+            const int64_t ph = engine.getStreamer().getPlayhead();
+            if (len > 0 && (ph >= len || engine.getStreamer().consumeReachedEnd()))
+                engine.seekToSample (0);
             engine.play();
+        }
         return true;
     }
     return false;

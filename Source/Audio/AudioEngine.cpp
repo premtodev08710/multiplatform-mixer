@@ -219,6 +219,11 @@ void AudioEngine::clearAllTracks()
 
 void AudioEngine::play()
 {
+    const int64_t len = streamer.getLength();
+    if (len > 0 && (streamer.getPlayhead() >= len || streamer.consumeReachedEnd()))
+    {
+        streamer.seek (0);
+    }
     streamer.setPlaying (true);
 }
 

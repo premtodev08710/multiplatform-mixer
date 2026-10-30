@@ -3,6 +3,7 @@
 
 #include "../Audio/AudioEngine.h"
 #include "../Model/ProjectModel.h"
+#include "AudioImportProgressOverlay.h"
 #include "TimelineRangeComponent.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <vector>
@@ -90,6 +91,7 @@ private:
     int dragTargetRow = -1;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
+    AudioImportProgressOverlay progressOverlay;
 };
 
 } // namespace mps

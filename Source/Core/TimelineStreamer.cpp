@@ -31,10 +31,36 @@ void TimelineStreamer::setTrackSet (std::shared_ptr<const TrackSet> set)
     pending.tracks = std::move (set);
     if (! playing.load (std::memory_order_acquire))
     {
-        pending.position = playhead.load (std::memory_order_acquire);
+        const int64_t curPh = playhead.load (std::memory_order_acquire);
+        const int64_t curLen = length.load (std::memory_order_acquire);
+        if (curLen == 0 || curPh >= curLen || reachedEnd.load (std::memory_order_acquire))
+        {
+            pending.position = 0;
+            playhead.store (0, std::memory_order_release);
+            reachedEnd.store (false, std::memory_order_release);
+        }
+        else
+        {
+            pending.position = curPh;
+        }
         requestedGen.fetch_add (1, std::memory_order_acq_rel);
     }
     requestedTrackEpoch.fetch_add (1, std::memory_order_acq_rel);
+}
+
+void TimelineStreamer::setPlaying (bool shouldPlay) noexcept
+{
+    if (shouldPlay)
+    {
+        reachedEnd.store (false, std::memory_order_release);
+        const int64_t len = length.load (std::memory_order_acquire);
+        const int64_t ph = playhead.load (std::memory_order_acquire);
+        if (len > 0 && ph >= len)
+        {
+            seek (0);
+        }
+    }
+    playing.store (shouldPlay, std::memory_order_release);
 }
 
 void TimelineStreamer::seek (int64_t frame)
@@ -122,6 +148,12 @@ bool TimelineStreamer::service()
                 slotChannels[(size_t) s].store (ch, std::memory_order_release);
             }
             length.store (len, std::memory_order_release);
+            if (len > 0 && prodPos >= len)
+            {
+                prodPos = 0;
+                playhead.store (0, std::memory_order_release);
+                reachedEnd.store (false, std::memory_order_release);
+            }
         }
         else if (te != prodTrackEpoch)
         {
@@ -155,9 +187,8 @@ bool TimelineStreamer::service()
                     slotChannels[(size_t) s].store (ch, std::memory_order_release);
                 }
             }
-            const int64_t prevLen = length.load (std::memory_order_acquire);
             length.store (len, std::memory_order_release);
-            if (prodFinished && len > prevLen && prodPos < len)
+            if (prodFinished && len > 0 && prodPos < len)
                 prodFinished = false;
         }
     }
