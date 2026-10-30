@@ -41,6 +41,15 @@ public:
         }
     }
 
+    void resumed() override
+    {
+        if (mainWindow != nullptr)
+        {
+            if (auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent()))
+                mc->getAudioEngine().restartAudioDevice();
+        }
+    }
+
     void systemRequestedQuit() override
     {
         if (mainWindow != nullptr)

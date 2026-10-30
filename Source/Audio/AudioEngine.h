@@ -26,6 +26,7 @@ public:
     ~AudioEngine() override;
 
     void initDevice();
+    void restartAudioDevice();
     void preparePlayback (double sampleRate, int blockSize);
     void closeDevice();
 

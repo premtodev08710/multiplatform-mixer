@@ -173,6 +173,7 @@ void MainComponent::restorePreviousSession()
             homeScreen.rebuildStrips();
             detailScreen.refreshFromModel();
             effectsScreen.refreshFromModel();
+            tracksScreen.repaint();
 
             if (! missingFiles.isEmpty())
             {

@@ -699,6 +699,9 @@ juce::Result ProjectModel::loadProject (const juce::File& file, juce::StringArra
     if (rootObj->hasProperty ("mixer"))
         deserializeMixerState (rootObj->getProperty ("mixer"));
 
+    if (onTracksChanged)
+        onTracksChanged();
+
     projectFile = file;
     modified = false;
     return juce::Result::ok();

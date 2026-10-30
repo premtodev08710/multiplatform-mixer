@@ -64,6 +64,19 @@ void AudioEngine::initDevice()
     deviceManager.addAudioCallback (this);
 }
 
+void AudioEngine::restartAudioDevice()
+{
+    if (deviceManager.getCurrentAudioDevice() == nullptr)
+    {
+        loadAudioDeviceSettings();
+        deviceManager.addAudioCallback (this);
+    }
+    else
+    {
+        deviceManager.restartLastAudioDevice();
+    }
+}
+
 void AudioEngine::closeDevice()
 {
     saveAudioDeviceSettings();
@@ -111,6 +124,12 @@ void AudioEngine::loadAudioDeviceSettings()
         err = deviceManager.initialise (0, 2, xml.get(), true);
     else
         err = deviceManager.initialiseWithDefaultDevices (0, 2);
+
+    if (xml != nullptr && (err.isNotEmpty() || deviceManager.getCurrentAudioDevice() == nullptr))
+    {
+        // Fallback to default devices if saved XML config failed or opened no device
+        err = deviceManager.initialiseWithDefaultDevices (0, 2);
+    }
 
     if (auto* dev = deviceManager.getCurrentAudioDevice())
     {
