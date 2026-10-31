@@ -18,5 +18,8 @@ public class MainActivity extends JuceActivity {
 
         // Report install & active user telemetry directly in background thread
         TelemetryHelper.reportAppLaunchAsync(this);
+
+        // Initialize Google Play Billing and check existing purchases
+        PlayBillingHelper.getInstance(this);
     }
 }

@@ -26,12 +26,14 @@ public:
         int daysRemaining = 0;
     };
 
-    /** Returns true if running as Pro Edition (compiled binary OR active yearly subscription / trial). */
+    /** Returns true if running as Pro Edition (compiled binary OR lifetime OR active yearly subscription / trial). */
     static bool isPro() noexcept
     {
 #if defined(MPS_PRO_VERSION) && MPS_PRO_VERSION == 1
         return true;
 #else
+        if (isLifetimePro())
+            return true;
         ensureTrialInitialized();
         return isYearlySubscriptionActive();
 #endif
@@ -70,13 +72,16 @@ public:
 #if defined(MPS_PRO_VERSION) && MPS_PRO_VERSION == 1
         return true;
 #else
-        return false;
+        return getPlan() == "lifetime";
 #endif
     }
 
     /** Checks whether the stored yearly subscription is currently active. */
     static bool isYearlySubscriptionActive() noexcept
     {
+        if (isLifetimePro())
+            return true;
+
         const int64_t expiry = getExpiryTimestamp();
         if (expiry <= 0)
             return false;
@@ -362,6 +367,17 @@ private:
         }
 
         return expiry;
+    }
+
+    /** Activates lifetime Pro status (e.g. from Google Play Billing or Lifetime code). */
+    static void activateLifetimePro (const juce::String& identifier = "GOOGLE_PLAY_PURCHASE")
+    {
+        const int64_t farFutureExpiry = 253402300799LL; // 31 Dec 9999
+        auto usedKeys = getUsedKeys();
+        if (! usedKeys.contains (identifier))
+            usedKeys.add (identifier);
+
+        saveLicenseData (farFutureExpiry, identifier, usedKeys, "lifetime");
     }
 
     static juce::StringArray getUsedKeys()

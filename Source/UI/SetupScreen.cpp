@@ -2,6 +2,18 @@
 #include "SetupScreen.h"
 #include "../Core/AppEdition.h"
 
+#if JUCE_ANDROID
+extern "C" JNIEXPORT void JNICALL
+Java_com_mixpractice_studio_PlayBillingHelper_nativeOnProUnlocked (JNIEnv* env, jclass clazz, jboolean isLifetime, jstring token)
+{
+    juce::ignoreUnused (env, clazz, token);
+    if (isLifetime)
+    {
+        mps::AppEdition::activateLifetimePro ("GOOGLE_PLAY_INAPP");
+    }
+}
+#endif
+
 namespace mps
 {
 
@@ -96,10 +108,14 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
     x32StatusLabel.setText ("Status: OFFLINE (Virtual Practice Mode Active)", juce::dontSendNotification);
     addAndMakeVisible (x32StatusLabel);
 
-    // --- Section 3: Pro Edition Annual Serial Key (Prepaid Card Model) ---
+    // --- Section 3: Pro Edition Annual Serial Key / In-App Purchase ---
     licenseTitleLabel.setFont (juce::FontOptions (15.0f, juce::Font::bold));
     licenseTitleLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffd700)); // Gold
-    licenseTitleLabel.setText (juce::String::fromUTF8 ("👑 Mix Practice Studio Pro (ระบบสิทธิ์รายปี / Serial Key)"), juce::dontSendNotification);
+#if JUCE_ANDROID
+    licenseTitleLabel.setText (juce::String::fromUTF8 ("👑 Mix Practice Studio Pro (Google Play / ถาวร)"), juce::dontSendNotification);
+#else
+    licenseTitleLabel.setText (juce::String::fromUTF8 ("👑 Mix Practice Studio Pro (ระบบสิทธิ์ Pro / Serial Key)"), juce::dontSendNotification);
+#endif
     addAndMakeVisible (licenseTitleLabel);
 
     licenseStatusLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
@@ -107,7 +123,7 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
 
     licenseKeyLabel.setFont (juce::FontOptions (12.0f));
     licenseKeyLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
-    licenseKeyLabel.setText (juce::String::fromUTF8 ("กรอกรหัสต่ออายุ 1 ปี (Serial Key):"), juce::dontSendNotification);
+    licenseKeyLabel.setText (juce::String::fromUTF8 ("กรอกรหัสเปิดใช้งาน Pro (Serial Key):"), juce::dontSendNotification);
     addAndMakeVisible (licenseKeyLabel);
 
     licenseKeyEditor.setFont (juce::FontOptions (13.0f, juce::Font::bold));
@@ -117,15 +133,25 @@ SetupScreen::SetupScreen (AudioEngine& eng, X32OscClient& osc)
     licenseKeyEditor.setTextToShowWhenEmpty (juce::String::fromUTF8 ("ตัวอย่าง: MPS-1Y-XXXX-XXXX-XXXX"), juce::Colour (0xff546e7a));
     addAndMakeVisible (licenseKeyEditor);
 
-    activateKeyButton.setButtonText (juce::String::fromUTF8 ("⚡ เติมวัน Pro 1 ปี (+365 วัน)"));
+    activateKeyButton.setButtonText (juce::String::fromUTF8 ("⚡ เปิดใช้งานรหัส"));
     activateKeyButton.addListener (this);
     activateKeyButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff2e7d32)); // Green
     addAndMakeVisible (activateKeyButton);
 
-    buyKeyButton.setButtonText (juce::String::fromUTF8 ("🛒 สั่งซื้อรหัสต่ออายุ (Shopee / FB)"));
-    buyKeyButton.addListener (this);
+#if JUCE_ANDROID
+    buyKeyButton.setButtonText (juce::String::fromUTF8 ("💳 ซื้อ Pro ถาวร (Google Play 299฿)"));
+    buyKeyButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff1a73e8)); // Google Blue
+#else
+    buyKeyButton.setButtonText (juce::String::fromUTF8 ("🛒 สั่งซื้อรหัส Pro (Shopee / เพจ)"));
     buyKeyButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffe65100)); // Shopee Orange
+#endif
+    buyKeyButton.addListener (this);
     addAndMakeVisible (buyKeyButton);
+
+    restorePurchaseButton.setButtonText (juce::String::fromUTF8 ("🔄 กู้คืนการซื้อ"));
+    restorePurchaseButton.addListener (this);
+    restorePurchaseButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff37474f));
+    addAndMakeVisible (restorePurchaseButton);
 
     refreshLicenseStatus();
 
@@ -265,7 +291,45 @@ void SetupScreen::buttonClicked (juce::Button* b)
     }
     else if (b == &buyKeyButton)
     {
+#if JUCE_ANDROID
+        if (auto* env = juce::getEnv())
+        {
+            jclass billingCls = env->FindClass ("com/mixpractice/studio/PlayBillingHelper");
+            if (billingCls != nullptr)
+            {
+                jmethodID mid = env->GetStaticMethodID (billingCls, "buyProLifetime", "(Landroid/app/Activity;)V");
+                if (mid != nullptr)
+                {
+                    env->CallStaticVoidMethod (billingCls, mid, (jobject) juce::getAppContext());
+                }
+            }
+        }
+#else
         juce::URL ("https://s.shopee.co.th/80DYoxalGQ").launchInDefaultBrowser();
+#endif
+    }
+    else if (b == &restorePurchaseButton)
+    {
+#if JUCE_ANDROID
+        if (auto* env = juce::getEnv())
+        {
+            jclass billingCls = env->FindClass ("com/mixpractice/studio/PlayBillingHelper");
+            if (billingCls != nullptr)
+            {
+                jmethodID mid = env->GetStaticMethodID (billingCls, "restoreProPurchases", "(Landroid/app/Activity;)V");
+                if (mid != nullptr)
+                {
+                    env->CallStaticVoidMethod (billingCls, mid, (jobject) juce::getAppContext());
+                }
+            }
+        }
+#else
+        juce::AlertWindow::showMessageBoxAsync (
+            juce::AlertWindow::InfoIcon,
+            juce::String::fromUTF8 ("กู้คืนสิทธิ์"),
+            juce::String::fromUTF8 ("บนเวอร์ชัน Desktop กรุณากรอกรหัส Serial Key เดิมของคุณเพื่อเปิดใช้งาน")
+        );
+#endif
     }
 }
 
@@ -454,10 +518,12 @@ void SetupScreen::resized()
     rightArea.removeFromTop (8);
 
     auto licBtnRow = rightArea.removeFromTop (32);
-    const int licBtnW = (licBtnRow.getWidth() - 8) / 2;
+    const int licBtnW = (licBtnRow.getWidth() - 16) / 3;
     activateKeyButton.setBounds (licBtnRow.removeFromLeft (licBtnW));
     licBtnRow.removeFromLeft (8);
-    buyKeyButton.setBounds (licBtnRow);
+    buyKeyButton.setBounds (licBtnRow.removeFromLeft (licBtnW));
+    licBtnRow.removeFromLeft (8);
+    restorePurchaseButton.setBounds (licBtnRow);
 }
 
 } // namespace mps

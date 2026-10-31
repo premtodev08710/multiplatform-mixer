@@ -57,13 +57,14 @@ private:
     juce::TextButton x32AutoDiscoverButton { "AUTO DISCOVER" };
     juce::Label x32StatusLabel;
 
-    // Pro License & Annual Prepaid Key Panel
+    // Pro License & Billing Panel
     juce::Label licenseTitleLabel;
     juce::Label licenseStatusLabel;
     juce::Label licenseKeyLabel;
     juce::TextEditor licenseKeyEditor;
     juce::TextButton activateKeyButton;
     juce::TextButton buyKeyButton;
+    juce::TextButton restorePurchaseButton;
     void refreshLicenseStatus();
 };
 

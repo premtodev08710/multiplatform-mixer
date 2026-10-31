@@ -32,6 +32,7 @@ private:
     bool hasRedirected = false;
 
     juce::TextButton shopeeButton;
+    juce::TextButton skipButton;
 
     static inline bool hasShownThisSession = false;
 

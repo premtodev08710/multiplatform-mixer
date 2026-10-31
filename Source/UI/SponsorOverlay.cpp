@@ -28,19 +28,21 @@ SponsorOverlay::SponsorOverlay (std::function<void()> onDismissed)
     markShownThisSession();
     setInterceptsMouseClicks (true, true);
 
-    // Primary Action Button: mandatory visit Shopee to unlock app interface
-    shopeeButton.setButtonText (juce::CharPointer_UTF8 (
-        "\xf0\x9f\x9b\x92\x20\xe0\xb9\x81\xe0\xb8\xa7\xe0\xb8\xb0\xe0\xb8\x8a\xe0\xb8\xa1\x20"
-        "Shopee\x20\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9b"
-        "\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\xa5\xe0\xb9\x87\xe0\xb8\xad\xe0\xb8\x84\xe0\xb9\x80"
-        "\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81"
-        "\xe0\xb8\xad\xe0\xb8\x9e\x20\x28\xe0\xb9\x81\xe0\xb8\x95\xe0\xb8\xb0\xe0\xb8\x97\xe0\xb8\xb5\xe0\xb9\x88\xe0\xb8\x99\xe0\xb8\xb5\xe0\xb9\x88\x29"));
+    // Primary Action Button: visit Shopee to support
+    shopeeButton.setButtonText (juce::String::fromUTF8 ("🛒 เยี่ยมชมร้านค้าสปอนเซอร์ (Shopee)"));
     shopeeButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xffee4d2d));
     shopeeButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffc42306));
     shopeeButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
     shopeeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::white);
     shopeeButton.onClick = [this] { openShopeeAndDismiss(); };
     addAndMakeVisible (shopeeButton);
+
+    // Secondary Action Button: skippable bypass
+    skipButton.setButtonText (juce::String::fromUTF8 ("ข้าม / เข้าสู่แอป"));
+    skipButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff252e38));
+    skipButton.setColour (juce::TextButton::textColourOffId, juce::Colour (0xff90a4ae));
+    skipButton.onClick = [this] { dismissDirectly(); };
+    addAndMakeVisible (skipButton);
 }
 
 SponsorOverlay::~SponsorOverlay() = default;
@@ -54,12 +56,11 @@ void SponsorOverlay::mouseDown (const juce::MouseEvent& e)
                                                   (bounds.getHeight() - dialogH) / 2,
                                                   dialogW, dialogH);
 
-    // If tapping inside the dialog card, visit Shopee and unlock the app
-    if (dialogRect.contains (e.getPosition()))
+    // Tapping outside card dismisses overlay gracefully
+    if (! dialogRect.contains (e.getPosition()))
     {
-        openShopeeAndDismiss();
+        dismissDirectly();
     }
-    // Strictly do nothing if tapping outside: NO skip, NO outside-click dismiss!
 }
 
 static void reportShopeeClickToFirestore (const juce::String& chosenUrl)
@@ -324,19 +325,19 @@ void SponsorOverlay::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xff242d3d));
     g.drawLine (footerRect.getX() + 10.0f, footerY, footerRect.getRight() - 10.0f, footerY, 1.0f);
 
-    // Title instruction: Mandatory visit to unlock
+    // Title instruction
     g.setColour (juce::Colours::white);
     g.setFont (juce::FontOptions (14.5f, juce::Font::bold));
-    g.drawText (juce::CharPointer_UTF8 ("\xf0\x9f\x94\x92\x20\xe0\xb9\x81\xe0\xb8\xa7\xe0\xb8\xb0\xe0\xb8\x8a\xe0\xb8\xa1\x20\x53\x68\x6f\x70\x65\x65\x20\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb8\x9b\xe0\xb8\xa5\xe0\xb8\x94\xe0\xb8\xa5\xe0\xb9\x87\xe0\xb8\xad\xe0\xb8\x84\xe0\xb9\x80\xe0\xb8\x82\xe0\xb9\x89\xe0\xb8\xb2\xe0\xb8\xaa\xe0\xb8\xb9\xe0\xb9\x88\xe0\xb9\x81\xe0\xb8\xad\xe0\xb8\x9e"),
-                (int) footerRect.getX() + 20, (int) footerY + 16,
+    g.drawText (juce::String::fromUTF8 ("สนับสนุนผู้พัฒนา Mix Practice Studio"),
+                (int) footerRect.getX() + 20, (int) footerY + 14,
                 (int) footerRect.getWidth() - 40, 22,
                 juce::Justification::centred);
 
     // Subtitle instruction
     g.setColour (juce::Colour (0xff94a3b8));
     g.setFont (juce::FontOptions (12.0f, juce::Font::plain));
-    g.drawText (juce::CharPointer_UTF8 ("\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb1\xe0\xb8\x9a\xe0\xb8\xaa\xe0\xb8\x99\xe0\xb8\xb8\xe0\xb8\x99\xe0\xb8\x9c\xe0\xb8\xb9\xe0\xb9\x89\xe0\xb8\x9e\xe0\xb8\xb1\xe0\xb8\x92\xe0\xb8\x99\xe0\xb8\xb2\xe0\xb9\x80\xe0\xb8\x9e\xe0\xb8\xb7\xe0\xb9\x88\xe0\xb8\xad\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\xe0\xb9\x83\xe0\xb8\xab\xe0\xb9\x89\xe0\xb9\x83\xe0\xb8\x8a\xe0\xb9\x89\xe0\xb8\x87\xe0\xb8\xb2\xe0\xb8\x99\xe0\xb8\x9f\xe0\xb8\xa3\xe0\xb8\xb5\x20\x28\xe0\xb8\x81\xe0\xb8\x94\xe0\xb9\x80\xe0\xb8\x9b\xe0\xb8\xb4\xe0\xb8\x94\x20\x53\x68\x6f\x70\x65\x65\x20\x31\x20\xe0\xb8\x84\xe0\xb8\xa3\xe0\xb8\xb1\xe0\xb9\x89\xe0\xb8\x87\x29"),
-                (int) footerRect.getX() + 20, (int) footerY + 40,
+    g.drawText (juce::String::fromUTF8 ("ร่วมสนับสนุนทีมงานผ่านลิงก์ร้านค้าพันธมิตร หรืออัปเกรดเป็น Pro เพื่อปิดโฆษณาถาวร"),
+                (int) footerRect.getX() + 20, (int) footerY + 38,
                 (int) footerRect.getWidth() - 40, 18,
                 juce::Justification::centred);
 }
@@ -353,13 +354,16 @@ void SponsorOverlay::resized()
     const int footerY = dialogRect.getY() + (int) ((float) dialogH * 0.58f);
     const int footerH = dialogRect.getBottom() - footerY;
 
-    // Full-width prominent touch button
-    const int btnH = 46;
-    const int btnW = dialogRect.getWidth() - 40;
+    // Action buttons row (Visit Shopee & Skip)
+    const int btnH = 42;
+    const int gap = 12;
+    const int totalW = dialogRect.getWidth() - 40;
+    const int btnW = (totalW - gap) / 2;
     const int btnX = dialogRect.getX() + 20;
-    const int btnY = footerY + footerH - btnH - 18;
+    const int btnY = footerY + footerH - btnH - 14;
 
     shopeeButton.setBounds (btnX, btnY, btnW, btnH);
+    skipButton.setBounds (btnX + btnW + gap, btnY, btnW, btnH);
 }
 
 } // namespace mps

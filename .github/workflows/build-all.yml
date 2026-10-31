@@ -187,30 +187,39 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Build Android APK with Gradle
+      - name: Build Android APK and AAB with Gradle
         run: |
           cd android
-          gradle assembleRelease --stacktrace
+          gradle assembleRelease bundleRelease --stacktrace
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          AAB_FILE=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
           test -n "$APK_FILE"
+          test -n "$AAB_FILE"
           cp "$APK_FILE" ../MixPracticeStudio.apk
+          cp "$AAB_FILE" ../MixPracticeStudio.aab
           cd ..
           if [ -f "MixPracticeStudio.apk" ]; then
             zip -q MixPracticeStudio-Android-APK.zip MixPracticeStudio.apk
           fi
 
-      - name: Upload Android Artifact
+      - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MixPracticeStudio-Android-APK
           path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload Android AAB (Google Play) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixPracticeStudio-Android-AAB
+          path: android/app/build/outputs/bundle/release/*.aab
 
       - name: Update GitHub Release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.1 MixPracticeStudio.apk MixPracticeStudio-Android-APK.zip --clobber
+          gh release upload v1.0.1 MixPracticeStudio.apk MixPracticeStudio.aab MixPracticeStudio-Android-APK.zip --clobber
 
   # =========================================================================
   # 4. Build iOS (.ipa)

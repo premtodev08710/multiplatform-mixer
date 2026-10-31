@@ -33,10 +33,15 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("../keystore/release.keystore")
-            storePassword "mixpractice123"
-            keyAlias "mixpractice"
-            keyPassword "mixpractice123"
+            def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: "../keystore/release.keystore"
+            def keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "mixpractice123"
+            def keyAliasVal = System.getenv("ANDROID_KEY_ALIAS") ?: "mixpractice"
+            def keyPassVal = System.getenv("ANDROID_KEY_PASSWORD") ?: "mixpractice123"
+
+            storeFile file(keystorePath)
+            storePassword keystorePassword
+            keyAlias keyAliasVal
+            keyPassword keyPassVal
             v1SigningEnabled true
             v2SigningEnabled true
         }
@@ -89,4 +94,5 @@ android {
 
 dependencies {
     implementation 'com.google.android.gms:play-services-ads:22.6.0'
+    implementation 'com.android.billingclient:billing:7.1.1'
 }
