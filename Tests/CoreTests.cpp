@@ -1370,6 +1370,41 @@ TEST (outputProtectionPreservesCleanAudioAndStereoOverload)
     }
 }
 
+TEST (outputProtectionSmoothOnHeavyOverload)
+{
+    OutputProtection protection;
+    protection.prepare (48000);
+
+    // Simulate two multitrack stems summing above full scale (1.414 peak)
+    std::vector<float> l (4800), r (4800);
+    for (size_t i = 0; i < l.size(); ++i)
+    {
+        const double t = (double) i / 48000.0;
+        l[i] = 1.414f * (float) std::sin (2.0 * (double) kPi * 100.0 * t);
+        r[i] = 1.414f * (float) std::cos (2.0 * (double) kPi * 100.0 * t);
+    }
+
+    protection.process (l.data(), r.data(), (int) l.size());
+
+    // Every sample must be strictly bounded within [-1.0f, +1.0f]
+    float maxL = 0.0f, maxR = 0.0f;
+    for (size_t i = 0; i < l.size(); ++i)
+    {
+        maxL = std::max (maxL, std::abs (l[i]));
+        maxR = std::max (maxR, std::abs (r[i]));
+        CHECK (std::abs (l[i]) <= 1.00001f);
+        CHECK (std::abs (r[i]) <= 1.00001f);
+    }
+    CHECK (maxL > 0.8f && maxL <= 1.00001f);
+    CHECK (maxR > 0.8f && maxR <= 1.00001f);
+
+    // Verify sample-to-sample smoothness (no harsh discontinuous jumps)
+    float maxDeltaL = 0.0f;
+    for (size_t i = 1; i < l.size(); ++i)
+        maxDeltaL = std::max (maxDeltaL, std::abs (l[i] - l[i - 1]));
+    CHECK (maxDeltaL < 0.05f); // At 100 Hz, smooth step is ~0.018f, never abrupt 90-degree step
+}
+
 TEST (neutralEqIsTransparent)
 {
     ChannelDspProcessor dsp;

@@ -25,30 +25,34 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
                            .getChildFile ("MixPracticeStudioCache");
         tempDir.createDirectory();
 
+        SincResampler resampler (origSr, targetSampleRate, 12, 256);
+        const int64_t inLen = readerToUse->lengthInSamples;
+        const int64_t outLen = resampler.getOutputLength (inLen);
+        const int numCh = std::min (2, (int) readerToUse->numChannels);
+
+        const juce::String legalName = juce::File::createLegalFileName (file.getFileNameWithoutExtension());
         const juce::String fileHash = juce::String::toHexString (file.getFullPathName().hashCode64());
-        auto cacheFile = tempDir.getChildFile (file.getFileNameWithoutExtension()
-                                               + "_" + fileHash + "_cached_"
+        auto cacheFile = tempDir.getChildFile (legalName + "_" + fileHash + "_cached_"
                                                + juce::String ((int) targetSampleRate) + ".wav");
 
         bool cacheValid = false;
         if (cacheFile.existsAsFile() && cacheFile.getLastModificationTime() >= file.getLastModificationTime())
         {
             auto cr = std::unique_ptr<juce::AudioFormatReader> (formatManager.createReaderFor (cacheFile));
-            if (cr != nullptr && std::abs (cr->sampleRate - targetSampleRate) <= 1.0)
+            if (cr != nullptr && std::abs (cr->sampleRate - targetSampleRate) <= 1.0
+                && (int64_t) cr->lengthInSamples >= outLen - 4096)
             {
                 readerToUse = std::move (cr);
                 cacheValid = true;
+            }
+            else
+            {
+                cacheFile.deleteFile();
             }
         }
 
         if (! cacheValid)
         {
-            // Convert using our SincResampler (12 zero-crossings for fast studio-quality conversion)
-            SincResampler resampler (origSr, targetSampleRate, 12, 256);
-            const int64_t inLen = readerToUse->lengthInSamples;
-            const int64_t outLen = resampler.getOutputLength (inLen);
-            const int numCh = std::min (2, (int) readerToUse->numChannels);
-
             cacheFile.deleteFile();
             std::unique_ptr<juce::OutputStream> outStream = cacheFile.createOutputStream();
             if (outStream != nullptr)
@@ -98,9 +102,13 @@ std::shared_ptr<AudioFileTrack> AudioFileTrack::open (const juce::File& file,
                     writer.reset(); // flushes and closes stream
 
                     auto cr = std::unique_ptr<juce::AudioFormatReader> (formatManager.createReaderFor (cacheFile));
-                    if (cr != nullptr)
+                    if (cr != nullptr && (int64_t) cr->lengthInSamples >= outLen - 4096)
                     {
                         readerToUse = std::move (cr);
+                    }
+                    else
+                    {
+                        cacheFile.deleteFile();
                     }
                 }
             }

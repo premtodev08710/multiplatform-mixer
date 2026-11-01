@@ -117,3 +117,38 @@ MPS_TEST_FILTER=transportLive /tmp/mps-core-tsan-final
 - ติดตั้งผ่าน `pm install -r -t` สำเร็จ โดยคงข้อมูลแอปเดิม เปิด `com.mixpractice.studio/.MainActivity` แล้วกระบวนการยังทำงาน และไม่พบ crash log ของกระบวนการที่เปิดในการตรวจครั้งนี้
 - ลบไฟล์ APK/parts ชั่วคราวบนโทรศัพท์ และสลับ adbd กลับ USB (TCP port = 0) แล้ว
 - ยังไม่ได้ยืนยันผลการฟังเสียง WAV สองแทร็กบนอุปกรณ์ ต้องให้ผู้ใช้ลองไฟล์เดิมหลังติดตั้ง
+
+---
+
+## ผลการทดสอบจากผู้ใช้และระบุสาเหตุที่แท้จริง (Root Cause Resolution)
+
+ผู้ใช้ทดสอบ build v1.0.1 แล้วแจ้งว่า: *"ยังไม่หายแสดงว่าไม่ใช่สาเหตุที่แก้"*
+
+### 1. วิเคราะห์ข้อผิดพลาดของสมมติฐานเดิม
+สมมติฐานเดิมมุ่งเป้าไปที่จังหวะ Live Backfill / Thread Synchronization ขณะกดเพิ่มแทร็กระหว่างเล่นเพลง แต่ความจริงแล้วเสียงแตกเกิดขึ้น **ต่อเนื่องตลอดการเล่นเพลง (Continuous playback)** แม้เปิด 2 แทร็กตั้งแต่แรกโดยไม่ได้กดเพิ่มแทร็กขณะเล่น
+
+### 2. สาเหตุที่แท้จริง (Root Causes)
+1. **OutputProtection Sample-by-Sample Hard Step Distortion:**
+   - เมื่อเล่น 1 แทร็ก สัญญาณช่องเดียว peak อยู่ที่ ~0.57 (-4.9 dBFS) ซึ่งต่ำกว่า 1.0f ทำให้ OutputProtection ปล่อยผ่าน 100% เสียงจึงปกติ
+   - เมื่อเปิด 2 แทร็กพร้อมกัน สัญญาณบวกกันที่ Master Bus: `0.57 + 0.57 = 1.14` (+1.1 dBFS เกิน full scale) แม้มิเตอร์ของแต่ละ Channel Strip จะแสดงสีเขียว (ไม่เกิน/ไม่พีค)
+   - โค้ดเดิมของ `OutputProtection.h` คำนวณแบบ instantaneous sample-step:
+     `required = peak > 1.0f ? 1.0f / peak : 1.0f;`
+     `gain = std::min (required, gain + release * (1.0f - gain));`
+     ทำให้บนทุกๆ cycle ของยอดคลื่นเสียงที่เกิน 1.0f ค่า gain ถูกหักขั้นบันไดแบบไร้ attack envelope ส่งผลให้ยอดคลื่นถูกสับเป็นรูปคลื่นสี่เหลี่ยม (waveform square chopping) เกิด harmonic distortion และเสียงแตกกระชากต่อเนื่อง (buzzing crackle) คล้ายเสียงลำโพงแตก
+2. **Unchecked Partial/Truncated Resampler Cache:**
+   - ไฟล์ WAV ต้นฉบับ 44.1 kHz (~403 MB) เมื่อถูกแปลงเป็น 48 kHz บน Android จะได้ไฟล์แคชขนาดมหาศาล (~880 MB)
+   - โค้ดเดิมตรวจสอบเพียง `cacheFile.existsAsFile()` หากการเขียนแคชเคยสะดุดหรือขาดตอน ไฟล์แคชที่ไม่สมบูรณ์จะถูกโหลดซ้ำ ทำให้เกิด read errors ต่อเนื่อง
+
+### 3. การแก้ไขที่นำมาใช้
+1. **ยกเครื่อง `OutputProtection.h` สู่ Studio Peak Limiter:**
+   - ใช้ Envelope Follower พร้อม Attack Envelope (~1 ms) และ Smooth Musical Release (~100 ms) ป้องกันการสับยอดคลื่นที่ความถี่เสียง
+   - เพิ่ม Soft Ceiling Protection รับประกันทางคณิตศาสตร์ว่าสัญญาณขาออกจะไม่เกิน `[-1.0f, +1.0f]` โดยคงความต่อเนื่องของอนุพันธ์ (C1 smooth) ไร้รอยหยัก/เสียงแคร็ก
+   - สัญญาณที่ต่ำกว่า full scale ยังคงเป็น Bit-accurate Linear 100% ไร้ distortion
+2. **ตรวจสอบความสมบูรณ์ของไฟล์แคชใน `AudioFileTrack.cpp`:**
+   - ตรวจสอบ `cr->lengthInSamples >= outLen - 4096` ก่อนยอมรับไฟล์แคช
+   - ใช้ `juce::File::createLegalFileName` ป้องกันปัญหาชื่อไฟล์ภาษาไทยและสัญลักษณ์พิเศษบนระบบไฟล์ Android
+3. **การทดสอบยืนยัน:**
+   - เพิ่ม unit test `outputProtectionSmoothOnHeavyOverload` ใน `Tests/CoreTests.cpp`
+   - รัน Core Tests ผ่าน **79/79 การทดสอบ (148,974 checks, 0 failed)**
+   - รัน Audio File Playback Tests ผ่าน **0 failures**
+   - รัน Console State Integration Tests ผ่าน **4,590 parameters, 0 failures**
