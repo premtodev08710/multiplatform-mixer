@@ -293,6 +293,7 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         Source/Core/TimelineStreamer.cpp
         Source/Core/SincResampler.cpp
     )
+    add_test(NAME AudioFilePlaybackTests COMMAND UiSnapshotTest --audio-playback-tests)
     target_compile_definitions(UiSnapshotTest PRIVATE
         JUCE_USE_MP3AUDIOFORMAT=1
         JUCE_WEB_BROWSER=0

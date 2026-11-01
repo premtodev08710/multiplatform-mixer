@@ -72,6 +72,10 @@ public:
     bool isRecording() const noexcept { return recording.load(); }
     int64_t getRecordingOverruns() const noexcept { return recordingOverruns.load(); }
 
+    uint64_t getOutputOverloadBlocks() const noexcept { return outputOverloadBlocks.load (std::memory_order_relaxed); }
+
+    juce::String getAudioDiagnosticReport(); // message thread only
+
     // Audio device callback
     void audioDeviceAboutToStart (juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
@@ -99,6 +103,7 @@ private:
     TimelineStreamer streamer;
     MixEngine mixEngine;
     OutputProtection outputProtection;
+    std::atomic<uint64_t> outputOverloadBlocks { 0 };
 
     std::shared_ptr<TrackSet> currentTracks;
     std::mutex tracksMutex;

@@ -308,6 +308,17 @@ public:
         return "MPS-1Y-" + randPayload.substring (0, 4) + "-" + randPayload.substring (4, 8) + "-" + checksum;
     }
 
+    /** Activates lifetime Pro status (e.g. from Google Play Billing or Lifetime code). */
+    static void activateLifetimePro (const juce::String& identifier = "GOOGLE_PLAY_PURCHASE")
+    {
+        const int64_t farFutureExpiry = 253402300799LL; // 31 Dec 9999
+        auto usedKeys = getUsedKeys();
+        if (! usedKeys.contains (identifier))
+            usedKeys.add (identifier);
+
+        saveLicenseData (farFutureExpiry, identifier, usedKeys, "lifetime");
+    }
+
 private:
     static uint64_t fnv1a64 (const char* str, size_t len) noexcept
     {
@@ -367,17 +378,6 @@ private:
         }
 
         return expiry;
-    }
-
-    /** Activates lifetime Pro status (e.g. from Google Play Billing or Lifetime code). */
-    static void activateLifetimePro (const juce::String& identifier = "GOOGLE_PLAY_PURCHASE")
-    {
-        const int64_t farFutureExpiry = 253402300799LL; // 31 Dec 9999
-        auto usedKeys = getUsedKeys();
-        if (! usedKeys.contains (identifier))
-            usedKeys.add (identifier);
-
-        saveLicenseData (farFutureExpiry, identifier, usedKeys, "lifetime");
     }
 
     static juce::StringArray getUsedKeys()

@@ -30,3 +30,6 @@ android/build/
 # Local reference repositories and scenes
 X32-Behringer-master/
 scene.scn
+dist/
+app v1/
+x32 ios/

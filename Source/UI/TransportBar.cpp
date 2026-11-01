@@ -89,6 +89,8 @@ TransportBar::TransportBar (AudioEngine& eng) : engine (eng)
     statusLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
     statusLabel.setText ("48.0 kHz", juce::dontSendNotification);
     addAndMakeVisible (statusLabel);
+    statusLabel.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    statusLabel.addMouseListener (this, false);
 
     cpuLabel.setFont (juce::FontOptions (10.0f));
     cpuLabel.setColour (juce::Label::textColourId, ConsoleLookAndFeel::textMuted);
@@ -101,6 +103,14 @@ TransportBar::TransportBar (AudioEngine& eng) : engine (eng)
 TransportBar::~TransportBar()
 {
     stopTimer();
+    statusLabel.removeMouseListener (this);
+}
+
+void TransportBar::mouseUp (const juce::MouseEvent& event)
+{
+    if (event.eventComponent == &statusLabel && !event.mouseWasDraggedSinceMouseDown())
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+            "Audio report", engine.getAudioDiagnosticReport());
 }
 
 void TransportBar::setLoopRange (double startNorm, double endNorm)
@@ -152,10 +162,21 @@ void TransportBar::timerCallback()
     const double curSr = engine.getSampleRate();
     const int curBs = dev != nullptr ? dev->getCurrentBufferSizeSamples() : engine.getBufferSize();
     const juce::String srTxt = curSr > 1000.0 ? (juce::String (curSr * 0.001, 1) + " kHz") : (juce::String ((int) curSr) + " Hz");
-    statusLabel.setText (srTxt + " | " + juce::String (curBs) + " spl | Buf: " + juce::String ((int) (bufFill * 100.0f)) + "%",
+    const int deviceDropouts = std::max (0, engine.getDeviceManager().getXRunCount());
+    const auto streamDropouts = s.getUnderrunCount();
+    const auto overloads = engine.getOutputOverloadBlocks();
+    const auto dropouts = (uint64_t) deviceDropouts + streamDropouts;
+    const juce::String health = dropouts > 0 ? "Drop: " + juce::String ((juce::int64) dropouts)
+        : overloads > 0 ? "Out CLIP" : "Buf: " + juce::String ((int) (bufFill * 100.0f)) + "%";
+    statusLabel.setText (srTxt + " | " + juce::String (curBs) + " spl | " + health,
                          juce::dontSendNotification);
-    if (dev != nullptr)
-        statusLabel.setTooltip ("Device: " + dev->getName() + " | Sample Rate: " + juce::String ((int) curSr) + " Hz | Buffer Size: " + juce::String (curBs) + " samples");
+    statusLabel.setColour (juce::Label::textColourId,
+        dropouts > 0 || overloads > 0 ? ConsoleLookAndFeel::accentYellow : ConsoleLookAndFeel::textMuted);
+    statusLabel.setTooltip ((dev != nullptr ? "Device: " + dev->getName() + " | " : juce::String())
+        + "Device dropouts: " + juce::String (deviceDropouts)
+        + " | Stream underruns: " + juce::String ((juce::int64) streamDropouts)
+        + " | Output overload blocks: " + juce::String ((juce::int64) overloads)
+        + " (totals for this session). Tap for audio report. Output is measured after monitor/solo gain, before protection.");
 
     const double cpu = engine.getDeviceManager().getCpuUsage();
     cpuLabel.setText ("CPU: " + juce::String ((int) std::lround (cpu * 100.0)) + "%", juce::dontSendNotification);

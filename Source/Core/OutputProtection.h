@@ -13,16 +13,21 @@ public:
     void prepare (double sampleRate) noexcept
     {
         gain = 1.0f;
+        inputPeak = 0.0f;
         release = (float) (1.0 - std::exp (-1.0 / (0.1 * std::max (1.0, sampleRate))));
     }
 
+    float getInputPeak() const noexcept { return inputPeak; }
+
     void process (float* left, float* right, int count) noexcept
     {
+        inputPeak = 0.0f;
         for (int i = 0; i < count; ++i)
         {
             const float l = std::isfinite (left[i]) ? left[i] : 0.0f;
             const float r = std::isfinite (right[i]) ? right[i] : 0.0f;
             const float peak = std::max (std::abs (l), std::abs (r));
+            inputPeak = std::max (inputPeak, peak);
             const float required = peak > 1.0f ? 1.0f / peak : 1.0f;
             gain = std::min (required, gain + release * (1.0f - gain));
             left[i] = l * gain;
@@ -30,6 +35,7 @@ public:
         }
     }
 private:
+    float inputPeak = 0.0f;
     float gain = 1.0f, release = 0.0f;
 };
 }

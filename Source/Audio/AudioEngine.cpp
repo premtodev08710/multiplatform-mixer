@@ -97,48 +97,22 @@ static juce::File getAudioSettingsFile()
 void AudioEngine::saveAudioDeviceSettings()
 {
     auto xml = deviceManager.createStateXml();
-    if (xml == nullptr)
-        xml = std::make_unique<juce::XmlElement> ("DEVICESETUP");
-
-    const double sr = currentSampleRate.load();
-    if (sr > 0.0)
-        xml->setAttribute ("deviceSampleRate", sr);
-
-    auto file = getAudioSettingsFile();
-    xml->writeTo (file);
+    if (xml != nullptr)
+    {
+        auto file = getAudioSettingsFile();
+        xml->writeTo (file);
+    }
 }
 
 void AudioEngine::loadAudioDeviceSettings()
 {
-    auto file = getAudioSettingsFile();
-    std::unique_ptr<juce::XmlElement> xml;
-    if (file.existsAsFile())
-        xml = juce::XmlDocument::parse (file);
-
-    double savedSr = 0.0;
-    if (xml != nullptr && xml->hasAttribute ("deviceSampleRate"))
-        savedSr = xml->getDoubleAttribute ("deviceSampleRate", 0.0);
-
-    juce::String err;
-    if (xml != nullptr)
-        err = deviceManager.initialise (0, 2, xml.get(), true);
-    else
-        err = deviceManager.initialiseWithDefaultDevices (0, 2);
-
-    if (xml != nullptr && (err.isNotEmpty() || deviceManager.getCurrentAudioDevice() == nullptr))
-    {
-        // Fallback to default devices if saved XML config failed or opened no device
-        err = deviceManager.initialiseWithDefaultDevices (0, 2);
-    }
+    // Always initialise default hardware devices cleanly without forcing custom sample rates
+    deviceManager.initialiseWithDefaultDevices (0, 2);
 
     if (auto* dev = deviceManager.getCurrentAudioDevice())
     {
         if (dev->getCurrentSampleRate() > 0.0)
             currentSampleRate.store (dev->getCurrentSampleRate());
-    }
-    else if (isSampleRateSupported (savedSr))
-    {
-        currentSampleRate.store (savedSr);
     }
 }
 
@@ -457,6 +431,9 @@ double AudioEngine::setSampleRate (double requestedSampleRate)
         }
     }
 
+    // Detach first: pausing transport does NOT stop the device callback from using
+    // scratch buffers and DSP state. Reallocating them while it runs is unsafe.
+    deviceManager.removeAudioCallback (this);
     // 2. Re-initialization: Stop/clear old buffers & update hardware device and audio processors
     const bool wasPlaying = streamer.isPlaying();
     streamer.setPlaying (false);
@@ -492,7 +469,10 @@ double AudioEngine::setSampleRate (double requestedSampleRate)
         }
     }
 
-    reinitializeAudioForSampleRate (targetSr, currentBlockSize.load());
+    if (deviceManager.getCurrentAudioDevice() != nullptr)
+        deviceManager.addAudioCallback (this); // aboutToStart prepares once, before callbacks resume
+    else
+        reinitializeAudioForSampleRate (targetSr, currentBlockSize.load());
 
     if (wasPlaying)
         streamer.setPlaying (true);
@@ -530,6 +510,32 @@ void AudioEngine::preparePlayback (double sampleRate, int blockSize)
 
     mixEngine.prepare (sr, safeCapacity);
     outputProtection.prepare (sr);
+}
+
+juce::String AudioEngine::getAudioDiagnosticReport()
+{
+    juce::String report = "Audio check 2026-11-01\n";
+    if (auto* device = deviceManager.getCurrentAudioDevice())
+        report += "Device: " + device->getTypeName() + " / " + device->getName() + "\n";
+    report += "Rate: " + juce::String (getSampleRate(), 0) + " Hz | Buffer: " + juce::String (getBufferSize()) + "\n";
+    report += "Audio CPU: " + juce::String (deviceManager.getCpuUsage() * 100.0, 1) + "%\n";
+    report += "Device dropouts: " + juce::String (deviceManager.getXRunCount()) + " (-1 = unavailable)\n";
+    report += "Stream underruns: " + juce::String ((juce::int64) streamer.getUnderrunCount()) + "\n";
+    report += "Read errors: " + juce::String ((juce::int64) streamer.getReadErrorCount()) + "\n";
+    report += "Output overload blocks: " + juce::String ((juce::int64) getOutputOverloadBlocks()) + "\n";
+    report += "Read-ahead: " + juce::String (streamer.getBufferFill() * 100.0f, 0) + "%\n";
+    report += "Main: " + juce::String (params.main.faderDb.get(), 1) + " dB | Monitor: "
+        + juce::String (params.monitorLevelDb.get(), 1) + " dB\n";
+    report += "Output route: " + juce::String (params.outputSource.getInt()) + " | Solo mode: "
+        + juce::String (params.monitorMode.getInt()) + "\n";
+    int tracks = 0, channels = 0, auxes = 0;
+    for (int s = 0; s < kMaxTracks; ++s) if (getTrackSlot (s)) ++tracks;
+    for (const auto& ch : params.channels) if (ch.source.getInt() >= 0 && !ch.mute.getBool()) ++channels;
+    for (const auto& aux : params.auxes) if (aux.source.getInt() >= 0 && !aux.mute.getBool()) ++auxes;
+    report += "Loaded tracks: " + juce::String (tracks) + " | Assigned channels: " + juce::String (channels)
+        + " | Aux sources: " + juce::String (auxes) + "\n";
+    report += "Counters are session totals. Capture this report while the distortion is audible.";
+    return report;
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -576,6 +582,8 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* /*inputC
                            engineOutL.data(), engineOutR.data());
 
         outputProtection.process (engineOutL.data(), engineOutR.data(), blockFrames);
+        if (outputProtection.getInputPeak() > 1.0f)
+            outputOverloadBlocks.fetch_add (1, std::memory_order_relaxed);
 
         // Queue the monitored stereo output to disk without waiting on the audio thread.
         if (recording.load (std::memory_order_relaxed))

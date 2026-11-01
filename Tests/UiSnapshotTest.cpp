@@ -1,12 +1,15 @@
 #include "../Source/UI/MainComponent.h"
 #include "../Source/Model/ConsoleStateFields.h"
 #include <iostream>
+#include "AudioPlaybackTests.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI guiInit;
+    if (argc > 1 && juce::String (argv[1]) == "--audio-playback-tests")
+        return runAudioPlaybackTests();
 
     if (argc > 1 && juce::String (argv[1]) == "--bus-display-ui-tests")
     {

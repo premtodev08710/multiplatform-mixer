@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <string>
 #include <vector>
@@ -19,10 +20,13 @@ struct Registrar { Registrar (const char* n, std::function<void()> f) { registry
 
 inline int runAll (const char* suiteName)
 {
-    int failedTests = 0;
+    int failedTests = 0, selectedTests = 0;
+    const char* filter = std::getenv ("MPS_TEST_FILTER");
     std::printf ("=== %s: %d tests ===\n", suiteName, (int) registry().size());
     for (auto& t : registry())
     {
+        if (filter != nullptr && std::string (t.name).find (filter) == std::string::npos) continue;
+        ++selectedTests;
         const int before = failures();
         t.fn();
         const bool ok = failures() == before;
@@ -30,8 +34,8 @@ inline int runAll (const char* suiteName)
         std::printf ("[%s] %s\n", ok ? " OK " : "FAIL", t.name);
     }
     std::printf ("=== %s: %d/%d tests passed, %d checks, %d failed checks ===\n", suiteName,
-                 (int) registry().size() - failedTests, (int) registry().size(), checks(), failures());
-    return failedTests == 0 ? 0 : 1;
+                 selectedTests - failedTests, selectedTests, checks(), failures());
+    return failedTests == 0 && selectedTests > 0 ? 0 : 1;
 }
 } // namespace mpstest
 

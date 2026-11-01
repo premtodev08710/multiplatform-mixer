@@ -18,6 +18,8 @@ TimelineStreamer::TimelineStreamer (Config c) : cfg (c)
 
     ring.assign ((size_t) kRingChannels * (size_t) cfg.ringFrames, 0.0f);
     framePos.assign ((size_t) cfg.ringFrames, 0);
+    frameFade.assign ((size_t) cfg.ringFrames, 1.0f);
+    slotGain.fill (1.0f);
     frameGen.assign ((size_t) cfg.ringFrames, 0);
     scratch.assign ((size_t) kRingChannels * (size_t) cfg.chunkFrames, 0.0f);
     fadeFrames.store (std::max (1, cfg.fadeFrames));
@@ -104,14 +106,17 @@ int64_t TimelineStreamer::getLoopEnd() const   { std::lock_guard<std::mutex> l (
 
 float TimelineStreamer::getBufferFill() const noexcept
 {
-    const auto avail = writeCount.load (std::memory_order_acquire) - readCount.load (std::memory_order_acquire);
+    const auto written = writeCount.load (std::memory_order_acquire);
+    const auto read = readCount.load (std::memory_order_acquire);
+    // The consumer can pass this older write snapshot while the UI is sampling.
+    const auto avail = written >= read ? std::min<uint64_t> (written - read, (uint64_t) cfg.ringFrames) : 0;
     return (float) avail / (float) cfg.ringFrames;
 }
 
 void TimelineStreamer::getSlotChannelCounts (int* dest) const noexcept
 {
     for (int s = 0; s < kMaxTracks; ++s)
-        dest[s] = slotChannels[(size_t) s].load (std::memory_order_acquire);
+        dest[s] = renderedSlotChannels[(size_t) s];
 }
 
 //==============================================================================
@@ -125,6 +130,7 @@ bool TimelineStreamer::service()
         const uint32_t te = requestedTrackEpoch.load (std::memory_order_acquire);
         if (g != prodGen)
         {
+            suspendRequest.store (0, std::memory_order_release);
             prodGen = g;
             prodTrackEpoch = te;
             prodPos = pending.position;
@@ -157,8 +163,24 @@ bool TimelineStreamer::service()
         }
         else if (te != prodTrackEpoch)
         {
+            uint32_t changed = 0;
+            for (int slot = 0; slot < kMaxTracks; ++slot)
+            {
+                const auto oldReader = prodTracks ? prodTracks->slots[(size_t) slot] : nullptr;
+                const auto newReader = pending.tracks ? pending.tracks->slots[(size_t) slot] : nullptr;
+                if (oldReader != newReader) changed |= uint32_t (1) << slot;
+            }
+            const uint64_t request = ((uint64_t) te << 32) | changed;
+            if (changed != 0)
+            {
+                suspendRequest.store (request, std::memory_order_release);
+                if (suspendAcknowledged.load (std::memory_order_acquire) != request)
+                    return false; // consumer still owns these slots; never wait on the audio thread
+            }
             auto oldTracks = prodTracks;
             prodTrackEpoch = te;
+            // Extending a completed producer must invalidate its previous end marker.
+            endGen.store (0, std::memory_order_release);
             prodTracks = pending.tracks;
 
             int64_t len = 0;
@@ -195,14 +217,13 @@ bool TimelineStreamer::service()
 
     if (backfillNeeded)
     {
-        // Backfill already-buffered ring frames for newly added/changed slots ahead of consumer read pointer
-        // so that existing playing tracks continue uninterrupted with zero dropout or discontinuity!
+        // The consumer has acknowledged that it no longer reads the changed slots.
+        // Unchanged slots remain immutable and continue playing during disk reads.
         const int chunk = cfg.chunkFrames;
         const auto ringFrames = (uint64_t) cfg.ringFrames;
         const uint64_t w = writeCount.load (std::memory_order_relaxed);
         const uint64_t rNow = readCount.load (std::memory_order_acquire);
-        const uint64_t safetyMargin = 1024;
-        uint64_t cursor = std::min (w, rNow + safetyMargin);
+        uint64_t cursor = rNow;
 
         while (cursor < w)
         {
@@ -242,6 +263,7 @@ bool TimelineStreamer::service()
                         float* dest[2] = { d0, d1 };
                         if (! reader->read (dest, basePos, m))
                         {
+                            readErrors.fetch_add (1, std::memory_order_relaxed);
                             std::memset (d0, 0, sizeof (float) * (size_t) m);
                             std::memset (d1, 0, sizeof (float) * (size_t) m);
                         }
@@ -253,6 +275,13 @@ bool TimelineStreamer::service()
                     }
                     if (numCh == 1)
                         std::memcpy (d1, d0, sizeof (float) * (size_t) run);
+                }
+
+                for (int i = 0; i < run; ++i)
+                {
+                    const float envelope = frameFade[(size_t) ((cursor + (uint64_t) i) & mask)];
+                    d0[i] *= envelope;
+                    d1[i] *= envelope;
                 }
 
                 const uint64_t start = cursor & mask;
@@ -284,7 +313,12 @@ bool TimelineStreamer::service()
         }
     }
 
-    if (prodFinished) return false;
+    suspendRequest.store (0, std::memory_order_release);
+    if (prodFinished)
+    {
+        endGen.store (prodGen, std::memory_order_release);
+        return false;
+    }
 
     const int64_t len = length.load (std::memory_order_acquire);
     const int fade = fadeFrames.load();
@@ -348,6 +382,7 @@ bool TimelineStreamer::service()
                 float* dest[2] = { d0, d1 };
                 if (! reader->read (dest, prodPos, m))
                 {
+                    readErrors.fetch_add (1, std::memory_order_relaxed);
                     std::memset (d0, 0, sizeof (float) * (size_t) m);
                     std::memset (d1, 0, sizeof (float) * (size_t) m);
                 }
@@ -362,6 +397,8 @@ bool TimelineStreamer::service()
         }
 
         // ---- short dip around the loop wrap point to avoid clicks
+        for (int i = 0; i < n; ++i)
+            frameFade[(size_t) ((w + (uint64_t) i) & mask)] = 1.0f;
         if (looping)
         {
             for (int i = 0; i < n; ++i)
@@ -376,6 +413,7 @@ bool TimelineStreamer::service()
                 const int64_t toEnd = loopB - pos;
                 if (toEnd <= fade)
                     g = std::min (g, (float) (toEnd - 1) / (float) fade);
+                frameFade[(size_t) ((w + (uint64_t) i) & mask)] = g;
                 if (g < 1.0f)
                     for (int ch = 0; ch < kRingChannels; ++ch)
                         scratch[(size_t) ch * (size_t) chunk + (size_t) i] *= g;
@@ -441,6 +479,12 @@ void TimelineStreamer::copyOut (float* const* slotOut, int outOffset, uint64_t r
 
     for (int ch = 0; ch < kRingChannels; ++ch)
     {
+        // A released slot may be undergoing disk-thread backfill. Do not even
+        // memcpy it: muting after a read would still be a C++ data race.
+        const int slot = ch / 2;
+        if (((uint32_t) consumerSuspension & (uint32_t (1) << slot)) != 0
+            && slotGain[(size_t) slot] == 0.0f)
+            continue;
         const float* src = ring.data() + (size_t) ch * ringFrames;
         float* dst = slotOut[ch] + outOffset;
         std::memcpy (dst, src + start, sizeof (float) * (size_t) first);
@@ -463,6 +507,34 @@ void TimelineStreamer::copyOut (float* const* slotOut, int outOffset, uint64_t r
 }
 
 void TimelineStreamer::pull (float* const* slotOut, int n) noexcept
+{
+    if (n <= 0) return;
+    consumerSuspension = suspendRequest.load (std::memory_order_acquire);
+    for (int slot = 0; slot < kMaxTracks; ++slot)
+        renderedSlotChannels[(size_t) slot] = slotChannels[(size_t) slot].load (std::memory_order_acquire);
+    pullFrames (slotOut, n);
+    const uint32_t suspended = (uint32_t) consumerSuspension;
+    const float step = 1.0f / (float) std::max (1, fadeFrames.load (std::memory_order_relaxed));
+    bool released = true;
+    for (int slot = 0; slot < kMaxTracks; ++slot)
+    {
+        auto& g = slotGain[(size_t) slot];
+        const bool disabling = (suspended & (uint32_t (1) << slot)) != 0;
+        const float target = disabling ? 0.0f : 1.0f;
+        if (g != target || target == 0.0f)
+            for (int i = 0; i < n; ++i)
+            {
+                g = disabling ? std::max (0.0f, g - step) : std::min (1.0f, g + step);
+                slotOut[slot * 2][i] *= g;
+                slotOut[slot * 2 + 1][i] *= g;
+            }
+        if (disabling && g != 0.0f) released = false;
+    }
+    if (consumerSuspension != 0 && released)
+        suspendAcknowledged.store (consumerSuspension, std::memory_order_release);
+}
+
+void TimelineStreamer::pullFrames (float* const* slotOut, int n) noexcept
 {
     if (n <= 0) return;
     for (int ch = 0; ch < kRingChannels; ++ch)

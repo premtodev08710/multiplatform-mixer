@@ -217,6 +217,17 @@ void SetupScreen::buttonClicked (juce::Button* b)
         return;
     }
 
+#if JUCE_ANDROID || JUCE_IOS
+    if (b == &sr44100Button || b == &sr48000Button || b == &sr96000Button)
+    {
+        juce::AlertWindow::showMessageBoxAsync (
+            juce::AlertWindow::InfoIcon,
+            "Hardware Native Sample Rate",
+            "On mobile devices, Mix Practice Studio uses the hardware's native sample rate ("
+            + juce::String (engine.getSampleRate(), 0) + " Hz) for maximum stability and zero dropouts.");
+        return;
+    }
+#else
     if (b == &sr44100Button)
     {
         engine.setSampleRate (44100.0);
@@ -235,6 +246,7 @@ void SetupScreen::buttonClicked (juce::Button* b)
         refreshSampleRateButtons();
         return;
     }
+#endif
 
     if (b == &x32ConnectButton)
     {

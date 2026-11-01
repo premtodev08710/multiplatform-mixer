@@ -70,6 +70,7 @@ public:
     /** True once after playback stopped automatically at the end of the material. */
     bool consumeReachedEnd() noexcept          { return reachedEnd.exchange (false); }
     uint64_t getUnderrunCount() const noexcept { return underruns.load (std::memory_order_relaxed); }
+    uint64_t getReadErrorCount() const noexcept { return readErrors.load (std::memory_order_relaxed); }
     int getSlotChannels (int slot) const noexcept { return slotChannels[(size_t) slot].load (std::memory_order_acquire); }
     /** Fraction of the ring that is filled with current-generation audio (UI diagnostic). */
     float getBufferFill() const noexcept;
@@ -92,6 +93,7 @@ private:
     // generations: frames older than requestedGen are stale
     static bool genBefore (uint32_t a, uint32_t b) noexcept { return (int32_t) (a - b) < 0; }
     uint64_t countStale (uint64_t readPos, uint64_t avail, uint32_t target) const noexcept;
+    void pullFrames (float* const* slotOut, int numFrames) noexcept;
     void copyOut (float* const* slotOut, int outOffset, uint64_t readPos, int count,
                   float& gain, float gainStep, float gainTarget) noexcept;
 
@@ -99,6 +101,7 @@ private:
     uint64_t mask = 0;
     std::vector<float> ring;            // [channel][frame]
     std::vector<int64_t> framePos;      // timeline position of each ring frame
+    std::vector<float> frameFade;       // preserve loop envelope when replacing a slot
     std::vector<uint32_t> frameGen;     // generation of each ring frame
 
     std::atomic<uint64_t> writeCount { 0 }, readCount { 0 };
@@ -126,6 +129,11 @@ private:
     std::shared_ptr<const TrackSet> prodTracks;
     std::vector<float> scratch;         // [channel][chunk]
 
+    std::atomic<uint64_t> suspendRequest { 0 }, suspendAcknowledged { 0 };
+    uint64_t consumerSuspension = 0;
+    std::array<float, kMaxTracks> slotGain {};
+    std::array<int, kMaxTracks> renderedSlotChannels {};
+
     // shared status
     std::atomic<uint32_t> endGen { 0 };         // generation whose data reached the end
     std::array<std::atomic<int>, kMaxTracks> slotChannels {};
@@ -133,7 +141,7 @@ private:
     std::atomic<int64_t> playhead { 0 };
     std::atomic<bool> playing { false };
     std::atomic<bool> reachedEnd { false };
-    std::atomic<uint64_t> underruns { 0 };
+    std::atomic<uint64_t> underruns { 0 }, readErrors { 0 };
     std::atomic<int> fadeFrames { 256 };
 
     // consumer-only state

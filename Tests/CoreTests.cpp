@@ -1451,6 +1451,161 @@ TEST (transportAddingTrackDuringPlaybackIsClickFree)
     CHECK_NEAR (r.at (1, 0, r.block - 1), 0.25f, 1e-6);
 }
 
+TEST (transportNewTrackHasNoAbruptOnset)
+{
+    StreamRig r (256);
+    auto first = std::make_shared<TrackSet>();
+    first->slots[0] = std::make_shared<FnTrack> (1, 480000, [] (int64_t, int) { return 0.1f; });
+    r.s.setTrackSet (first); r.s.setPlaying (true);
+    for (int b = 0; b < 10; ++b) { r.serviceAll(); r.pull(); }
+    auto added = std::make_shared<TrackSet> (*first);
+    added->slots[1] = std::make_shared<FnTrack> (2, 480000, [] (int64_t, int c) { return c == 0 ? 0.2f : -0.15f; });
+    r.s.setTrackSet (added);
+    float last = 0, maxStep = 0;
+    for (int b = 0; b < 30; ++b)
+    {
+        r.serviceAll(); r.pull();
+        for (int i = 0; i < r.block; ++i)
+        {
+            maxStep = std::max (maxStep, std::abs (r.at (1, 0, i) - last));
+            last = r.at (1, 0, i);
+            CHECK_NEAR (r.at (0, 0, i), 0.1f, 1e-6);
+        }
+    }
+    CHECK (maxStep <= 0.2f / 256 + 1e-6f);
+    CHECK_NEAR (last, 0.2f, 1e-6);
+    CHECK_NEAR (r.at (1, 1, 255), -0.15f, 1e-6);
+}
+
+TEST (transportReadErrorsAreReportedWithoutCorruptingOtherTracks)
+{
+    struct FailedTrack : FnTrack
+    {
+        FailedTrack() : FnTrack (2, 48000, [] (int64_t, int) { return 0.0f; }) {}
+        bool read (float* const*, int64_t, int) override { return false; }
+    };
+    StreamRig rig (256);
+    auto tracks = std::make_shared<TrackSet>();
+    tracks->slots[0] = std::make_shared<FnTrack> (1, 48000, [] (int64_t, int) { return 0.1f; });
+    tracks->slots[1] = std::make_shared<FailedTrack>();
+    rig.s.setTrackSet (tracks); rig.s.setPlaying (true); rig.serviceAll();
+    rig.pull(); rig.pull();
+    CHECK (rig.s.getReadErrorCount() > 0);
+    CHECK_NEAR (rig.at (0, 0, 255), 0.1f, 1e-6);
+    CHECK_NEAR (rig.at (1, 0, 255), 0.0f, 0);
+    CHECK_NEAR (rig.at (1, 1, 255), 0.0f, 0);
+}
+
+TEST (transportLiveReplacementPreservesLoopEnvelope)
+{
+    TimelineStreamer::Config cfg; cfg.ringFrames = 8192; cfg.chunkFrames = 512; cfg.startThresholdFrames = 512;
+    StreamRig r (128, cfg);
+    auto tracks = std::make_shared<TrackSet>();
+    auto constant = [] (int64_t, int) { return 0.2f; };
+    tracks->slots[0] = std::make_shared<FnTrack> (1, 48000, constant);
+    r.s.setTrackSet (tracks); r.s.setLoop (true, 0, 4096); r.s.setPlaying (true);
+    for (int b = 0; b < 12; ++b) { r.serviceAll(); r.pull(); }
+    auto added = std::make_shared<TrackSet> (*tracks);
+    added->slots[31] = std::make_shared<FnTrack> (2, 48000, constant);
+    r.s.setTrackSet (added);
+    for (int b = 0; b < 100; ++b)
+    {
+        r.serviceAll(); r.pull();
+        if (b > 8)
+            for (int i = 0; i < r.block; ++i)
+            {
+                CHECK_NEAR (r.at (31, 0, i), r.at (0, 0, i), 1e-6);
+                CHECK_NEAR (r.at (31, 1, i), r.at (0, 0, i), 1e-6);
+            }
+    }
+    CHECK (r.s.getUnderrunCount() == 0);
+}
+
+TEST (transportLiveEditsThreaded)
+{
+    struct SlowTrack : FnTrack
+    {
+        explicit SlowTrack (int channels) : FnTrack (channels, 4800000,
+            [] (int64_t, int c) { return c == 0 ? 0.2f : -0.15f; }) {}
+        bool read (float* const* dest, int64_t start, int n) override
+        {
+            // Let the audio consumer overtake the old 1024-frame safety margin.
+            std::this_thread::sleep_for (std::chrono::microseconds (500));
+            return FnTrack::read (dest, start, n);
+        }
+    };
+    TimelineStreamer::Config cfg; cfg.ringFrames = 16384; cfg.chunkFrames = 512; cfg.startThresholdFrames = 1024;
+    StreamRig r (128, cfg);
+    auto tracks = std::make_shared<TrackSet>();
+    tracks->slots[0] = std::make_shared<FnTrack> (1, 4800000, [] (int64_t, int) { return 0.1f; });
+    r.s.setTrackSet (tracks); r.s.setPlaying (true); r.serviceAll();
+    std::atomic<bool> done { false };
+    std::thread producer ([&] { while (!done.load()) { r.s.service(); std::this_thread::yield(); } });
+    bool valid = true;
+    for (int b = 0; b < 1200; ++b)
+    {
+        if (b % 40 == 0)
+        {
+            auto next = std::make_shared<TrackSet> (*tracks);
+            const int kind = (b / 40) % 3;
+            next->slots[1] = kind == 2 ? nullptr : std::make_shared<SlowTrack> (kind + 1);
+            tracks = next; r.s.setTrackSet (next);
+        }
+        r.pull();
+        for (int i = 0; i < r.block; ++i)
+        {
+            valid = valid && std::isfinite (r.at (1, 0, i)) && std::abs (r.at (1, 0, i)) <= 0.200001f;
+            valid = valid && std::isfinite (r.at (1, 1, i)) && std::abs (r.at (1, 1, i)) <= 0.200001f;
+        }
+        std::this_thread::sleep_for (std::chrono::microseconds (100));
+    }
+    done.store (true); producer.join();
+    CHECK (valid);
+}
+
+TEST (mixMultitrackBelowFullScaleMatchesReference)
+{
+    for (double rate : { 44100.0, 48000.0, 96000.0 })
+        for (int tracks : { 1, 2, 8, 32 })
+        {
+            EngineRig r; r.engine.prepare (rate, EngineRig::kBlock);
+            OutputProtection protection; protection.prepare (rate);
+            for (int s = 0; s < tracks; ++s)
+            {
+                r.slotCh[s] = s % 2 + 1;
+                r.params.channels[(size_t)s].source.set ((float)s);
+            }
+            // Open source ramps using silence before measuring waveform accuracy.
+            r.run (50);
+            double error = 0;
+            for (int b = 0; b < 40; ++b)
+            {
+                for (int s = 0; s < tracks; ++s)
+                    for (int i = 0; i < EngineRig::kBlock; ++i)
+                    {
+                        const double t = (b * EngineRig::kBlock + i) / rate;
+                        r.slotBuf[(size_t)s*2][(size_t)i] = (float)(0.4 / tracks * std::sin (2 * 3.141592653589793 * (113 + s * 73) * t));
+                        r.slotBuf[(size_t)s*2+1][(size_t)i] = (float)(0.3 / tracks * std::cos (2 * 3.141592653589793 * (181 + s * 37) * t));
+                    }
+                r.run (1); protection.process (r.outL.data(), r.outR.data(), EngineRig::kBlock);
+                for (int i = 0; i < EngineRig::kBlock; ++i)
+                {
+                    double l = 0, right = 0;
+                    for (int s = 0; s < tracks; ++s)
+                    {
+                        const bool mono = r.slotCh[s] == 1;
+                        l += r.slotBuf[(size_t)s*2][(size_t)i] * (mono ? std::sqrt (0.5) : 1.0);
+                        right += mono ? r.slotBuf[(size_t)s*2][(size_t)i] * std::sqrt (0.5) : r.slotBuf[(size_t)s*2+1][(size_t)i];
+                    }
+                    error = std::max (error, std::abs (r.outL[(size_t)i] - l));
+                    error = std::max (error, std::abs (r.outR[(size_t)i] - right));
+                }
+            }
+            CHECK (error < 1e-6);
+            CHECK (! r.meters.main.clip.load());
+        }
+}
+
 TEST (mixBusAndSendGainChangesAreSmoothed)
 {
     EngineRig rig;
