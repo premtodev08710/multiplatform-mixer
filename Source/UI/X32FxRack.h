@@ -303,6 +303,41 @@ namespace X32Fx
                 default: break;
             }
         }
+        if (id == "st_enhancer")
+        {
+            switch (paramIdx)
+            {
+                case 0: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // OUT GAIN
+                case 1: return juce::String (juce::roundToInt (normVal * 100.0f)) + "%";            // SPREAD
+                case 2: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // BASS GAIN
+                case 3: return juce::String (juce::roundToInt (40.0f * std::pow (10.0f, normVal))) + " Hz"; // BASS FREQ (40..400Hz)
+                case 4: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // MID GAIN
+                case 5: return juce::String (juce::roundToInt (normVal * 100.0f)) + "%";            // MID Q
+                case 6: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // HI GAIN
+                case 7: {
+                    float hz = 1000.0f * std::pow (16.0f, normVal);
+                    return hz >= 1000.0f ? (juce::String (hz * 0.001f, 1) + " kHz") : (juce::String (juce::roundToInt (hz)) + " Hz");
+                }
+                default: break;
+            }
+        }
+        if (id == "du_enhancer")
+        {
+            switch (paramIdx)
+            {
+                case 0: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // OUT GAIN
+                case 1: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // BASS GAIN
+                case 2: return juce::String (juce::roundToInt (40.0f * std::pow (10.0f, normVal))) + " Hz"; // BASS FREQ
+                case 3: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // MID GAIN
+                case 4: return juce::String (juce::roundToInt (normVal * 100.0f)) + "%";            // MID Q
+                case 5: return juce::String (juce::roundToInt (-12.0f + normVal * 24.0f)) + " dB"; // HI GAIN
+                case 6: {
+                    float hz = 1000.0f * std::pow (16.0f, normVal);
+                    return hz >= 1000.0f ? (juce::String (hz * 0.001f, 1) + " kHz") : (juce::String (juce::roundToInt (hz)) + " Hz");
+                }
+                default: break;
+            }
+        }
 
         // Generic fallback by parameter name keywords
         if (paramIdx >= 0 && paramIdx < (int) model.paramNames.size())

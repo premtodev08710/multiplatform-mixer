@@ -72,6 +72,8 @@ private:
     std::array<ChannelDspMeters, 8> fxReturnDspMeters;
 
     std::array<std::vector<float>, 6> sendTapBuffers;
+    std::array<std::vector<float>, 32> chPreInsL, chPreInsR;
+    std::array<std::array<std::vector<float>, 6>, 32> chSendTapBuffers;
     FxRackManager fxRack;
     std::array<std::vector<float>, 16> busBufL, busBufR;
     std::array<std::vector<float>, 6> mtxBufL, mtxBufR;

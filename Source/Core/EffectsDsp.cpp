@@ -295,9 +295,30 @@ void FxSlotParams::setDefaultsForType (FxType type)
         case FxType::DualExciter:
             mix.set (0.35f);p1.set (30.0f); break;
         case FxType::SoundMaxer:
-        case FxType::StereoEnhancer:
-        case FxType::DualEnhancer:
             mix.set (1.0f); p1.set (20.0f); p2.set (20.0f); p3.set (0.0f); break;
+        case FxType::StereoEnhancer:
+            parameterEncoding.set (2.0f);
+            mix.set (1.0f);
+            p1.set (0.50f); // OUT GAIN: 0 dB
+            p2.set (0.65f); // SPREAD: 65%
+            p3.set (0.50f); // BASS GAIN: 0 dB
+            p4.set (0.40f); // BASS FREQ: ~100 Hz
+            p5.set (0.50f); // MID GAIN: 0 dB
+            p6.set (0.50f); // MID Q: 2.15
+            p7.set (0.50f); // HI GAIN: 0 dB
+            p8.set (0.68f); // HI FREQ: ~6.6 kHz
+            break;
+        case FxType::DualEnhancer:
+            parameterEncoding.set (2.0f);
+            mix.set (1.0f);
+            p1.set (0.50f); // OUT GAIN: 0 dB
+            p2.set (0.50f); // BASS GAIN: 0 dB
+            p3.set (0.40f); // BASS FREQ: ~100 Hz
+            p4.set (0.50f); // MID GAIN: 0 dB
+            p5.set (0.50f); // MID Q: 2.15
+            p6.set (0.50f); // HI GAIN: 0 dB
+            p7.set (0.68f); // HI FREQ: ~6.6 kHz
+            break;
         case FxType::StereoGuitarAmp:
         case FxType::DualGuitarAmp:
             mix.set (1.0f); p1.set (45.0f); p2.set (50.0f); p3.set (50.0f); p4.set (50.0f); break; // Drive, Bass, Mid, Treble
@@ -1844,8 +1865,8 @@ void PremiumTubeEqDsp::process (float* chL, float* chR, int numSamples,
             chR[i] = chR[i] + harmR * harmMix;
         }
     }
-    // 4. BBE Sonic Maximizer 882i / SPL Vitalizer Stereo Enhancer
-    else if (type == FxType::SoundMaxer || type == FxType::StereoEnhancer || type == FxType::DualEnhancer)
+    // 4. BBE Sonic Maximizer 882i
+    else if (type == FxType::SoundMaxer)
     {
         const float bassFreq = (type == FxType::SoundMaxer) ? 150.0f : clampf (p3 > 10.0f ? p3 : 120.0f, 40.0f, 400.0f);
         const float highFreq = (type == FxType::SoundMaxer) ? 2500.0f : clampf (p5 > 100.0f ? p5 : 2500.0f, 1000.0f, 8000.0f);
@@ -2692,16 +2713,18 @@ void FxSlotProcessor::process (const float* inL, const float* inR,
 
         case FxCategory::PremiumTubeEq:
         {
-            if (norm16 && (type == FxType::StereoEnhancer || type == FxType::DualEnhancer))
+            if (type == FxType::StereoEnhancer || type == FxType::DualEnhancer)
             {
                 const bool stereo = type == FxType::StereoEnhancer;
                 const int offset = stereo ? 1 : 0;
                 const auto v = [&params](int index) { return params.parameter(index).get(); };
-                tubeEq.processEnhancer(workL.data(),workR.data(),numSamples,
-                    (v(1+offset)-.5f)*24.0f, mapExpNormOrRaw(v(2+offset),40,400,true),
-                    (v(3+offset)-.5f)*24.0f, .3f+v(4+offset)*3.7f,
-                    (v(5+offset)-.5f)*24.0f, mapExpNormOrRaw(v(6+offset),1000,16000,true),
-                    stereo ? rawP2*2.0f : 1.0f, (rawP1-.5f)*24.0f, mixVal);
+                const float p1Norm = clampf (norm16 ? rawP1 : 0.5f, 0.0f, 1.0f);
+                const float p2Norm = clampf (norm16 ? rawP2 : 0.65f, 0.0f, 1.0f);
+                tubeEq.processEnhancer (workL.data(), workR.data(), numSamples,
+                    (clampf (v(1+offset), 0.0f, 1.0f) - 0.5f) * 24.0f, mapExpNormOrRaw (v(2+offset), 40.0f, 400.0f, true),
+                    (clampf (v(3+offset), 0.0f, 1.0f) - 0.5f) * 24.0f, 0.3f + clampf (v(4+offset), 0.0f, 1.0f) * 3.7f,
+                    (clampf (v(5+offset), 0.0f, 1.0f) - 0.5f) * 24.0f, mapExpNormOrRaw (v(6+offset), 1000.0f, 16000.0f, true),
+                    stereo ? p2Norm * 2.0f : 1.0f, (p1Norm - 0.5f) * 24.0f, mixVal);
                 break;
             }
             float p1 = rawP1, p2 = rawP2, p3 = rawP3, p4 = rawP4, p5 = rawP5, p6 = rawP6;

@@ -1731,7 +1731,91 @@ TEST (transportAddingTrackAfterPlayheadAtEnd)
     CHECK (r.s.isPlaying());
 }
 
+TEST (fx5StereoEnhancerInsertDistortion)
+{
+    EngineRig rig;
+    const double sr = 48000.0;
+    rig.slotCh[0] = 1;
+    rig.slotCh[1] = 1;
+
+    auto& ch0 = rig.params.channels[0];
+    auto& ch1 = rig.params.channels[1];
+    ch0.source.set (0);
+    ch1.source.set (1);
+    ch0.pan.set (-1.0f); // ch0 panned Left
+    ch1.pan.set (1.0f);  // ch1 panned Right
+    ch0.insertFxSlot.set (5.0f);
+    ch1.insertFxSlot.set (5.0f);
+
+    auto& fx5 = rig.params.fxSlots[4];
+    fx5.setDefaultsForType (FxType::StereoEnhancer);
+    fx5.insertTargets[0].set (1.0f);
+    fx5.insertTargets[1].set (2.0f);
+    fx5.bypass.setBool (false);
+
+    // Let's set the exact parameters from the user's screenshot:
+    // Knobs: OUT GAIN: -6dB (0.50), SPREAD: 65% (0.65), BASS GAIN: -3dB (0.58), BASS FREQ: 980Hz (0.40),
+    // MID GAIN: -5dB (0.52), MID Q: 50% (0.50), HI GAIN: -2dB (0.62), HI FREQ: 8.0kHz (0.68)
+    fx5.parameterEncoding.set (2.0f); // Normalized UI
+    fx5.p1.set (0.50f);
+    fx5.p2.set (0.65f);
+    fx5.p3.set (0.58f);
+    fx5.p4.set (0.40f);
+    fx5.p5.set (0.52f);
+    fx5.p6.set (0.50f);
+    fx5.p7.set (0.62f);
+    fx5.p8.set (0.68f);
+
+    int totalSamples = 0;
+    float maxBoundaryStepL = 0.0f;
+    float maxBoundaryStepR = 0.0f;
+    float prevSampleL = 0.0f;
+    float prevSampleR = 0.0f;
+    bool hasPrevious = false;
+
+    for (int b = 0; b < 25; ++b)
+    {
+        for (int i = 0; i < EngineRig::kBlock; ++i)
+        {
+            const float t = (float) (totalSamples + i) / (float) sr;
+            rig.slotBuf[0][(size_t) i] = 0.4f * std::sin (2.0f * kPi * 220.0f * t);
+            rig.slotBuf[2][(size_t) i] = 0.4f * std::sin (2.0f * kPi * 440.0f * t);
+        }
+        totalSamples += EngineRig::kBlock;
+
+        rig.engine.process (rig.slotPtr.data(), rig.slotCh, EngineRig::kBlock, rig.outL.data(), rig.outR.data());
+
+        // Check for boundary jumps between blocks
+        if (hasPrevious)
+        {
+            const float stepL = std::abs (rig.outL[0] - prevSampleL);
+            const float stepR = std::abs (rig.outR[0] - prevSampleR);
+            if (b > 5) // after initial ramp
+            {
+                maxBoundaryStepL = std::max (maxBoundaryStepL, stepL);
+                maxBoundaryStepR = std::max (maxBoundaryStepR, stepR);
+            }
+        }
+        prevSampleL = rig.outL.back();
+        prevSampleR = rig.outR.back();
+        hasPrevious = true;
+
+        for (int i = 0; i < EngineRig::kBlock; ++i)
+        {
+            CHECK (std::isfinite (rig.outL[(size_t) i]));
+            CHECK (std::isfinite (rig.outR[(size_t) i]));
+        }
+    }
+
+    // Boundary steps should be smooth continuous audio (~0.015 or less for 220/440Hz), NOT discontinuous pops (>0.15)
+    CHECK (maxBoundaryStepL < 0.035f);
+    CHECK (maxBoundaryStepR < 0.035f);
+    CHECK (rig.L() != 0.0f);
+    CHECK (rig.R() != 0.0f);
+}
+
 int main() { return mpstest::runAll ("MixPracticeCoreTests"); }
+
 
 
 
