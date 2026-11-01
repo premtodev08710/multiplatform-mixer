@@ -1111,6 +1111,18 @@ void DetailScreen::setInsertSlotForCurrentStrip (int slot)
         sp.insertTargets[0].set ((float) myCode);
         sp.insertTargets[1].set ((float) myCode);
         sp.insertMode.setBool (true);
+        sp.bypass.setBool (false);
+    }
+    else if (slot == 0 && myCode > 0)
+    {
+        for (int s = 0; s < 8; ++s)
+        {
+            auto& sp = mp.fxSlots[(size_t) s];
+            if (sp.insertTargets[0].getInt() == myCode) sp.insertTargets[0].set (0.0f);
+            if (sp.insertTargets[1].getInt() == myCode) sp.insertTargets[1].set (0.0f);
+            if (s >= 4 && sp.insertTargets[0].getInt() == 0 && sp.insertTargets[1].getInt() == 0)
+                sp.bypass.setBool (true);
+        }
     }
 }
 

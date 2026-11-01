@@ -305,7 +305,7 @@ juce::String FxFaceplateComponent::getInsertTargetText (int slotIdx, int insertP
         return juce::String (buf);
     }
 
-    return "Insert";
+    return "OFF";
 }
 
 juce::String FxFaceplateComponent::getInsertTargetTextForSlot (int slotIdx) const
@@ -453,25 +453,31 @@ void FxFaceplateComponent::showInsertMenu (juce::Component* target, int insertPo
                 if (res == 2000)
                 {
                     slot.insertTargets[(size_t) insertPointIndex].set (0.0f);
+                    if (slot.insertTargets[0].getInt() == 0 && slot.insertTargets[1].getInt() == 0)
+                        slot.bypass.setBool (true);
                 }
                 else if (res >= 2100 && res < 2100 + kMaxInputChannels)
                 {
                     const int chIdx = res - 2100;
                     slot.insertTargets[(size_t) insertPointIndex].set ((float) (chIdx + 1));
+                    slot.bypass.setBool (false);
                 }
                 else if (res >= 2200 && res < 2216)
                 {
                     const int busIdx = res - 2200;
                     slot.insertTargets[(size_t) insertPointIndex].set ((float) (101 + busIdx));
+                    slot.bypass.setBool (false);
                 }
                 else if (res >= 2300 && res < 2306)
                 {
                     const int mtxIdx = res - 2300;
                     slot.insertTargets[(size_t) insertPointIndex].set ((float) (201 + mtxIdx));
+                    slot.bypass.setBool (false);
                 }
                 else if (res == 2400)
                 {
                     slot.insertTargets[(size_t) insertPointIndex].set (301.0f);
+                    slot.bypass.setBool (false);
                 }
 
                 syncMixerEntityInserts();

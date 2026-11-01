@@ -1343,6 +1343,21 @@ TEST (mixerParamsResetToDefaults)
     CHECK (p.fxSlots[2].fxType.getInt() == (int) FxType::StereoDelay);
     CHECK (p.fxSlots[3].fxType.getInt() == (int) FxType::StereoChorus);
     CHECK_NEAR (p.buses[0].faderDb.get(), 0.0f, 1e-5);
+
+    // FX 5-8 must be unassigned and bypassed by default so users choose when to insert them
+    for (int s = 4; s < 8; ++s)
+    {
+        CHECK (p.fxSlots[(size_t) s].insertTargets[0].getInt() == 0);
+        CHECK (p.fxSlots[(size_t) s].insertTargets[1].getInt() == 0);
+        CHECK (p.fxSlots[(size_t) s].bypass.getBool());
+    }
+    for (int c = 0; c < 32; ++c)
+        CHECK (p.channels[(size_t) c].insertFxSlot.getInt() == 0);
+    for (int b = 0; b < 16; ++b)
+        CHECK (p.buses[(size_t) b].insertFxSlot.getInt() == 0);
+    for (int m = 0; m < 6; ++m)
+        CHECK (p.matrices[(size_t) m].insertFxSlot.getInt() == 0);
+    CHECK (p.main.insertFxSlot.getInt() == 0);
 }
 
 TEST (outputProtectionPreservesCleanAudioAndStereoOverload)
